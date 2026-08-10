@@ -2,6 +2,10 @@
 
 All notable changes to Voucher_Machine will be documented in this file.
 
+## [v1.6.1] - 2026-08-10
+### Fixed
+- ShellExecute Error 31 (시스템에 부착된 장치가 작동하지 않습니다) 오류 회피를 위해 Microsoft Edge 무음 프린트 엔진 및 PowerShell Start-Process 백업 인쇄 다중 엔진 구축 (printer_handler.py)
+
 ## [v1.6.0] - 2026-08-10
 ### Changed
 - 일괄 인쇄 기능 범위 변경: Voucher 엑셀 파일 생성을 거치지 않고 **업로드한 4가지 PDF 서류**(PR Print, 거래명세서, 세금계산서, 계약서 지정 페이지)만 순서대로 즉시 일괄 인쇄하는 print_pdf_documents_only() 로직 적용
@@ -13,11 +17,6 @@ All notable changes to Voucher_Machine will be documented in this file.
 ## [v1.5.0] - 2026-08-10
 ### Added
 - 2번 추출 데이터 섹션 내 핵심 3개 항목(**작성일자**, **PR Title**, **공급가액**) 원클릭 클립보드 복사 버튼 ([📋 복사]) 구현
-- 엑셀 열/행에 한 번에 붙여넣을 수 있는 **✨ 3종 항목 한꺼번에 복사 (Tab 구분)** 일괄 복사 버튼 추가
-
-## [v1.4.2] - 2026-08-10
-### Fixed
-- Windows 탐색기 Drag & Drop 경로 파서 정밀화 (urllib.parse.unquote, os.path.normpath, 중괄호/따옴표 제거)로 .pdf 드롭 실패 오경고 문제 해결
 
 ## [v1.4.0] - 2026-08-10
 ### Added
