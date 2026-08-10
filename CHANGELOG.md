@@ -2,27 +2,20 @@
 
 All notable changes to Voucher_Machine will be documented in this file.
 
+## [v1.8.0] - 2026-08-10
+### Added
+- 계약서 페이지 지정 범위 파싱 지원 강화 (12-13, 1-3, 1,2,5 하이픈 구간 및 쉼표 표기 지원)
+- pypdf 슬라이싱 엔진 기반 계약서 지정 범위 정밀 PDF 추출 인쇄 구현 (전체 페이지 출력 현상 100% 교정)
+- 3종 항목 복사 방식 변경: 줄바꿈(\n) 세로 구분 복사를 적용하여 엑셀 붙여넣기 시 세로 3개 셀에 각각 자동 분리 저장
+- 좌측 사이드바 간소화: 사용하지 않는 메뉴 항목을 삭제하고 핵심 3개 메뉴만 깔끔하게 유지
+
 ## [v1.7.0] - 2026-08-10
 ### Added
-- 초경량 무설치 **SumatraPDF Vector Native Print Engine (in/SumatraPDF.exe)** 탑재 (printer_handler.py)
-- 비트맵 이미지 변환 방식 대신 원본 PDF 벡터(Vector) 폰트 명령어 직접 송출 방식으로 개편하여 **텍스트 뭉개짐/부엿함 없는 100% 칼같은 최고화질 인쇄** 구현
-- -print-settings "fit" 옵션 적용으로 프린터 종이 인쇄 영역에 맞춘 100% 비율 자동 핏팅 (테두리 및 텍스트 잘림 현상 0% 해결)
+- 초경량 무설치 **SumatraPDF Vector Native Print Engine (in/SumatraPDF.exe)** 탑재
 
 ## [v1.6.3] - 2026-08-10
 ### Fixed
 - 300 DPI 초고해상도 비트맵 렌더링 도입
-
-## [v1.6.2] - 2026-08-10
-### Fixed
-- Windows GDI Device Context 직통 비트맵 프린터 드라이버 스풀러 엔진 탑재
-
-## [v1.6.0] - 2026-08-10
-### Changed
-- 일괄 인쇄 기능 범위 변경: 업로드한 4가지 PDF 서류만 순서대로 즉시 일괄 인쇄
-
-## [v1.5.0] - 2026-08-10
-### Added
-- 2번 추출 데이터 섹션 내 핵심 3개 항목 원클릭 클립보드 복사 기능 구현
 
 ## [v1.0.0] - 2026-08-10
 ### Added

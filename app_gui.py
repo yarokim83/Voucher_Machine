@@ -119,7 +119,7 @@ class PastelGlassDropZone(tk.Frame):
 class VoucherPassApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("VoucherPass v1.6.0")
+        self.root.title("VoucherPass v1.8.0")
         self.root.geometry("1180x800")
         self.root.minsize(1120, 740)
 
@@ -150,6 +150,7 @@ class VoucherPassApp:
         self.root.configure(bg=self.bg_app)
 
     def _build_layout(self):
+        # Header
         header = tk.Frame(self.root, bg="#FFFFFF", highlightbackground="#E2E8F0", highlightthickness=1, padx=16, pady=10)
         header.pack(fill="x")
 
@@ -166,21 +167,21 @@ class VoucherPassApp:
         logo_txt = tk.Label(header, text="VoucherPass", font=("Malgun Gothic", 15, "bold"), bg="#FFFFFF", fg="#0F172A")
         logo_txt.pack(side="left")
 
-        ver_badge = tk.Label(header, text="v1.6.0", font=("Malgun Gothic", 8, "bold"), bg="#EFF6FF", fg="#2563EB", padx=6, pady=2)
+        ver_badge = tk.Label(header, text="v1.8.0", font=("Malgun Gothic", 8, "bold"), bg="#EFF6FF", fg="#2563EB", padx=6, pady=2)
         ver_badge.pack(side="left", padx=(8, 16))
 
-        sub_desc = tk.Label(header, text="⚙️ 제출 서류 PDF Drag & Drop 업로드 ➔ 자동 파싱 & 4종 PDF 일괄 인쇄", font=("Malgun Gothic", 9), bg="#FFFFFF", fg="#64748B")
+        sub_desc = tk.Label(header, text="⚙️ 제출 서류 PDF Drag & Drop 업로드 ➔ 데이터 세로 복사 & 계약서 구간 인쇄", font=("Malgun Gothic", 9), bg="#FFFFFF", fg="#64748B")
         sub_desc.pack(side="left")
 
-        btn_help = tk.Button(header, text="❓ 도움말", font=("Malgun Gothic", 8), bg="#F1F5F9", fg="#475569", relief="flat", padx=10, pady=3, command=lambda: messagebox.showinfo("도움말", "업로드한 4가지 PDF 서류(PR, 거래명세서, 세금계산서, 계약서)를 [🖨️ 업로드 PDF 서류 일괄 인쇄] 버튼으로 한 번에 출력할 수 있습니다."))
+        btn_help = tk.Button(header, text="❓ 도움말", font=("Malgun Gothic", 8), bg="#F1F5F9", fg="#475569", relief="flat", padx=10, pady=3, command=lambda: messagebox.showinfo("도움말", "계약서 페이지란에 '12-13' 또는 '1,2' 입력 시 해당 페이지만 정확히 인쇄됩니다.\n3종 한꺼번에 복사 후 엑셀에 붙여넣으면 세로 3개 셀에 자동 입력됩니다."))
         btn_help.pack(side="right", padx=2)
-
-        btn_sett = tk.Button(header, text="⚙️ 설정", font=("Malgun Gothic", 8), bg="#F1F5F9", fg="#475569", relief="flat", padx=10, pady=3, command=self.browse_template)
-        btn_sett.pack(side="right", padx=2)
 
         body_container = tk.Frame(self.root, bg=self.bg_app)
         body_container.pack(fill="both", expand=True)
 
+        # -----------------------------------------------------------
+        # Left Sidebar (사용하는 핵심 메뉴 3개만 깔끔 배치)
+        # -----------------------------------------------------------
         sidebar = tk.Frame(body_container, bg=self.sidebar_bg, width=210, padx=12, pady=16)
         sidebar.pack(side="left", fill="y")
 
@@ -188,17 +189,11 @@ class VoucherPassApp:
             ("☁️ PDF 업로드", True),
             ("📋 데이터 복사", True),
             ("🖨️ PDF 일괄 인쇄", True),
-            ("🕒 히스토리", False),
-            ("⚙️ 설정", False),
         ]
 
         for text, active in nav_items:
-            bg_c = "#EFF6FF" if active else self.sidebar_bg
-            fg_c = "#2563EB" if active else "#475569"
-            font_w = "bold" if active else "normal"
-            
-            btn = tk.Button(sidebar, text=text, font=("Malgun Gothic", 9, font_w), bg=bg_c, fg=fg_c, activebackground="#DBEAFE", activeforeground="#1E40AF", relief="flat", anchor="w", padx=14, pady=9, cursor="hand2")
-            btn.pack(fill="x", pady=2)
+            btn = tk.Button(sidebar, text=text, font=("Malgun Gothic", 9, "bold"), bg="#EFF6FF", fg="#2563EB", activebackground="#DBEAFE", activeforeground="#1E40AF", relief="flat", anchor="w", padx=14, pady=10, cursor="hand2")
+            btn.pack(fill="x", pady=4)
 
         safe_card = tk.Frame(sidebar, bg="#FFFFFF", highlightbackground="#E2E8F0", highlightthickness=1, padx=12, pady=12)
         safe_card.pack(side="bottom", fill="x", pady=(0, 10))
@@ -206,6 +201,7 @@ class VoucherPassApp:
         tk.Label(safe_card, text="🛡️ 안전한 데이터 처리", font=("Malgun Gothic", 8, "bold"), bg="#FFFFFF", fg="#0F172A", anchor="w").pack(fill="x")
         tk.Label(safe_card, text="모든 파일은 안전하게\n처리되며 저장되지 않습니다.", font=("Malgun Gothic", 8), bg="#FFFFFF", fg="#94A3B8", justify="left", anchor="w").pack(fill="x", pady=(4, 0))
 
+        # Right Main Panel
         main_panel = tk.Frame(body_container, bg=self.bg_app, padx=18, pady=14)
         main_panel.pack(side="right", fill="both", expand=True)
 
@@ -238,8 +234,8 @@ class VoucherPassApp:
         pg_sub = tk.Frame(contract_container, bg="#FFFFFF", padx=8, pady=3, highlightbackground="#E2E8F0", highlightthickness=1)
         pg_sub.pack(fill="x", pady=(3, 0))
         tk.Label(pg_sub, text="📄 인쇄 대상 페이지:", font=("Malgun Gothic", 8, "bold"), bg="#FFFFFF", fg="#475569").pack(side="left")
-        tk.Entry(pg_sub, textvariable=self.contract_page, font=("Malgun Gothic", 8), width=4, relief="solid", bd=1).pack(side="left", padx=4)
-        tk.Label(pg_sub, text="(예: 1 또는 1,2)", font=("Malgun Gothic", 8), bg="#FFFFFF", fg="#94A3B8").pack(side="left")
+        tk.Entry(pg_sub, textvariable=self.contract_page, font=("Malgun Gothic", 8), width=8, relief="solid", bd=1).pack(side="left", padx=4)
+        tk.Label(pg_sub, text="(예: 12-13 또는 1,2)", font=("Malgun Gothic", 8), bg="#FFFFFF", fg="#94A3B8").pack(side="left")
 
         grid_drop.columnconfigure(0, weight=1)
         grid_drop.columnconfigure(1, weight=1)
@@ -291,10 +287,11 @@ class VoucherPassApp:
         tot_e = tk.Entry(r2, textvariable=self.total_amount_var, width=16, font=("Malgun Gothic", 9, "bold"), bg="#EFF6FF", fg="#1D4ED8", relief="solid", bd=1)
         tot_e.pack(side="left", padx=(4, 12))
 
-        btn_copy_all = tk.Button(r2, text="✨ 3종 항목 한꺼번에 복사 (Tab 구분)", font=("Malgun Gothic", 8, "bold"), bg="#2563EB", fg="white", activebackground="#1D4ED8", activeforeground="white", relief="flat", padx=8, pady=2, cursor="hand2", command=self.copy_all_3items)
+        # 3종 세로 한꺼번에 복사 버튼 (\n 줄바꿈 적용)
+        btn_copy_all = tk.Button(r2, text="✨ 3종 항목 세로 복사 (엑셀 붙여넣기용)", font=("Malgun Gothic", 8, "bold"), bg="#2563EB", fg="white", activebackground="#1D4ED8", activeforeground="white", relief="flat", padx=8, pady=2, cursor="hand2", command=self.copy_all_3items)
         btn_copy_all.pack(side="right")
 
-        # --- Section 3 & Bottom Action Bar ---
+        # Bottom Action Bar
         bottom_bar = tk.Frame(main_panel, bg="#FFFFFF", highlightbackground="#E2E8F0", highlightthickness=1, padx=12, pady=8)
         bottom_bar.pack(fill="x")
 
@@ -324,6 +321,10 @@ class VoucherPassApp:
         messagebox.showinfo("클립보드 복사 완료", f"[{label_name}] 텍스트가 복사되었습니다!\n\n📋 복사된 내용: {text}")
 
     def copy_all_3items(self):
+        """
+        작성일자, PR Title, 공급가액 3종 항목을 세로 줄바꿈(\\n)으로 구분하여 복사.
+        엑셀 셀 선택 후 Ctrl+V 시 세로 3개 셀에 순서대로 저장됨.
+        """
         d = self.date_var.get().strip()
         t = self.pr_title_var.get().strip()
         a = self.amount_var.get().strip()
@@ -332,14 +333,14 @@ class VoucherPassApp:
             messagebox.showwarning("복사 실패", "복사할 데이터 항목이 없습니다. PDF 파싱을 먼저 진행하세요.")
             return
 
-        combined_text = f"{d}\t{t}\t{a}"
+        combined_text = f"{d}\n{t}\n{a}"
         self.root.clipboard_clear()
         self.root.clipboard_append(combined_text)
         self.root.update()
 
         messagebox.showinfo(
-            "3종 전체 복사 완료",
-            f"다음 3가지 항목이 탭(Tab)으로 구분되어 클립보드에 복사되었습니다.\n엑셀 셀에 바로 Ctrl+V 로 붙여넣으세요!\n\n"
+            "3종 세로 복사 완료",
+            f"다음 3가지 항목이 세로 줄바꿈(\\n)으로 복사되었습니다.\n엑셀 셀 선택 후 Ctrl+V 하시면 세로 3개 셀에 순서대로 들어갑니다!\n\n"
             f"1) 작성일자: {d}\n"
             f"2) PR Title: {t}\n"
             f"3) 공급가액: {a}"
@@ -350,11 +351,6 @@ class VoucherPassApp:
         self.printer_combo['values'] = printers
         if printers:
             self.selected_printer.set(printers[0])
-
-    def browse_template(self):
-        path = filedialog.askopenfilename(filetypes=[("Excel Files", "*.xlsx")])
-        if path:
-            self.template_path.set(path)
 
     def parse_uploaded_pdf(self, pr_path=None):
         if not pr_path:
@@ -393,40 +389,40 @@ class VoucherPassApp:
             self.vat_var.set(f"{vat:,}")
             self.total_amount_var.set(f"{tot:,}")
 
-    def _get_form_data(self):
-        def _to_int(val_str):
-            cleaned = val_str.replace(',', '').strip()
-            return int(cleaned) if cleaned.isdigit() else 0
+    def _parse_contract_pages(self, page_str):
+        """
+        '12-13', '1,2', '5' 등 다양하게 적힌 범위 입력을 파싱하여 (0-based list, 표기용 string) 리턴
+        """
+        pages = set()
+        cleaned = page_str.strip()
+        if not cleaned:
+            return [0], "1"
+        
+        parts = cleaned.split(',')
+        for part in parts:
+            part = part.strip()
+            if '-' in part:
+                sub = part.split('-')
+                if len(sub) == 2 and sub[0].strip().isdigit() and sub[1].strip().isdigit():
+                    start = int(sub[0].strip())
+                    end = int(sub[1].strip())
+                    for p in range(min(start, end), max(start, end) + 1):
+                        if p >= 1:
+                            pages.add(p - 1)
+            elif part.isdigit():
+                p = int(part)
+                if p >= 1:
+                    pages.add(p - 1)
 
-        return {
-            'pr_no': self.pr_no_var.get().strip(),
-            'pr_title': self.pr_title_var.get().strip(),
-            'amount': _to_int(self.amount_var.get()),
-            'vat': _to_int(self.vat_var.get()),
-            'total_amount': _to_int(self.total_amount_var.get()),
-            'date': self.date_var.get().strip(),
-            'supplier': self.supplier_var.get().strip(),
-        }
+        sorted_pages = sorted(list(pages))
+        if not sorted_pages:
+            sorted_pages = [0]
 
-    def create_voucher_excel(self):
-        data = self._get_form_data()
-        tmpl = self.template_path.get()
-
-        if not tmpl or not os.path.exists(tmpl):
-            messagebox.showerror("오류", f"Voucher 엑셀 템플릿 파일을 찾을 수 없습니다:\n{tmpl}")
-            return None
-
-        try:
-            out_path = excel_handler.generate_voucher_excel(data, template_path=tmpl)
-            messagebox.showinfo("엑셀 생성 성공", f"Voucher 엑셀 서식이 정상 저장되었습니다!\n\n경로: {out_path}")
-            return out_path
-        except Exception as e:
-            messagebox.showerror("오류", f"엑셀 작성 실패:\n{e}")
-            return None
+        return sorted_pages, cleaned
 
     def print_pdf_documents_only(self):
         """
-        업로드한 4가지 PDF 서류만 인쇄하는 전용 기능 (엑셀 생성 제외)
+        업로드한 4가지 PDF 서류만 인쇄하는 전용 기능 (계약서 지정 구간 정밀 인쇄)
         """
         printer = self.selected_printer.get()
         printed_list = []
@@ -447,18 +443,13 @@ class VoucherPassApp:
                 printer_handler.print_pdf_file(self.tax_pdf_path.get(), printer_name=printer)
                 printed_list.append("③ 전자 세금계산서 PDF")
 
-            # 4. 업체 계약서 PDF 지정 페이지 인쇄
+            # 4. 업체 계약서 PDF 지정 페이지 인쇄 (예: 12-13)
             if self.contract_pdf_path.get() and os.path.exists(self.contract_pdf_path.get()):
                 page_str = self.contract_page.get().strip()
-                pages = []
-                for p in page_str.split(','):
-                    if p.strip().isdigit():
-                        pages.append(int(p.strip()) - 1)
-                if not pages:
-                    pages = [0]
+                page_indices, label_str = self._parse_contract_pages(page_str)
                 
-                printer_handler.print_pdf_file(self.contract_pdf_path.get(), printer_name=printer, page_range=pages)
-                printed_list.append(f"④ 업체 계약서 PDF ({page_str} 페이지)")
+                printer_handler.print_pdf_file(self.contract_pdf_path.get(), printer_name=printer, page_range=page_indices)
+                printed_list.append(f"④ 업체 계약서 PDF ({label_str} 페이지)")
 
             if not printed_list:
                 messagebox.showwarning("인쇄할 PDF 없음", "인쇄할 PDF 서류가 하나도 업로드되지 않았습니다.\nPDF 파일을 드래그 앤 드롭 업로드해 주세요.")
