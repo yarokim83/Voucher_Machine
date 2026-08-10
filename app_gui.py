@@ -29,24 +29,21 @@ class PastelGlassDropZone(tk.Frame):
         self.inner = tk.Frame(self, bg="#FFFFFF", padx=16, pady=20)
         self.inner.pack(fill="both", expand=True)
 
-        # 원형 아이콘 컨테이너
         self.icon_bg = tk.Frame(self.inner, bg=bg_circle_color, padx=12, pady=10)
         self.icon_bg.pack(side="left", padx=(0, 14))
 
         self.lbl_icon = tk.Label(self.icon_bg, text=icon, font=("Segoe UI Emoji", 20), bg=bg_circle_color, fg=icon_color)
         self.lbl_icon.pack()
 
-        # 텍스트 영역
         txt_box = tk.Frame(self.inner, bg="#FFFFFF")
         txt_box.pack(side="left", fill="both", expand=True)
 
         self.lbl_title = tk.Label(txt_box, text=title, font=("Malgun Gothic", 11, "bold"), bg="#FFFFFF", fg="#0F172A", anchor="w")
         self.lbl_title.pack(fill="x")
 
-        self.lbl_status = tk.Label(txt_box, text="PDF 파일을 이곳으로 드래그 앤 드롭\n하되나 클릭하세요", font=("Malgun Gothic", 8.5), bg="#FFFFFF", fg="#94A3B8", anchor="w", justify="left")
+        self.lbl_status = tk.Label(txt_box, text="PDF 파일을 이곳으로 드래그 앤 드롭\n하되나 클릭하세요", font=("Malgun Gothic", 8), bg="#FFFFFF", fg="#94A3B8", anchor="w", justify="left")
         self.lbl_status.pack(fill="x", pady=(2, 0))
 
-        # 이벤트 및 바인딩
         for w in (self, self.inner, self.icon_bg, self.lbl_icon, txt_box, self.lbl_title, self.lbl_status):
             w.config(cursor="hand2")
             w.bind("<Button-1>", self._browse_file)
@@ -110,11 +107,10 @@ class PastelGlassDropZone(tk.Frame):
 class VoucherPassApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("VoucherPass v1.4.0")
+        self.root.title("VoucherPass v1.4.1")
         self.root.geometry("1160x780")
         self.root.minsize(1100, 720)
 
-        # 상태 변수
         self.pr_pdf_path = tk.StringVar()
         self.spec_pdf_path = tk.StringVar()   # 거래명세서
         self.tax_pdf_path = tk.StringVar()    # 세금계산서
@@ -124,7 +120,6 @@ class VoucherPassApp:
         self.template_path = tk.StringVar(value=r"C:\Users\baewoong.kim\Desktop\고려제강(2025).xlsx")
         self.selected_printer = tk.StringVar()
 
-        # 파싱 데이터 변수
         self.pr_no_var = tk.StringVar()
         self.pr_title_var = tk.StringVar()
         self.amount_var = tk.StringVar()
@@ -143,45 +138,37 @@ class VoucherPassApp:
         self.root.configure(bg=self.bg_app)
 
     def _build_layout(self):
-        # 1. Top Window Bar (macOS Traffic Light Buttons + App Logo)
-        top_bar = tk.Frame(self.root, bg="#FFFFFF", highlightbackground="#E2E8F0", highlightthickness=1, padx=16, pady=10)
-        top_bar.pack(fill="x")
+        header = tk.Frame(self.root, bg="#FFFFFF", highlightbackground="#E2E8F0", highlightthickness=1, padx=16, pady=10)
+        header.pack(fill="x")
 
-        # macOS 신호등 아이콘
-        traffic_frame = tk.Frame(top_bar, bg="#FFFFFF")
+        traffic_frame = tk.Frame(header, bg="#FFFFFF")
         traffic_frame.pack(side="left", padx=(0, 12))
 
         for color in ("#FF5F56", "#FFBD2E", "#27C93F"):
             dot = tk.Label(traffic_frame, text="●", font=("Arial", 10), bg="#FFFFFF", fg=color)
             dot.pack(side="left", padx=2)
 
-        # 로고 & 서브 타이틀
-        logo_icon = tk.Label(top_bar, text="☑", font=("Segoe UI Emoji", 15, "bold"), bg="#FFFFFF", fg="#2563EB")
+        logo_icon = tk.Label(header, text="☑", font=("Segoe UI Emoji", 15, "bold"), bg="#FFFFFF", fg="#2563EB")
         logo_icon.pack(side="left", padx=(6, 4))
 
-        logo_txt = tk.Label(top_bar, text="VoucherPass", font=("Malgun Gothic", 15, "bold"), bg="#FFFFFF", fg="#0F172A")
+        logo_txt = tk.Label(header, text="VoucherPass", font=("Malgun Gothic", 15, "bold"), bg="#FFFFFF", fg="#0F172A")
         logo_txt.pack(side="left")
 
-        ver_badge = tk.Label(top_bar, text="v1.4.0", font=("Malgun Gothic", 8, "bold"), bg="#EFF6FF", fg="#2563EB", padx=6, pady=2)
+        ver_badge = tk.Label(header, text="v1.4.1", font=("Malgun Gothic", 8, "bold"), bg="#EFF6FF", fg="#2563EB", padx=6, pady=2)
         ver_badge.pack(side="left", padx=(8, 16))
 
-        sub_desc = tk.Label(top_bar, text="⚙️ 제출 서류 PDF Drag & Drop 업로드 ➔ 자동 파싱 & Voucher 작성/인쇄", font=("Malgun Gothic", 9), bg="#FFFFFF", fg="#64748B")
+        sub_desc = tk.Label(header, text="⚙️ 제출 서류 PDF Drag & Drop 업로드 ➔ 자동 파싱 & Voucher 작성/인쇄", font=("Malgun Gothic", 9), bg="#FFFFFF", fg="#64748B")
         sub_desc.pack(side="left")
 
-        # Top Right Buttons (설정, 도움말)
-        btn_help = tk.Button(top_bar, text="❓ 도움말", font=("Malgun Gothic", 8.5), bg="#F1F5F9", fg="#475569", relief="flat", padx=10, pady=3, command=lambda: messagebox.showinfo("도움말", "PDF 서류를 드래그 앤 드롭하면 자동 파싱됩니다."))
+        btn_help = tk.Button(header, text="❓ 도움말", font=("Malgun Gothic", 8), bg="#F1F5F9", fg="#475569", relief="flat", padx=10, pady=3, command=lambda: messagebox.showinfo("도움말", "PDF 서류를 드래그 앤 드롭하면 자동 파싱됩니다."))
         btn_help.pack(side="right", padx=2)
 
-        btn_sett = tk.Button(top_bar, text="⚙️ 설정", font=("Malgun Gothic", 8.5), bg="#F1F5F9", fg="#475569", relief="flat", padx=10, pady=3, command=self.browse_template)
+        btn_sett = tk.Button(header, text="⚙️ 설정", font=("Malgun Gothic", 8), bg="#F1F5F9", fg="#475569", relief="flat", padx=10, pady=3, command=self.browse_template)
         btn_sett.pack(side="right", padx=2)
 
-        # 2. Main Body Container (Split: Sidebar + Main Panel)
         body_container = tk.Frame(self.root, bg=self.bg_app)
         body_container.pack(fill="both", expand=True)
 
-        # -----------------------------------------------------------
-        # Left Sidebar (사이드바 메뉴)
-        # -----------------------------------------------------------
         sidebar = tk.Frame(body_container, bg=self.sidebar_bg, width=210, padx=12, pady=16)
         sidebar.pack(side="left", fill="y")
 
@@ -198,35 +185,29 @@ class VoucherPassApp:
             fg_c = "#2563EB" if active else "#475569"
             font_w = "bold" if active else "normal"
             
-            btn = tk.Button(sidebar, text=text, font=("Malgun Gothic", 9.5, font_w), bg=bg_c, fg=fg_c, activebackground="#DBEAFE", activeforeground="#1E40AF", relief="flat", anchor="w", padx=14, pady=9, cursor="hand2")
+            btn = tk.Button(sidebar, text=text, font=("Malgun Gothic", 9, font_w), bg=bg_c, fg=fg_c, activebackground="#DBEAFE", activeforeground="#1E40AF", relief="flat", anchor="w", padx=14, pady=9, cursor="hand2")
             btn.pack(fill="x", pady=2)
 
-        # Sidebar Bottom Safety Card
         safe_card = tk.Frame(sidebar, bg="#FFFFFF", highlightbackground="#E2E8F0", highlightthickness=1, padx=12, pady=12)
         safe_card.pack(side="bottom", fill="x", pady=(0, 10))
 
-        tk.Label(safe_card, text="🛡️ 안전한 데이터 처리", font=("Malgun Gothic", 8.5, "bold"), bg="#FFFFFF", fg="#0F172A", anchor="w").pack(fill="x")
-        tk.Label(safe_card, text="모든 파일은 안전하게\n처리되며 저장되지 않습니다.", font=("Malgun Gothic", 7.5), bg="#FFFFFF", fg="#94A3B8", justify="left", anchor="w").pack(fill="x", pady=(4, 0))
+        tk.Label(safe_card, text="🛡️ 안전한 데이터 처리", font=("Malgun Gothic", 8, "bold"), bg="#FFFFFF", fg="#0F172A", anchor="w").pack(fill="x")
+        tk.Label(safe_card, text="모든 파일은 안전하게\n처리되며 저장되지 않습니다.", font=("Malgun Gothic", 8), bg="#FFFFFF", fg="#94A3B8", justify="left", anchor="w").pack(fill="x", pady=(4, 0))
 
-        # -----------------------------------------------------------
-        # Right Main Panel (메인 뷰)
-        # -----------------------------------------------------------
         main_panel = tk.Frame(body_container, bg=self.bg_app, padx=18, pady=14)
         main_panel.pack(side="right", fill="both", expand=True)
 
-        # --- Section 1: Drag & Drop Drop Zone ---
         sec1_header = tk.Frame(main_panel, bg=self.bg_app)
         sec1_header.pack(fill="x", pady=(0, 8))
 
         tk.Label(sec1_header, text="1. 제출 서류 PDF 업로드 (Drag & Drop Zone)", font=("Malgun Gothic", 11, "bold"), bg=self.bg_app, fg="#0F172A").pack(side="left")
 
-        btn_select_file = tk.Button(sec1_header, text="📁 파일 선택", font=("Malgun Gothic", 8.5), bg="#FFFFFF", fg="#334155", relief="flat", highlightbackground="#E2E8F0", highlightthickness=1, padx=10, pady=3, command=lambda: self.drop_pr._browse_file())
+        btn_select_file = tk.Button(sec1_header, text="📁 파일 선택", font=("Malgun Gothic", 8), bg="#FFFFFF", fg="#334155", relief="flat", highlightbackground="#E2E8F0", highlightthickness=1, padx=10, pady=3, command=lambda: self.drop_pr._browse_file())
         btn_select_file.pack(side="right")
 
         grid_drop = tk.Frame(main_panel, bg=self.bg_app)
         grid_drop.pack(fill="both", expand=True, pady=(0, 10))
 
-        # 4개 파스텔 원형 Drop Zone 카드
         self.drop_pr = PastelGlassDropZone(grid_drop, "① PR Print (구매요청서)", "🛒", "#EFF6FF", "#2563EB", self.pr_pdf_path, on_file_selected=self.parse_uploaded_pdf)
         self.drop_pr.grid(row=0, column=0, padx=6, pady=6, sticky="nsew")
 
@@ -242,7 +223,6 @@ class VoucherPassApp:
         self.drop_contract = PastelGlassDropZone(contract_container, "④ 업체 계약서 PDF", "📝", "#FFFBEB", "#D97706", self.contract_pdf_path)
         self.drop_contract.pack(fill="both", expand=True)
 
-        # 계약서 하단 인쇄 대상 페이지
         pg_sub = tk.Frame(contract_container, bg="#FFFFFF", padx=8, pady=3, highlightbackground="#E2E8F0", highlightthickness=1)
         pg_sub.pack(fill="x", pady=(3, 0))
         tk.Label(pg_sub, text="📄 인쇄 대상 페이지:", font=("Malgun Gothic", 8, "bold"), bg="#FFFFFF", fg="#475569").pack(side="left")
@@ -254,14 +234,12 @@ class VoucherPassApp:
         grid_drop.rowconfigure(0, weight=1)
         grid_drop.rowconfigure(1, weight=1)
 
-        # --- Section 2: Extracted Data (Voucher 자동 연동) ---
         sec2_card = tk.LabelFrame(main_panel, text=" 2. 추출 데이터 (Voucher 자동 연동) ", font=("Malgun Gothic", 10, "bold"), bg="#FFFFFF", fg="#1E3A8A", bd=1, relief="solid", padx=12, pady=8)
         sec2_card.pack(fill="x", pady=(0, 10))
 
-        lbl_s = {"font": ("Malgun Gothic", 8.5, "bold"), "bg": "#FFFFFF", "fg": "#475569", "anchor": "e"}
-        ent_s = {"font": ("Malgun Gothic", 8.5), "bg": "#F8FAFC", "relief": "solid", "bd": 1}
+        lbl_s = {"font": ("Malgun Gothic", 8, "bold"), "bg": "#FFFFFF", "fg": "#475569", "anchor": "e"}
+        ent_s = {"font": ("Malgun Gothic", 8), "bg": "#F8FAFC", "relief": "solid", "bd": 1}
 
-        # Row 0
         r0 = tk.Frame(sec2_card, bg="#FFFFFF")
         r0.pack(fill="x", pady=2)
 
@@ -274,13 +252,11 @@ class VoucherPassApp:
         tk.Label(r0, text="거래처명 (Payee):", **lbl_s).pack(side="left")
         tk.Entry(r0, textvariable=self.supplier_var, width=24, **ent_s).pack(side="left", padx=(4, 0))
 
-        # Row 1
         r1 = tk.Frame(sec2_card, bg="#FFFFFF")
         r1.pack(fill="x", pady=2)
         tk.Label(r1, text="PR Title:", **lbl_s).pack(side="left")
         tk.Entry(r1, textvariable=self.pr_title_var, **ent_s).pack(side="left", fill="x", expand=True, padx=(4, 0))
 
-        # Row 2
         r2 = tk.Frame(sec2_card, bg="#FFFFFF")
         r2.pack(fill="x", pady=2)
 
@@ -296,34 +272,31 @@ class VoucherPassApp:
         tot_e = tk.Entry(r2, textvariable=self.total_amount_var, width=20, font=("Malgun Gothic", 9, "bold"), bg="#EFF6FF", fg="#1D4ED8", relief="solid", bd=1)
         tot_e.pack(side="left", padx=(4, 0))
 
-        # --- Section 3 & Bottom Action Bar ---
         bottom_bar = tk.Frame(main_panel, bg="#FFFFFF", highlightbackground="#E2E8F0", highlightthickness=1, padx=12, pady=8)
         bottom_bar.pack(fill="x")
 
-        # Left: Settings
         sett_b = tk.Frame(bottom_bar, bg="#FFFFFF")
         sett_b.pack(side="left", fill="x", expand=True, padx=(0, 10))
 
         s1 = tk.Frame(sett_b, bg="#FFFFFF")
         s1.pack(fill="x", pady=1)
-        tk.Label(s1, text="템플릿:", font=("Malgun Gothic", 8.5, "bold"), bg="#FFFFFF", fg="#475569").pack(side="left")
+        tk.Label(s1, text="템플릿:", font=("Malgun Gothic", 8, "bold"), bg="#FFFFFF", fg="#475569").pack(side="left")
         tk.Entry(s1, textvariable=self.template_path, font=("Malgun Gothic", 8), bg="#F8FAFC", relief="solid", bd=1).pack(side="left", fill="x", expand=True, padx=4)
         tk.Button(s1, text="📁", font=("Segoe UI Emoji", 8), bg="#F1F5F9", relief="flat", command=self.browse_template).pack(side="left")
 
         s2 = tk.Frame(sett_b, bg="#FFFFFF")
         s2.pack(fill="x", pady=1)
-        tk.Label(s2, text="프린터:", font=("Malgun Gothic", 8.5, "bold"), bg="#FFFFFF", fg="#475569").pack(side="left")
-        self.printer_combo = ttk.Combobox(s2, textvariable=self.selected_printer, font=("Malgun Gothic", 8.5), state="readonly")
+        tk.Label(s2, text="프린터:", font=("Malgun Gothic", 8, "bold"), bg="#FFFFFF", fg="#475569").pack(side="left")
+        self.printer_combo = ttk.Combobox(s2, textvariable=self.selected_printer, font=("Malgun Gothic", 8), state="readonly")
         self.printer_combo.pack(side="left", fill="x", expand=True, padx=4)
 
-        # Right: Buttons
         act_b = tk.Frame(bottom_bar, bg="#FFFFFF")
         act_b.pack(side="right")
 
-        btn_excel = tk.Button(act_b, text="📊 Voucher 엑셀 작성", font=("Malgun Gothic", 9.5, "bold"), bg="#10B981", fg="white", activebackground="#059669", activeforeground="white", relief="flat", padx=16, pady=8, cursor="hand2", command=self.create_voucher_excel)
+        btn_excel = tk.Button(act_b, text="📊 Voucher 엑셀 작성", font=("Malgun Gothic", 9, "bold"), bg="#10B981", fg="white", activebackground="#059669", activeforeground="white", relief="flat", padx=16, pady=8, cursor="hand2", command=self.create_voucher_excel)
         btn_excel.pack(side="left", padx=(0, 6))
 
-        btn_print = tk.Button(act_b, text="🖨️ Voucher & PDF 일괄 인쇄", font=("Malgun Gothic", 9.5, "bold"), bg="#3B82F6", fg="white", activebackground="#2563EB", activeforeground="white", relief="flat", padx=18, pady=8, cursor="hand2", command=self.print_all_documents)
+        btn_print = tk.Button(act_b, text="🖨️ Voucher & PDF 일괄 인쇄", font=("Malgun Gothic", 9, "bold"), bg="#3B82F6", fg="white", activebackground="#2563EB", activeforeground="white", relief="flat", padx=18, pady=8, cursor="hand2", command=self.print_all_documents)
         btn_print.pack(side="right")
 
     def _load_printers(self):
