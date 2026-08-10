@@ -2,6 +2,10 @@
 
 All notable changes to Voucher_Machine will be documented in this file.
 
+## [v1.6.0] - 2026-08-10
+### Changed
+- 일괄 인쇄 기능 범위 변경: Voucher 엑셀 파일 생성을 거치지 않고 **업로드한 4가지 PDF 서류**(PR Print, 거래명세서, 세금계산서, 계약서 지정 페이지)만 순서대로 즉시 일괄 인쇄하는 print_pdf_documents_only() 로직 적용
+
 ## [v1.5.1] - 2026-08-10
 ### Fixed
 - 2번 추출 데이터 라벨 및 복사 버튼 폰트 크기 파라미터 소수점(8.5)을 정수(8/9)로 모두 교정하여 TclError 구동 오류 해결

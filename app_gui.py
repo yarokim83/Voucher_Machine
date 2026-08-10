@@ -119,7 +119,7 @@ class PastelGlassDropZone(tk.Frame):
 class VoucherPassApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("VoucherPass v1.5.1")
+        self.root.title("VoucherPass v1.6.0")
         self.root.geometry("1180x800")
         self.root.minsize(1120, 740)
 
@@ -166,13 +166,13 @@ class VoucherPassApp:
         logo_txt = tk.Label(header, text="VoucherPass", font=("Malgun Gothic", 15, "bold"), bg="#FFFFFF", fg="#0F172A")
         logo_txt.pack(side="left")
 
-        ver_badge = tk.Label(header, text="v1.5.1", font=("Malgun Gothic", 8, "bold"), bg="#EFF6FF", fg="#2563EB", padx=6, pady=2)
+        ver_badge = tk.Label(header, text="v1.6.0", font=("Malgun Gothic", 8, "bold"), bg="#EFF6FF", fg="#2563EB", padx=6, pady=2)
         ver_badge.pack(side="left", padx=(8, 16))
 
-        sub_desc = tk.Label(header, text="⚙️ 제출 서류 PDF Drag & Drop 업로드 ➔ 자동 파싱 & 원클릭 클립보드 복사", font=("Malgun Gothic", 9), bg="#FFFFFF", fg="#64748B")
+        sub_desc = tk.Label(header, text="⚙️ 제출 서류 PDF Drag & Drop 업로드 ➔ 자동 파싱 & 4종 PDF 일괄 인쇄", font=("Malgun Gothic", 9), bg="#FFFFFF", fg="#64748B")
         sub_desc.pack(side="left")
 
-        btn_help = tk.Button(header, text="❓ 도움말", font=("Malgun Gothic", 8), bg="#F1F5F9", fg="#475569", relief="flat", padx=10, pady=3, command=lambda: messagebox.showinfo("도움말", "작성일자, PR Title, 공급가액 옆의 [📋 복사] 버튼을 누르면 클립보드에 복사되어 엑셀 등에 바로 붙여넣을 수 있습니다."))
+        btn_help = tk.Button(header, text="❓ 도움말", font=("Malgun Gothic", 8), bg="#F1F5F9", fg="#475569", relief="flat", padx=10, pady=3, command=lambda: messagebox.showinfo("도움말", "업로드한 4가지 PDF 서류(PR, 거래명세서, 세금계산서, 계약서)를 [🖨️ 업로드 PDF 서류 일괄 인쇄] 버튼으로 한 번에 출력할 수 있습니다."))
         btn_help.pack(side="right", padx=2)
 
         btn_sett = tk.Button(header, text="⚙️ 설정", font=("Malgun Gothic", 8), bg="#F1F5F9", fg="#475569", relief="flat", padx=10, pady=3, command=self.browse_template)
@@ -187,7 +187,7 @@ class VoucherPassApp:
         nav_items = [
             ("☁️ PDF 업로드", True),
             ("📋 데이터 복사", True),
-            ("🖨️ 작성/인쇄", False),
+            ("🖨️ PDF 일괄 인쇄", True),
             ("🕒 히스토리", False),
             ("⚙️ 설정", False),
         ]
@@ -247,9 +247,9 @@ class VoucherPassApp:
         grid_drop.rowconfigure(1, weight=1)
 
         # -----------------------------------------------------------
-        # Section 2: Extracted Data & COPY BUTTONS (복사 기능 강조)
+        # Section 2: Extracted Data & COPY BUTTONS
         # -----------------------------------------------------------
-        sec2_card = tk.LabelFrame(main_panel, text=" 📝 2. 추출 데이터 & 원클릭 복사 (필요 항목만 복사하여 붙여넣기) ", font=("Malgun Gothic", 10, "bold"), bg="#FFFFFF", fg="#1E3A8A", bd=1, relief="solid", padx=12, pady=10)
+        sec2_card = tk.LabelFrame(main_panel, text=" 📝 2. 추출 데이터 & 원클릭 복사 ", font=("Malgun Gothic", 10, "bold"), bg="#FFFFFF", fg="#1E3A8A", bd=1, relief="solid", padx=12, pady=10)
         sec2_card.pack(fill="x", pady=(0, 10))
 
         lbl_s = {"font": ("Malgun Gothic", 8, "bold"), "bg": "#FFFFFF", "fg": "#334155", "anchor": "e"}
@@ -294,31 +294,23 @@ class VoucherPassApp:
         btn_copy_all = tk.Button(r2, text="✨ 3종 항목 한꺼번에 복사 (Tab 구분)", font=("Malgun Gothic", 8, "bold"), bg="#2563EB", fg="white", activebackground="#1D4ED8", activeforeground="white", relief="flat", padx=8, pady=2, cursor="hand2", command=self.copy_all_3items)
         btn_copy_all.pack(side="right")
 
+        # --- Section 3 & Bottom Action Bar ---
         bottom_bar = tk.Frame(main_panel, bg="#FFFFFF", highlightbackground="#E2E8F0", highlightthickness=1, padx=12, pady=8)
         bottom_bar.pack(fill="x")
 
         sett_b = tk.Frame(bottom_bar, bg="#FFFFFF")
         sett_b.pack(side="left", fill="x", expand=True, padx=(0, 10))
 
-        s1 = tk.Frame(sett_b, bg="#FFFFFF")
-        s1.pack(fill="x", pady=1)
-        tk.Label(s1, text="템플릿:", font=("Malgun Gothic", 8, "bold"), bg="#FFFFFF", fg="#475569").pack(side="left")
-        tk.Entry(s1, textvariable=self.template_path, font=("Malgun Gothic", 8), bg="#F8FAFC", relief="solid", bd=1).pack(side="left", fill="x", expand=True, padx=4)
-        tk.Button(s1, text="📁", font=("Segoe UI Emoji", 8), bg="#F1F5F9", relief="flat", command=self.browse_template).pack(side="left")
-
         s2 = tk.Frame(sett_b, bg="#FFFFFF")
         s2.pack(fill="x", pady=1)
-        tk.Label(s2, text="프린터:", font=("Malgun Gothic", 8, "bold"), bg="#FFFFFF", fg="#475569").pack(side="left")
-        self.printer_combo = ttk.Combobox(s2, textvariable=self.selected_printer, font=("Malgun Gothic", 8), state="readonly")
+        tk.Label(s2, text="출력 프린터 선택:", font=("Malgun Gothic", 9, "bold"), bg="#FFFFFF", fg="#475569").pack(side="left")
+        self.printer_combo = ttk.Combobox(s2, textvariable=self.selected_printer, font=("Malgun Gothic", 9), state="readonly")
         self.printer_combo.pack(side="left", fill="x", expand=True, padx=4)
 
         act_b = tk.Frame(bottom_bar, bg="#FFFFFF")
         act_b.pack(side="right")
 
-        btn_excel = tk.Button(act_b, text="📊 Voucher 엑셀 작성", font=("Malgun Gothic", 9, "bold"), bg="#10B981", fg="white", activebackground="#059669", activeforeground="white", relief="flat", padx=16, pady=8, cursor="hand2", command=self.create_voucher_excel)
-        btn_excel.pack(side="left", padx=(0, 6))
-
-        btn_print = tk.Button(act_b, text="🖨️ Voucher & PDF 일괄 인쇄", font=("Malgun Gothic", 9, "bold"), bg="#3B82F6", fg="white", activebackground="#2563EB", activeforeground="white", relief="flat", padx=18, pady=8, cursor="hand2", command=self.print_all_documents)
+        btn_print = tk.Button(act_b, text="🖨️ 업로드 PDF 서류 일괄 인쇄 (4종)", font=("Malgun Gothic", 10, "bold"), bg="#3B82F6", fg="white", activebackground="#2563EB", activeforeground="white", relief="flat", padx=22, pady=9, cursor="hand2", command=self.print_pdf_documents_only)
         btn_print.pack(side="right")
 
     def copy_to_clipboard(self, text, label_name):
@@ -432,30 +424,30 @@ class VoucherPassApp:
             messagebox.showerror("오류", f"엑셀 작성 실패:\n{e}")
             return None
 
-    def print_all_documents(self):
-        excel_path = self.create_voucher_excel()
-        if not excel_path:
-            return
-
+    def print_pdf_documents_only(self):
+        """
+        업로드한 4가지 PDF 서류만 인쇄하는 전용 기능 (엑셀 생성 제외)
+        """
         printer = self.selected_printer.get()
         printed_list = []
 
         try:
-            printer_handler.print_excel_file(excel_path, printer_name=printer)
-            printed_list.append("Voucher 엑셀 서식")
-
+            # 1. PR Print PDF 인쇄
             if self.pr_pdf_path.get() and os.path.exists(self.pr_pdf_path.get()):
                 printer_handler.print_pdf_file(self.pr_pdf_path.get(), printer_name=printer)
-                printed_list.append("PR Print PDF")
+                printed_list.append("① PR Print PDF (구매요청서)")
 
+            # 2. 거래명세서 PDF 인쇄
             if self.spec_pdf_path.get() and os.path.exists(self.spec_pdf_path.get()):
                 printer_handler.print_pdf_file(self.spec_pdf_path.get(), printer_name=printer)
-                printed_list.append("거래명세서 PDF")
+                printed_list.append("② 거래명세서 PDF")
 
+            # 3. 전자 세금계산서 PDF 인쇄
             if self.tax_pdf_path.get() and os.path.exists(self.tax_pdf_path.get()):
                 printer_handler.print_pdf_file(self.tax_pdf_path.get(), printer_name=printer)
-                printed_list.append("전자 세금계산서 PDF")
+                printed_list.append("③ 전자 세금계산서 PDF")
 
+            # 4. 업체 계약서 PDF 지정 페이지 인쇄
             if self.contract_pdf_path.get() and os.path.exists(self.contract_pdf_path.get()):
                 page_str = self.contract_page.get().strip()
                 pages = []
@@ -466,13 +458,17 @@ class VoucherPassApp:
                     pages = [0]
                 
                 printer_handler.print_pdf_file(self.contract_pdf_path.get(), printer_name=printer, page_range=pages)
-                printed_list.append(f"업체 계약서 PDF ({page_str} 페이지)")
+                printed_list.append(f"④ 업체 계약서 PDF ({page_str} 페이지)")
+
+            if not printed_list:
+                messagebox.showwarning("인쇄할 PDF 없음", "인쇄할 PDF 서류가 하나도 업로드되지 않았습니다.\nPDF 파일을 드래그 앤 드롭 업로드해 주세요.")
+                return
 
             summary = "\n- ".join(printed_list)
-            messagebox.showinfo("일괄 인쇄 요청 완료", f"다음 서류들이 프린터 [{printer}] 로 출력 요청되었습니다:\n\n- {summary}")
+            messagebox.showinfo("PDF 서류 일괄 인쇄 완료", f"다음 업로드 PDF 서류들이 프린터 [{printer}] 로 출력 요청되었습니다:\n\n- {summary}")
 
         except Exception as e:
-            messagebox.showerror("인쇄 오류", f"일괄 인쇄 중 오류 발생:\n{e}")
+            messagebox.showerror("인쇄 오류", f"PDF 서류 일괄 인쇄 중 오류 발생:\n{e}")
 
 def main():
     if HAS_DND:
