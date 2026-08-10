@@ -18,7 +18,7 @@ import printer_handler
 
 class PastelGlassDropZone(tk.Frame):
     """
-    VoucherPass 시안과 100% 동일한 파스텔 원형 아이콘 글래스모피즘 Drop Zone
+    VoucherPass 파스텔 원형 아이콘 글래스모피즘 Drop Zone
     """
     def __init__(self, parent, title, icon, bg_circle_color, icon_color, file_var, on_file_selected=None, **kwargs):
         super().__init__(parent, bg="#FFFFFF", highlightbackground="#E2E8F0", highlightthickness=1, bd=0, **kwargs)
@@ -119,9 +119,9 @@ class PastelGlassDropZone(tk.Frame):
 class VoucherPassApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("VoucherPass v1.4.2")
-        self.root.geometry("1160x780")
-        self.root.minsize(1100, 720)
+        self.root.title("VoucherPass v1.5.0")
+        self.root.geometry("1180x800")
+        self.root.minsize(1120, 740)
 
         self.pr_pdf_path = tk.StringVar()
         self.spec_pdf_path = tk.StringVar()   # 거래명세서
@@ -150,6 +150,7 @@ class VoucherPassApp:
         self.root.configure(bg=self.bg_app)
 
     def _build_layout(self):
+        # Header
         header = tk.Frame(self.root, bg="#FFFFFF", highlightbackground="#E2E8F0", highlightthickness=1, padx=16, pady=10)
         header.pack(fill="x")
 
@@ -166,13 +167,13 @@ class VoucherPassApp:
         logo_txt = tk.Label(header, text="VoucherPass", font=("Malgun Gothic", 15, "bold"), bg="#FFFFFF", fg="#0F172A")
         logo_txt.pack(side="left")
 
-        ver_badge = tk.Label(header, text="v1.4.2", font=("Malgun Gothic", 8, "bold"), bg="#EFF6FF", fg="#2563EB", padx=6, pady=2)
+        ver_badge = tk.Label(header, text="v1.5.0", font=("Malgun Gothic", 8, "bold"), bg="#EFF6FF", fg="#2563EB", padx=6, pady=2)
         ver_badge.pack(side="left", padx=(8, 16))
 
-        sub_desc = tk.Label(header, text="⚙️ 제출 서류 PDF Drag & Drop 업로드 ➔ 자동 파싱 & Voucher 작성/인쇄", font=("Malgun Gothic", 9), bg="#FFFFFF", fg="#64748B")
+        sub_desc = tk.Label(header, text="⚙️ 제출 서류 PDF Drag & Drop 업로드 ➔ 자동 파싱 & 원클릭 클립보드 복사", font=("Malgun Gothic", 9), bg="#FFFFFF", fg="#64748B")
         sub_desc.pack(side="left")
 
-        btn_help = tk.Button(header, text="❓ 도움말", font=("Malgun Gothic", 8), bg="#F1F5F9", fg="#475569", relief="flat", padx=10, pady=3, command=lambda: messagebox.showinfo("도움말", "PDF 서류를 드래그 앤 드롭하면 자동 파싱됩니다."))
+        btn_help = tk.Button(header, text="❓ 도움말", font=("Malgun Gothic", 8), bg="#F1F5F9", fg="#475569", relief="flat", padx=10, pady=3, command=lambda: messagebox.showinfo("도움말", "작성일자, PR Title, 공급가액 옆의 [📋 복사] 버튼을 누르면 클립보드에 복사되어 엑셀 등에 바로 붙여넣을 수 있습니다."))
         btn_help.pack(side="right", padx=2)
 
         btn_sett = tk.Button(header, text="⚙️ 설정", font=("Malgun Gothic", 8), bg="#F1F5F9", fg="#475569", relief="flat", padx=10, pady=3, command=self.browse_template)
@@ -181,12 +182,13 @@ class VoucherPassApp:
         body_container = tk.Frame(self.root, bg=self.bg_app)
         body_container.pack(fill="both", expand=True)
 
+        # Left Sidebar
         sidebar = tk.Frame(body_container, bg=self.sidebar_bg, width=210, padx=12, pady=16)
         sidebar.pack(side="left", fill="y")
 
         nav_items = [
             ("☁️ PDF 업로드", True),
-            ("⚙️ 데이터 연동", False),
+            ("📋 데이터 복사", True),
             ("🖨️ 작성/인쇄", False),
             ("🕒 히스토리", False),
             ("⚙️ 설정", False),
@@ -206,9 +208,11 @@ class VoucherPassApp:
         tk.Label(safe_card, text="🛡️ 안전한 데이터 처리", font=("Malgun Gothic", 8, "bold"), bg="#FFFFFF", fg="#0F172A", anchor="w").pack(fill="x")
         tk.Label(safe_card, text="모든 파일은 안전하게\n처리되며 저장되지 않습니다.", font=("Malgun Gothic", 8), bg="#FFFFFF", fg="#94A3B8", justify="left", anchor="w").pack(fill="x", pady=(4, 0))
 
+        # Right Main Panel
         main_panel = tk.Frame(body_container, bg=self.bg_app, padx=18, pady=14)
         main_panel.pack(side="right", fill="both", expand=True)
 
+        # --- Section 1: Drag & Drop Drop Zone ---
         sec1_header = tk.Frame(main_panel, bg=self.bg_app)
         sec1_header.pack(fill="x", pady=(0, 8))
 
@@ -246,44 +250,61 @@ class VoucherPassApp:
         grid_drop.rowconfigure(0, weight=1)
         grid_drop.rowconfigure(1, weight=1)
 
-        sec2_card = tk.LabelFrame(main_panel, text=" 2. 추출 데이터 (Voucher 자동 연동) ", font=("Malgun Gothic", 10, "bold"), bg="#FFFFFF", fg="#1E3A8A", bd=1, relief="solid", padx=12, pady=8)
+        # -----------------------------------------------------------
+        # Section 2: Extracted Data & COPY BUTTONS (복사 기능 강조)
+        # -----------------------------------------------------------
+        sec2_card = tk.LabelFrame(main_panel, text=" 📝 2. 추출 데이터 & 원클릭 복사 (필요 항목만 복사하여 붙여넣기) ", font=("Malgun Gothic", 10, "bold"), bg="#FFFFFF", fg="#1E3A8A", bd=1, relief="solid", padx=12, pady=10)
         sec2_card.pack(fill="x", pady=(0, 10))
 
-        lbl_s = {"font": ("Malgun Gothic", 8, "bold"), "bg": "#FFFFFF", "fg": "#475569", "anchor": "e"}
-        ent_s = {"font": ("Malgun Gothic", 8), "bg": "#F8FAFC", "relief": "solid", "bd": 1}
+        lbl_s = {"font": ("Malgun Gothic", 8.5, "bold"), "bg": "#FFFFFF", "fg": "#334155", "anchor": "e"}
+        ent_s = {"font": ("Malgun Gothic", 9), "bg": "#F8FAFC", "relief": "solid", "bd": 1}
+        btn_copy_s = {"font": ("Malgun Gothic", 8, "bold"), "bg": "#EFF6FF", "fg": "#2563EB", "activebackground": "#DBEAFE", "activeforeground": "#1E40AF", "relief": "solid", "bd": 1, "padx": 6, "pady": 1, "cursor": "hand2"}
 
+        # Row 0: P/R No & 작성일자 (복사 버튼 1) & 거래처명
         r0 = tk.Frame(sec2_card, bg="#FFFFFF")
-        r0.pack(fill="x", pady=2)
+        r0.pack(fill="x", pady=3)
 
         tk.Label(r0, text="P/R No:", **lbl_s).pack(side="left")
-        tk.Entry(r0, textvariable=self.pr_no_var, width=20, **ent_s).pack(side="left", padx=(4, 16))
+        tk.Entry(r0, textvariable=self.pr_no_var, width=16, **ent_s).pack(side="left", padx=(4, 12))
 
-        tk.Label(r0, text="작성일자:", **lbl_s).pack(side="left")
-        tk.Entry(r0, textvariable=self.date_var, width=16, **ent_s).pack(side="left", padx=(4, 16))
+        # 1) 작성일자 + 복사 버튼
+        tk.Label(r0, text="📅 작성일자:", **lbl_s).pack(side="left")
+        tk.Entry(r0, textvariable=self.date_var, width=13, **ent_s).pack(side="left", padx=(4, 2))
+        tk.Button(r0, text="📋 복사", command=lambda: self.copy_to_clipboard(self.date_var.get(), "작성일자"), **btn_copy_s).pack(side="left", padx=(0, 14))
 
-        tk.Label(r0, text="거래처명 (Payee):", **lbl_s).pack(side="left")
-        tk.Entry(r0, textvariable=self.supplier_var, width=24, **ent_s).pack(side="left", padx=(4, 0))
+        tk.Label(r0, text="거래처명:", **lbl_s).pack(side="left")
+        tk.Entry(r0, textvariable=self.supplier_var, width=18, **ent_s).pack(side="left", padx=(4, 0))
 
+        # Row 1: PR Title + 복사 버튼 2
         r1 = tk.Frame(sec2_card, bg="#FFFFFF")
-        r1.pack(fill="x", pady=2)
-        tk.Label(r1, text="PR Title:", **lbl_s).pack(side="left")
-        tk.Entry(r1, textvariable=self.pr_title_var, **ent_s).pack(side="left", fill="x", expand=True, padx=(4, 0))
+        r1.pack(fill="x", pady=3)
+        tk.Label(r1, text="📌 PR Title:", **lbl_s).pack(side="left")
+        tk.Entry(r1, textvariable=self.pr_title_var, **ent_s).pack(side="left", fill="x", expand=True, padx=(4, 4))
+        tk.Button(r1, text="📋 복사", command=lambda: self.copy_to_clipboard(self.pr_title_var.get(), "PR Title"), **btn_copy_s).pack(side="right")
 
+        # Row 2: 공급가액 (복사 버튼 3) & 부가세 & 합계금액 + 3종 일괄 복사 버튼
         r2 = tk.Frame(sec2_card, bg="#FFFFFF")
-        r2.pack(fill="x", pady=2)
+        r2.pack(fill="x", pady=3)
 
-        tk.Label(r2, text="공급가액:", **lbl_s).pack(side="left")
-        amt_e = tk.Entry(r2, textvariable=self.amount_var, width=18, **ent_s)
-        amt_e.pack(side="left", padx=(4, 16))
+        # 3) 공급가액 + 복사 버튼
+        tk.Label(r2, text="💰 공급가액:", **lbl_s).pack(side="left")
+        amt_e = tk.Entry(r2, textvariable=self.amount_var, width=15, **ent_s)
+        amt_e.pack(side="left", padx=(4, 2))
         amt_e.bind("<KeyRelease>", self._recalc_amounts)
+        tk.Button(r2, text="📋 복사", command=lambda: self.copy_to_clipboard(self.amount_var.get(), "공급가액"), **btn_copy_s).pack(side="left", padx=(0, 12))
 
-        tk.Label(r2, text="부가세(10%):", **lbl_s).pack(side="left")
-        tk.Entry(r2, textvariable=self.vat_var, width=18, **ent_s).pack(side="left", padx=(4, 16))
+        tk.Label(r2, text="부가세:", **lbl_s).pack(side="left")
+        tk.Entry(r2, textvariable=self.vat_var, width=13, **ent_s).pack(side="left", padx=(4, 12))
 
         tk.Label(r2, text="합계금액:", **lbl_s).pack(side="left")
-        tot_e = tk.Entry(r2, textvariable=self.total_amount_var, width=20, font=("Malgun Gothic", 9, "bold"), bg="#EFF6FF", fg="#1D4ED8", relief="solid", bd=1)
-        tot_e.pack(side="left", padx=(4, 0))
+        tot_e = tk.Entry(r2, textvariable=self.total_amount_var, width=16, font=("Malgun Gothic", 9, "bold"), bg="#EFF6FF", fg="#1D4ED8", relief="solid", bd=1)
+        tot_e.pack(side="left", padx=(4, 12))
 
+        # 3종 전체 복사 버튼 (작성일자 / PR Title / 공급가액 탭구분 일괄 복사)
+        btn_copy_all = tk.Button(r2, text="✨ 3종 항목 한꺼번에 복사 (Tab 구분)", font=("Malgun Gothic", 8, "bold"), bg="#2563EB", fg="white", activebackground="#1D4ED8", activeforeground="white", relief="flat", padx=8, pady=2, cursor="hand2", command=self.copy_all_3items)
+        btn_copy_all.pack(side="right")
+
+        # --- Section 3 & Bottom Action Bar ---
         bottom_bar = tk.Frame(main_panel, bg="#FFFFFF", highlightbackground="#E2E8F0", highlightthickness=1, padx=12, pady=8)
         bottom_bar.pack(fill="x")
 
@@ -310,6 +331,44 @@ class VoucherPassApp:
 
         btn_print = tk.Button(act_b, text="🖨️ Voucher & PDF 일괄 인쇄", font=("Malgun Gothic", 9, "bold"), bg="#3B82F6", fg="white", activebackground="#2563EB", activeforeground="white", relief="flat", padx=18, pady=8, cursor="hand2", command=self.print_all_documents)
         btn_print.pack(side="right")
+
+    def copy_to_clipboard(self, text, label_name):
+        """
+        단일 항목 클립보드 복사
+        """
+        if not text:
+            messagebox.showwarning("복사 실패", f"{label_name} 값이 비어 있습니다.")
+            return
+        
+        self.root.clipboard_clear()
+        self.root.clipboard_append(text)
+        self.root.update()
+        messagebox.showinfo("클립보드 복사 완료", f"[{label_name}] 텍스트가 복사되었습니다!\n\n📋 복사된 내용: {text}")
+
+    def copy_all_3items(self):
+        """
+        작성일자, PR Title, 공급가액 3종 항목 탭(\t) 구분 일괄 복사 (엑셀 행에 바로 붙여넣기 가능)
+        """
+        d = self.date_var.get().strip()
+        t = self.pr_title_var.get().strip()
+        a = self.amount_var.get().strip()
+
+        if not d and not t and not a:
+            messagebox.showwarning("복사 실패", "복사할 데이터 항목이 없습니다. PDF 파싱을 먼저 진행하세요.")
+            return
+
+        combined_text = f"{d}\t{t}\t{a}"
+        self.root.clipboard_clear()
+        self.root.clipboard_append(combined_text)
+        self.root.update()
+
+        messagebox.showinfo(
+            "3종 전체 복사 완료",
+            f"다음 3가지 항목이 탭(Tab)으로 구분되어 클립보드에 복사되었습니다.\n엑셀 셀에 바로 Ctrl+V 로 붙여넣으세요!\n\n"
+            f"1) 작성일자: {d}\n"
+            f"2) PR Title: {t}\n"
+            f"3) 공급가액: {a}"
+        )
 
     def _load_printers(self):
         printers = printer_handler.get_installed_printers()
@@ -346,7 +405,7 @@ class VoucherPassApp:
             self.date_var.set(data.get('date', ''))
             self.supplier_var.set(data.get('supplier', ''))
 
-            messagebox.showinfo("파싱 완료", f"PR PDF 데이터 분석 성공!\n- PR No: {data.get('pr_no')}\n- 공급가액: {amt:,} 원")
+            messagebox.showinfo("파싱 완료", f"PR PDF 데이터 분석 성공!\n\n- 작성일자: {data.get('date')}\n- PR Title: {data.get('pr_title')}\n- 공급가액: {amt:,} 원\n\n[📋 복사] 버튼을 눌러 원하시는 곳에 붙여넣으세요.")
         except Exception as e:
             messagebox.showerror("파싱 오류", f"PDF 데이터 자동 추출 실패:\n{e}")
 
