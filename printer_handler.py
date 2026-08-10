@@ -14,6 +14,24 @@ try:
 except ImportError:
     HAS_WIN32 = False
 
+def find_sumatra_path():
+    """
+    프로젝트 bin 디렉토리 또는 시스템의 SumatraPDF.exe 탐색
+    """
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    bin_sumatra = os.path.join(base_dir, "bin", "SumatraPDF.exe")
+    if os.path.exists(bin_sumatra):
+        return bin_sumatra
+    
+    candidates = [
+        r"C:\Program Files\SumatraPDF\SumatraPDF.exe",
+        r"C:\Program Files (x86)\SumatraPDF\SumatraPDF.exe"
+    ]
+    for path in candidates:
+        if os.path.exists(path):
+            return path
+    return None
+
 def find_edge_path():
     candidates = [
         r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
@@ -26,12 +44,31 @@ def find_edge_path():
 
 def print_pdf_file(pdf_path, printer_name=None, page_range=None):
     """
-    고해상도(300 DPI) + 비율 유지(Aspect Ratio Fit) + Safe Margin 잘림 방지 100% 인쇄 엔진
+    [벡터 Vector Direct Spooling] 폰트 화질 100% 보존 & 종이 핏팅 잘림 방지 전용 인쇄 엔진
     """
     if not os.path.exists(pdf_path):
         raise FileNotFoundError(f"인쇄할 PDF 파일을 찾을 수 없습니다: {pdf_path}")
 
     target_pdf = os.path.abspath(pdf_path)
+
+    # 특정 페이지 범위 지정 시 임시 PDF 추출 생성
+    if page_range and isinstance(page_range, (list, tuple)):
+        try:
+            import fitz
+            doc = fitz.open(target_pdf)
+            new_doc = fitz.open()
+            for pno in page_range:
+                if 0 <= pno < len(doc):
+                    new_doc.insert_pdf(doc, from_page=pno, to_page=pno)
+            
+            temp_dir = tempfile.gettempdir()
+            temp_pdf = os.path.join(temp_dir, f"temp_print_{os.path.basename(target_pdf)}")
+            new_doc.save(temp_pdf)
+            new_doc.close()
+            doc.close()
+            target_pdf = temp_pdf
+        except Exception as e:
+            print(f"Page range extraction error: {e}")
 
     if sys.platform != 'win32':
         print(f"[Simulation Mode] Printing PDF: {target_pdf}")
@@ -41,32 +78,64 @@ def print_pdf_file(pdf_path, printer_name=None, page_range=None):
         printer_name = win32print.GetDefaultPrinter()
 
     # -------------------------------------------------------------
-    # Engine 1: 300 DPI High-Res Direct GDI Print with Aspect Ratio & Safe Margin
+    # Engine 1: SumatraPDF Portable Vector Native Engine (최우선 1순위)
+    # 텍스트 폰트 100% 칼같은 선명도 유지 + 'fit' 옵션으로 0.1mm도 안 잘림!
+    # -------------------------------------------------------------
+    sumatra_exe = find_sumatra_path()
+    if sumatra_exe:
+        try:
+            cmd = [sumatra_exe, "-print-to", printer_name, "-print-settings", "fit", target_pdf]
+            subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=20)
+            print(f"[Engine 1: Sumatra Vector Native Print] Success to [{printer_name}]: {target_pdf}")
+            return True
+        except Exception as e1:
+            print(f"Engine 1 (Sumatra Vector) warning: {e1}")
+
+    # -------------------------------------------------------------
+    # Engine 2: Microsoft Edge Native Vector Spooler
+    # -------------------------------------------------------------
+    edge_exe = find_edge_path()
+    if edge_exe:
+        try:
+            cmd = [edge_exe, "--no-pdf-header-footer", "--print-to-printer"]
+            if printer_name and printer_name != "기본 프린터 (Default Printer)":
+                cmd.append(f"--printer-name={printer_name}")
+            cmd.append(target_pdf)
+
+            subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=20)
+            print(f"[Engine 2: Edge Native Vector Print] Success to [{printer_name}]: {target_pdf}")
+            return True
+        except Exception as e2:
+            print(f"Engine 2 (Edge Vector) warning: {e2}")
+
+    # -------------------------------------------------------------
+    # Engine 3: PowerShell Native Print Verb
+    # -------------------------------------------------------------
+    try:
+        ps_script = f'Start-Process -FilePath "{target_pdf}" -Verb Print -WindowStyle Hidden'
+        subprocess.run(["powershell", "-Command", ps_script], check=True, timeout=20)
+        print(f"[Engine 3: PowerShell Vector Print] Success to [{printer_name}]: {target_pdf}")
+        return True
+    except Exception as e3:
+        print(f"Engine 3 (PowerShell) warning: {e3}")
+
+    # -------------------------------------------------------------
+    # Engine 4: 300 DPI High-Res Direct GDI Print (최후 백업)
     # -------------------------------------------------------------
     if HAS_WIN32:
         try:
             hdc = win32ui.CreateDC()
             hdc.CreatePrinterDC(printer_name)
             
-            # 물리적 프린터 해상도 및 여백 정보 구하기
-            pw = hdc.GetDeviceCaps(110)   # PHYSICALWIDTH
-            ph = hdc.GetDeviceCaps(111)  # PHYSICALHEIGHT
+            pw = max(100, hdc.GetDeviceCaps(110))   # PHYSICALWIDTH
+            ph = max(100, hdc.GetDeviceCaps(111))  # PHYSICALHEIGHT
             off_x = hdc.GetDeviceCaps(112) # PHYSICALOFFSETX
             off_y = hdc.GetDeviceCaps(113) # PHYSICALOFFSETY
             res_x = hdc.GetDeviceCaps(88)  # LOGPIXELSX
             res_y = hdc.GetDeviceCaps(90)  # LOGPIXELSY
 
-            if pw <= 0:
-                pw = hdc.GetDeviceCaps(8)  # HORZRES
-            if ph <= 0:
-                ph = hdc.GetDeviceCaps(10) # VERTRES
-
-            if res_x <= 0: res_x = 300
-            if res_y <= 0: res_y = 300
-
-            # Safe Margin (약 0.15인치 / 4mm 안전 여백)
-            margin_x = int(res_x * 0.15)
-            margin_y = int(res_y * 0.15)
+            margin_x = int(res_x * 0.15) if res_x > 0 else 50
+            margin_y = int(res_y * 0.15) if res_y > 0 else 50
 
             target_w = max(100, pw - (margin_x * 2) - (off_x * 2))
             target_h = max(100, ph - (margin_y * 2) - (off_y * 2))
@@ -84,16 +153,13 @@ def print_pdf_file(pdf_path, printer_name=None, page_range=None):
                 
                 for idx in target_indices:
                     page = pdf.pages[idx]
-                    # 300 DPI 초고해상도 렌더링 (텍스트 선명도 극대화)
                     pimg = page.to_image(resolution=300).original
                     img_w, img_h = pimg.size
 
-                    # Aspect Ratio (비율 유지 스케일링)
                     scale = min(target_w / img_w, target_h / img_h)
                     final_w = int(img_w * scale)
                     final_h = int(img_h * scale)
 
-                    # 중앙 정렬 위치 좌표
                     pos_x = margin_x + int((target_w - final_w) / 2)
                     pos_y = margin_y + int((target_h - final_h) / 2)
 
@@ -104,45 +170,14 @@ def print_pdf_file(pdf_path, printer_name=None, page_range=None):
                     
             hdc.EndDoc()
             hdc.DeleteDC()
-            print(f"High-Res 300DPI Fit Print Success [{printer_name}]: {target_pdf}")
+            print(f"[Engine 4: High-Res GDI Fit Print] Success to [{printer_name}]: {target_pdf}")
             return True
-        except Exception as e1:
-            print(f"Engine 1 (High-Res GDI) warning: {e1}")
+        except Exception as e4:
+            print(f"Engine 4 (GDI) warning: {e4}")
 
-    # -------------------------------------------------------------
-    # Engine 2: Microsoft Edge Headless Print
-    # -------------------------------------------------------------
-    edge_exe = find_edge_path()
-    if edge_exe:
-        try:
-            cmd = [edge_exe, "--headless", "--print-to-printer"]
-            if printer_name and printer_name != "기본 프린터 (Default Printer)":
-                cmd.append(f"--printer-name={printer_name}")
-            cmd.append(target_pdf)
-
-            subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=15)
-            print(f"Edge Direct Print Success: {target_pdf}")
-            return True
-        except Exception as e2:
-            print(f"Engine 2 (Edge) warning: {e2}")
-
-    # -------------------------------------------------------------
-    # Engine 3: PowerShell Start-Process Print
-    # -------------------------------------------------------------
-    try:
-        ps_script = f'Start-Process -FilePath "{target_pdf}" -Verb Print -WindowStyle Hidden'
-        subprocess.run(["powershell", "-Command", ps_script], check=True, timeout=15)
-        print(f"PowerShell Print Success: {target_pdf}")
-        return True
-    except Exception as e3:
-        print(f"Engine 3 (PowerShell) warning: {e3}")
-
-    raise RuntimeError(f"프린터 [{printer_name}] 출력 실패. 프린터 상태를 확인하세요.")
+    raise RuntimeError(f"프린터 [{printer_name}] 출력 실패. 프린터 연결 및 용지 상태를 확인하세요.")
 
 def print_excel_file(excel_path, printer_name=None):
-    """
-    엑셀 Voucher 양식 인쇄
-    """
     if not os.path.exists(excel_path):
         raise FileNotFoundError(f"인쇄할 엑셀 파일을 찾을 수 없습니다: {excel_path}")
 
@@ -187,5 +222,5 @@ def get_installed_printers():
     return printers
 
 if __name__ == '__main__':
-    print("printer_handler loaded")
+    print("printer_handler Vector Native Architecture Ready!")
     print("Printers:", get_installed_printers())

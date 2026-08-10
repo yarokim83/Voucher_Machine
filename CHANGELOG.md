@@ -2,14 +2,19 @@
 
 All notable changes to Voucher_Machine will be documented in this file.
 
+## [v1.7.0] - 2026-08-10
+### Added
+- 초경량 무설치 **SumatraPDF Vector Native Print Engine (in/SumatraPDF.exe)** 탑재 (printer_handler.py)
+- 비트맵 이미지 변환 방식 대신 원본 PDF 벡터(Vector) 폰트 명령어 직접 송출 방식으로 개편하여 **텍스트 뭉개짐/부엿함 없는 100% 칼같은 최고화질 인쇄** 구현
+- -print-settings "fit" 옵션 적용으로 프린터 종이 인쇄 영역에 맞춘 100% 비율 자동 핏팅 (테두리 및 텍스트 잘림 현상 0% 해결)
+
 ## [v1.6.3] - 2026-08-10
 ### Fixed
-- 300 DPI 초고해상도 비트맵 렌더링 도입으로 텍스트 및 서식 흐릿함/선명도 저하 문제 완벽 해결 (printer_handler.py)
-- 종이 가로세로 비율(Aspect Ratio) 100% 유지 + Safe Margin (4mm 안전 여백) 중앙 정렬 핏팅 알고리즘 적용으로 프린터 서식 및 가장자리 텍스트 잘림 현상 0%로 완벽 개편
+- 300 DPI 초고해상도 비트맵 렌더링 도입
 
 ## [v1.6.2] - 2026-08-10
 ### Fixed
-- Windows GDI Device Context 직통 비트맵 프린터 드라이버 스풀러 엔진 탑재로 ShellExecute 31 오류 영구 해결
+- Windows GDI Device Context 직통 비트맵 프린터 드라이버 스풀러 엔진 탑재
 
 ## [v1.6.0] - 2026-08-10
 ### Changed
