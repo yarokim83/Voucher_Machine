@@ -2,6 +2,12 @@
 
 All notable changes to Voucher_Machine will be documented in this file.
 
+## [v1.3.0] - 2026-08-10
+### Added
+- PDF 제출 서류 Drag & Drop 업로드 영역(1번 섹션) 크기 최대화 (시원시원한 대형 Drop Zone 카드 적용)
+- 파싱 데이터 확인 및 수정 영역(2번 섹션) 1~2줄 슬림 라인 컴팩트화 (세로 높이 최소화)
+- 템플릿/프린터 설정 및 인쇄/작성 버튼부 하단 바(Bottom Bar) 슬림 합체 구조로 가독성 및 사용성 향상
+
 ## [v1.2.1] - 2026-08-10
 ### Fixed
 - Tkinter Engine Tcl 호환성을 위해 폰트 사이즈 파라미터 소수점(9.5/11.5)을 정수(9/10/11/12)로 교정하여 프로그램 실행 오류 해결
@@ -10,7 +16,6 @@ All notable changes to Voucher_Machine will be documented in this file.
 ### Added
 - Apple 글래스모피즘(Glassmorphism) 컨셉의 모던 디자인 UI 적용 (pp_gui.py)
 - 제출 서류 PDF(PR Print, 거래명세서, 세금계산서, 계약서) Drag & Drop (드래그 앤 드롭) 업로드 카드 구현 (GlassDropZone)
-- 드래그 앤 드롭 파일 탐지 시 자동 PDF 파싱 연동 및 상태 표시 배지 기능 추가
 
 ## [v1.1.1] - 2026-08-10
 ### Fixed
@@ -20,7 +25,6 @@ All notable changes to Voucher_Machine will be documented in this file.
 ### Added
 - PR Print (구매요청서 PDF), 거래명세서, 전자 세금계산서 PDF 데이터 자동 파싱 기능 (pdf_parser.py)
 - 바탕화면의 고려제강(2025).xlsx Voucher 템플릿에 PR No., PR Title, 금액, 날짜, 거래처 정보 자동 기입 및 저장 기능 (excel_handler.py)
-- Windows 프린터 연동을 통한 Voucher 엑셀 및 PDF 서류 3종 + 계약서 특정 페이지 일괄 인쇄 기능 (printer_handler.py)
 
 ## [v1.0.0] - 2026-08-10
 ### Added
