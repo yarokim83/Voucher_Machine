@@ -4,6 +4,7 @@ import re
 import urllib.parse
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
+from PIL import Image, ImageTk
 
 try:
     from tkinterdnd2 import TkinterDnD, DND_FILES
@@ -119,7 +120,7 @@ class PastelGlassDropZone(tk.Frame):
 class VoucherPassApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("VoucherPass v1.8.0")
+        self.root.title("VoucherPass v1.9.0")
         self.root.geometry("1180x800")
         self.root.minsize(1120, 740)
 
@@ -140,9 +141,30 @@ class VoucherPassApp:
         self.date_var = tk.StringVar()
         self.supplier_var = tk.StringVar()
 
+        self._setup_app_icon()
         self._setup_style()
         self._build_layout()
         self._load_printers()
+
+    def _setup_app_icon(self):
+        """
+        사용자 제공 VoucherPass 로고 이미지 적용
+        """
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        png_icon = os.path.join(base_dir, "assets", "app_icon.png")
+        ico_icon = os.path.join(base_dir, "assets", "app_icon.ico")
+
+        if os.path.exists(png_icon):
+            try:
+                self.app_icon_img = ImageTk.PhotoImage(Image.open(png_icon).resize((32, 32), Image.Resampling.LANCZOS))
+                self.root.iconphoto(True, self.app_icon_img)
+            except Exception as e:
+                print(f"Icon photo error: {e}")
+        elif os.path.exists(ico_icon):
+            try:
+                self.root.iconbitmap(ico_icon)
+            except Exception:
+                pass
 
     def _setup_style(self):
         self.bg_app = "#F8FAFC"
@@ -150,7 +172,6 @@ class VoucherPassApp:
         self.root.configure(bg=self.bg_app)
 
     def _build_layout(self):
-        # Header
         header = tk.Frame(self.root, bg="#FFFFFF", highlightbackground="#E2E8F0", highlightthickness=1, padx=16, pady=10)
         header.pack(fill="x")
 
@@ -161,27 +182,35 @@ class VoucherPassApp:
             dot = tk.Label(traffic_frame, text="●", font=("Arial", 10), bg="#FFFFFF", fg=color)
             dot.pack(side="left", padx=2)
 
-        logo_icon = tk.Label(header, text="☑", font=("Segoe UI Emoji", 15, "bold"), bg="#FFFFFF", fg="#2563EB")
-        logo_icon.pack(side="left", padx=(6, 4))
+        # Header Logo Image
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        png_icon = os.path.join(base_dir, "assets", "app_icon.png")
+        if os.path.exists(png_icon):
+            try:
+                self.header_logo_img = ImageTk.PhotoImage(Image.open(png_icon).resize((28, 28), Image.Resampling.LANCZOS))
+                logo_lbl = tk.Label(header, image=self.header_logo_img, bg="#FFFFFF")
+                logo_lbl.pack(side="left", padx=(6, 4))
+            except Exception:
+                tk.Label(header, text="☑", font=("Segoe UI Emoji", 15, "bold"), bg="#FFFFFF", fg="#2563EB").pack(side="left", padx=(6, 4))
+        else:
+            tk.Label(header, text="☑", font=("Segoe UI Emoji", 15, "bold"), bg="#FFFFFF", fg="#2563EB").pack(side="left", padx=(6, 4))
 
         logo_txt = tk.Label(header, text="VoucherPass", font=("Malgun Gothic", 15, "bold"), bg="#FFFFFF", fg="#0F172A")
         logo_txt.pack(side="left")
 
-        ver_badge = tk.Label(header, text="v1.8.0", font=("Malgun Gothic", 8, "bold"), bg="#EFF6FF", fg="#2563EB", padx=6, pady=2)
+        ver_badge = tk.Label(header, text="v1.9.0", font=("Malgun Gothic", 8, "bold"), bg="#EFF6FF", fg="#2563EB", padx=6, pady=2)
         ver_badge.pack(side="left", padx=(8, 16))
 
-        sub_desc = tk.Label(header, text="⚙️ 제출 서류 PDF Drag & Drop 업로드 ➔ 데이터 세로 복사 & 계약서 구간 인쇄", font=("Malgun Gothic", 9), bg="#FFFFFF", fg="#64748B")
+        sub_desc = tk.Label(header, text="⚙️ 세금계산서 작성일자 파싱 & 원클릭 데이터 복사 & 계약서 구간 인쇄", font=("Malgun Gothic", 9), bg="#FFFFFF", fg="#64748B")
         sub_desc.pack(side="left")
 
-        btn_help = tk.Button(header, text="❓ 도움말", font=("Malgun Gothic", 8), bg="#F1F5F9", fg="#475569", relief="flat", padx=10, pady=3, command=lambda: messagebox.showinfo("도움말", "계약서 페이지란에 '12-13' 또는 '1,2' 입력 시 해당 페이지만 정확히 인쇄됩니다.\n3종 한꺼번에 복사 후 엑셀에 붙여넣으면 세로 3개 셀에 자동 입력됩니다."))
+        btn_help = tk.Button(header, text="❓ 도움말", font=("Malgun Gothic", 8), bg="#F1F5F9", fg="#475569", relief="flat", padx=10, pady=3, command=lambda: messagebox.showinfo("도움말", "전자 세금계산서 PDF 업로드 시 작성일자가 자동 파싱됩니다."))
         btn_help.pack(side="right", padx=2)
 
         body_container = tk.Frame(self.root, bg=self.bg_app)
         body_container.pack(fill="both", expand=True)
 
-        # -----------------------------------------------------------
-        # Left Sidebar (사용하는 핵심 메뉴 3개만 깔끔 배치)
-        # -----------------------------------------------------------
+        # Sidebar
         sidebar = tk.Frame(body_container, bg=self.sidebar_bg, width=210, padx=12, pady=16)
         sidebar.pack(side="left", fill="y")
 
@@ -201,7 +230,7 @@ class VoucherPassApp:
         tk.Label(safe_card, text="🛡️ 안전한 데이터 처리", font=("Malgun Gothic", 8, "bold"), bg="#FFFFFF", fg="#0F172A", anchor="w").pack(fill="x")
         tk.Label(safe_card, text="모든 파일은 안전하게\n처리되며 저장되지 않습니다.", font=("Malgun Gothic", 8), bg="#FFFFFF", fg="#94A3B8", justify="left", anchor="w").pack(fill="x", pady=(4, 0))
 
-        # Right Main Panel
+        # Main Panel
         main_panel = tk.Frame(body_container, bg=self.bg_app, padx=18, pady=14)
         main_panel.pack(side="right", fill="both", expand=True)
 
@@ -222,7 +251,8 @@ class VoucherPassApp:
         self.drop_spec = PastelGlassDropZone(grid_drop, "② 거래명세서 PDF", "📄", "#ECFDF5", "#059669", self.spec_pdf_path)
         self.drop_spec.grid(row=0, column=1, padx=6, pady=6, sticky="nsew")
 
-        self.drop_tax = PastelGlassDropZone(grid_drop, "③ 전자 세금계산서 PDF", "🧾", "#F5F3FF", "#7C3AED", self.tax_pdf_path)
+        # ③ 전자 세금계산서 PDF (드롭 시 작성일자 정밀 자동 파싱)
+        self.drop_tax = PastelGlassDropZone(grid_drop, "③ 전자 세금계산서 PDF", "🧾", "#F5F3FF", "#7C3AED", self.tax_pdf_path, on_file_selected=self.parse_tax_invoice_uploaded)
         self.drop_tax.grid(row=1, column=0, padx=6, pady=6, sticky="nsew")
 
         contract_container = tk.Frame(grid_drop, bg=self.bg_app)
@@ -258,7 +288,8 @@ class VoucherPassApp:
         tk.Label(r0, text="P/R No:", **lbl_s).pack(side="left")
         tk.Entry(r0, textvariable=self.pr_no_var, width=16, **ent_s).pack(side="left", padx=(4, 12))
 
-        tk.Label(r0, text="📅 작성일자:", **lbl_s).pack(side="left")
+        # 작성일자 (전자 세금계산서 작성일자 연동)
+        tk.Label(r0, text="📅 작성일자(세금계산서):", **lbl_s).pack(side="left")
         tk.Entry(r0, textvariable=self.date_var, width=13, **ent_s).pack(side="left", padx=(4, 2))
         tk.Button(r0, text="📋 복사", command=lambda: self.copy_to_clipboard(self.date_var.get(), "작성일자"), **btn_copy_s).pack(side="left", padx=(0, 14))
 
@@ -287,7 +318,6 @@ class VoucherPassApp:
         tot_e = tk.Entry(r2, textvariable=self.total_amount_var, width=16, font=("Malgun Gothic", 9, "bold"), bg="#EFF6FF", fg="#1D4ED8", relief="solid", bd=1)
         tot_e.pack(side="left", padx=(4, 12))
 
-        # 3종 세로 한꺼번에 복사 버튼 (\n 줄바꿈 적용)
         btn_copy_all = tk.Button(r2, text="✨ 3종 항목 세로 복사 (엑셀 붙여넣기용)", font=("Malgun Gothic", 8, "bold"), bg="#2563EB", fg="white", activebackground="#1D4ED8", activeforeground="white", relief="flat", padx=8, pady=2, cursor="hand2", command=self.copy_all_3items)
         btn_copy_all.pack(side="right")
 
@@ -321,10 +351,6 @@ class VoucherPassApp:
         messagebox.showinfo("클립보드 복사 완료", f"[{label_name}] 텍스트가 복사되었습니다!\n\n📋 복사된 내용: {text}")
 
     def copy_all_3items(self):
-        """
-        작성일자, PR Title, 공급가액 3종 항목을 세로 줄바꿈(\\n)으로 구분하여 복사.
-        엑셀 셀 선택 후 Ctrl+V 시 세로 3개 셀에 순서대로 저장됨.
-        """
         d = self.date_var.get().strip()
         t = self.pr_title_var.get().strip()
         a = self.amount_var.get().strip()
@@ -373,12 +399,30 @@ class VoucherPassApp:
             tot = data.get('total_amount', 0)
             self.total_amount_var.set(f"{tot:,}" if tot else "0")
             
-            self.date_var.set(data.get('date', ''))
+            # 세금계산서 날짜가 아직 없으면 PR 날짜 적용
+            if not self.date_var.get() and data.get('date'):
+                self.date_var.set(data.get('date', ''))
+
             self.supplier_var.set(data.get('supplier', ''))
 
-            messagebox.showinfo("파싱 완료", f"PR PDF 데이터 분석 성공!\n\n- 작성일자: {data.get('date')}\n- PR Title: {data.get('pr_title')}\n- 공급가액: {amt:,} 원\n\n[📋 복사] 버튼을 눌러 원하시는 곳에 붙여넣으세요.")
+            messagebox.showinfo("파싱 완료", f"PR PDF 데이터 분석 성공!\n\n- PR Title: {data.get('pr_title')}\n- 공급가액: {amt:,} 원\n\n전자 세금계산서 PDF를 올리시면 작성일자가 세금계산서 날짜로 자동 업데이트됩니다.")
         except Exception as e:
             messagebox.showerror("파싱 오류", f"PDF 데이터 자동 추출 실패:\n{e}")
+
+    def parse_tax_invoice_uploaded(self, tax_path=None):
+        """
+        전자 세금계산서 PDF 업로드 시 작성일자 우선 파싱 및 연동
+        """
+        if not tax_path:
+            tax_path = self.tax_pdf_path.get()
+
+        if not tax_path or not os.path.exists(tax_path):
+            return
+
+        tax_date = pdf_parser.parse_tax_invoice_date(tax_path)
+        if tax_date:
+            self.date_var.set(tax_date)
+            messagebox.showinfo("세금계산서 연동 완료", f"전자 세금계산서에서 [작성일자] 데이터가 연동되었습니다!\n\n- 연동된 작성일자: {tax_date}")
 
     def _recalc_amounts(self, event=None):
         raw = self.amount_var.get().replace(',', '').strip()
@@ -390,9 +434,6 @@ class VoucherPassApp:
             self.total_amount_var.set(f"{tot:,}")
 
     def _parse_contract_pages(self, page_str):
-        """
-        '12-13', '1,2', '5' 등 다양하게 적힌 범위 입력을 파싱하여 (0-based list, 표기용 string) 리턴
-        """
         pages = set()
         cleaned = page_str.strip()
         if not cleaned:
@@ -421,29 +462,22 @@ class VoucherPassApp:
         return sorted_pages, cleaned
 
     def print_pdf_documents_only(self):
-        """
-        업로드한 4가지 PDF 서류만 인쇄하는 전용 기능 (계약서 지정 구간 정밀 인쇄)
-        """
         printer = self.selected_printer.get()
         printed_list = []
 
         try:
-            # 1. PR Print PDF 인쇄
             if self.pr_pdf_path.get() and os.path.exists(self.pr_pdf_path.get()):
                 printer_handler.print_pdf_file(self.pr_pdf_path.get(), printer_name=printer)
                 printed_list.append("① PR Print PDF (구매요청서)")
 
-            # 2. 거래명세서 PDF 인쇄
             if self.spec_pdf_path.get() and os.path.exists(self.spec_pdf_path.get()):
                 printer_handler.print_pdf_file(self.spec_pdf_path.get(), printer_name=printer)
                 printed_list.append("② 거래명세서 PDF")
 
-            # 3. 전자 세금계산서 PDF 인쇄
             if self.tax_pdf_path.get() and os.path.exists(self.tax_pdf_path.get()):
                 printer_handler.print_pdf_file(self.tax_pdf_path.get(), printer_name=printer)
                 printed_list.append("③ 전자 세금계산서 PDF")
 
-            # 4. 업체 계약서 PDF 지정 페이지 인쇄 (예: 12-13)
             if self.contract_pdf_path.get() and os.path.exists(self.contract_pdf_path.get()):
                 page_str = self.contract_page.get().strip()
                 page_indices, label_str = self._parse_contract_pages(page_str)

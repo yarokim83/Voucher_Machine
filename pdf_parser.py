@@ -1,112 +1,143 @@
-﻿import re
-import pdfplumber
+﻿import pdfplumber
+import re
+import os
 
 def parse_pr_pdf(pdf_path):
     """
-    HPNT PURCHASE REQUISITION, 세금계산서, 거래명세서 등 PDF 파싱
+    PR Print (구매요청서) PDF 데이터 파싱
     """
-    parsed_data = {
+    if not os.path.exists(pdf_path):
+        raise FileNotFoundError(f"PDF 파일을 찾을 수 없습니다: {pdf_path}")
+
+    extracted_data = {
         'pr_no': '',
         'pr_title': '',
         'amount': 0,
         'vat': 0,
         'total_amount': 0,
         'date': '',
-        'supplier': '',
-        'prepared_by': '',
-        'doc_type': 'PR'
+        'supplier': ''
     }
-    
-    full_text = ''
-    try:
-        with pdfplumber.open(pdf_path) as pdf:
-            for page in pdf.pages:
-                full_text += (page.extract_text() or '') + '\n'
-    except Exception as e:
-        print(f"pdfplumber read error: {e}")
 
-    # 1. PR No. (예: S202607270003)
-    pr_match = re.search(r'PR\s*No\.?\s*([A-Z0-9]+)', full_text, re.IGNORECASE)
+    full_text = ""
+    tables = []
+
+    with pdfplumber.open(pdf_path) as pdf:
+        for page in pdf.pages:
+            txt = page.extract_text()
+            if txt:
+                full_text += txt + "\n"
+            tbl = page.extract_tables()
+            if tbl:
+                tables.extend(tbl)
+
+    # 1. P/R No. 추출
+    pr_match = re.search(r'P/R\s*No\.?\s*[:\s]*([A-Z0-9]+)', full_text, re.IGNORECASE)
+    if not pr_match:
+        pr_match = re.search(r'PR\s*No\.?\s*[:\s]*([A-Z0-9]+)', full_text, re.IGNORECASE)
+    if not pr_match:
+        pr_match = re.search(r'S202[0-9]{8}', full_text)
+    
     if pr_match:
-        parsed_data['pr_no'] = pr_match.group(1).strip()
+        extracted_data['pr_no'] = pr_match.group(1) if len(pr_match.groups()) > 0 else pr_match.group(0)
 
-    # 2. Date (예: 2026-07-27 또는 2026/07/30)
-    date_match = re.search(r'DATE\s*(\d{4}[-/\.]\d{2}[-/\.]\d{2})', full_text, re.IGNORECASE)
+    # 2. 날짜 추출 (YYYY-MM-DD 또는 YYYY.MM.DD)
+    date_match = re.search(r'DATE\s*[:\s]*(\d{4}[-.\s]\d{2}[-.\s]\d{2})', full_text, re.IGNORECASE)
     if not date_match:
-        date_match = re.search(r'(\d{4}[-/\.]\d{2}[-/\.]\d{2})', full_text)
-    if date_match:
-        parsed_data['date'] = date_match.group(1).replace('/', '-').replace('.', '-').strip()
-
-    # 3. Subject / PR Title
-    subj_match = re.search(r'(?:SUBJECT|⊙\s*SUBJECT)\s*\n?([^\n]+)', full_text)
-    if subj_match:
-        title = subj_match.group(1).strip()
-        title = re.sub(r'^(⊙\s*TYPE OF PURCHASE|TYPE OF PURCHASE).*', '', title).strip()
-        parsed_data['pr_title'] = title
-    else:
-        item_match = re.search(r'([A-Za-z0-9\-]+호\s+[^\n]+교환작업|[A-Za-z0-9\-]+호\s+Hoist wire 교체|EXCHANGE WIRE ROPE[^\n]*)', full_text)
-        if item_match:
-            parsed_data['pr_title'] = item_match.group(1).strip()
-
-    # 4. Total Amount & VAT 정밀 추출 (오류 방지)
-    # PR No(예: 202607270003), 승인번호, 사업자등록번호(541-86-01824) 등 10자리 이상의 일련번호 제거
-    clean_text_for_amt = full_text
-    if parsed_data['pr_no']:
-        clean_text_for_amt = clean_text_for_amt.replace(parsed_data['pr_no'], '')
+        date_match = re.search(r'작성일자?\s*[:\s]*(\d{4}[-.\s]\d{2}[-.\s]\d{2})', full_text)
+    if not date_match:
+        date_match = re.search(r'(\d{4}-\d{2}-\d{2})', full_text)
     
-    # 10자리 이상 연속 숫자는 PR No나 승인번호 가능성이 크므로 마스킹
-    clean_text_for_amt = re.sub(r'\b\d{10,}\b', '', clean_text_for_amt)
+    if date_match:
+        extracted_data['date'] = date_match.group(1).replace('.', '-').strip()
 
-    target_amount = 0
+    # 3. Subject / PR Title 추출
+    subj_match = re.search(r'SUBJECT\s*[:\s]*(.+)', full_text, re.IGNORECASE)
+    if subj_match:
+        extracted_data['pr_title'] = subj_match.group(1).strip()
 
-    # 키워드 기반 금액 추출 (우선순위 1)
-    # 예: Total KRW 2,100,000 / Total 2,100,000 / 총약정금액 KRW 2,100,000 / 공급가액 2,100,000
-    kw_match = re.search(r'(?:Total|총약정금액|공급가액|총액)\s*(?:KRW|₩)?\s*([\d,]{4,})', clean_text_for_amt, re.IGNORECASE)
-    if kw_match:
-        raw_val = kw_match.group(1).replace(',', '')
-        if raw_val.isdigit():
-            target_amount = int(raw_val)
+    # 4. 금액 (공급가액 / Total Amount) 파싱
+    pr_no_str = extracted_data['pr_no']
+    candidates = []
+    
+    lines = full_text.split('\n')
+    for line in lines:
+        if pr_no_str and pr_no_str in line:
+            continue
+        
+        amounts = re.findall(r'(?:KRW|₩|총금액|공급가액|총약정금액|Total)?\s*([1-9]\d{0,2}(?:,\d{3})+)', line)
+        for amt_str in amounts:
+            clean_num = int(amt_str.replace(',', ''))
+            if pr_no_str and str(clean_num) in pr_no_str:
+                continue
+            if len(str(clean_num)) >= 10:
+                continue
+            if 1000 <= clean_num <= 1000000000:
+                is_priority = any(k in line for k in ['KRW', '총약정금액', 'Total', '공급가액', '합계'])
+                candidates.append((clean_num, is_priority))
 
-    # 우선순위 2: "KRW 2,100,000" 형태 직접 매칭
-    if not target_amount:
-        krw_match = re.search(r'KRW\s*([\d,]{4,})', clean_text_for_amt, re.IGNORECASE)
-        if krw_match:
-            raw_val = krw_match.group(1).replace(',', '')
-            if raw_val.isdigit():
-                target_amount = int(raw_val)
+    priority_candidates = [c[0] for c in candidates if c[1]]
+    if priority_candidates:
+        extracted_data['amount'] = max(priority_candidates)
+    elif candidates:
+        extracted_data['amount'] = max([c[0] for c in candidates])
 
-    # 우선순위 3: 테이블 등에서 숫자의 나열 중 합리적인 금액 (1,000원 ~ 10,000,000,000원 범위)
-    if not target_amount:
-        amt_candidates = re.findall(r'\b([\d,]{4,})\b', clean_text_for_amt)
-        valid_amounts = []
-        for cand in amt_candidates:
-            val_str = cand.replace(',', '')
-            if val_str.isdigit():
-                val = int(val_str)
-                # 1,000원 이상 10억 미만의 현실적 금액만 채택 (PR No 등이 실수로 포함되는 것 방지)
-                if 1000 <= val < 1000000000:
-                    valid_amounts.append(val)
-        if valid_amounts:
-            target_amount = max(valid_amounts)
+    if extracted_data['amount'] > 0:
+        extracted_data['vat'] = int(extracted_data['amount'] * 0.1)
+        extracted_data['total_amount'] = extracted_data['amount'] + extracted_data['vat']
 
-    if target_amount:
-        parsed_data['amount'] = target_amount
-        parsed_data['vat'] = int(target_amount * 0.1)
-        parsed_data['total_amount'] = target_amount + parsed_data['vat']
+    # 5. 거래처명 (Supplier / Payee)
+    sup_match = re.search(r'Company\s+([가-힣A-Za-z0-9㈜(주)]+)', full_text)
+    if not sup_match:
+        sup_match = re.search(r'SUPPLIERS?\s*RECOMMENDED[\s\S]*?1\s+([가-힣A-Za-z0-9㈜(주)]+)', full_text)
+    if not sup_match:
+        sup_match = re.search(r'금강엔지니어링', full_text)
+    
+    if sup_match:
+        extracted_data['supplier'] = sup_match.group(1) if len(sup_match.groups()) > 0 else sup_match.group(0)
 
-    # 5. Company / Supplier
-    supp_match = re.search(r'SUPPLIERS RECOMMENDED[\s\S]*?\d+\s+([가-힣A-Za-z0-9\((\)]+)', full_text)
-    if not supp_match:
-        supp_match = re.search(r'공급자[\s\S]*?상호\s*\(법인명\)\s*([가-힣A-Za-z0-9\(\)]+)', full_text)
-    if supp_match:
-        parsed_data['supplier'] = supp_match.group(1).strip()
+    return extracted_data
 
-    # 6. Prepared By
-    prep_match = re.search(r'PREPARED BY[\s\S]*?NAME\s+([가-힣]{2,4})', full_text)
-    if prep_match:
-        parsed_data['prepared_by'] = prep_match.group(1).strip()
+def parse_tax_invoice_date(pdf_path):
+    """
+    전자 세금계산서 PDF에서 작성일자/발행일자 정밀 추출
+    """
+    if not os.path.exists(pdf_path):
+        return ""
 
-    return parsed_data
+    full_text = ""
+    with pdfplumber.open(pdf_path) as pdf:
+        for page in pdf.pages:
+            txt = page.extract_text()
+            if txt:
+                full_text += txt + "\n"
 
-def parse_pdf_generic(pdf_path):
-    return parse_pr_pdf(pdf_path)
+    # 패턴 1: 작성일자 YYYY년 MM월 DD일 또는 YYYY-MM-DD
+    m = re.search(r'작성일자?\s*[:\s]*(\d{4})[년\-.\s/]\s*(\d{1,2})[월\-.\s/]\s*(\d{1,2})[일\s]?', full_text)
+    if m:
+        y, month, d = m.group(1), int(m.group(2)), int(m.group(3))
+        return f"{y}-{month:02d}-{d:02d}"
+
+    # 패턴 2: 발행일자 YYYY-MM-DD
+    m = re.search(r'발행일자?\s*[:\s]*(\d{4})[년\-.\s/]\s*(\d{1,2})[월\-.\s/]\s*(\d{1,2})[일\s]?', full_text)
+    if m:
+        y, month, d = m.group(1), int(m.group(2)), int(m.group(3))
+        return f"{y}-{month:02d}-{d:02d}"
+
+    # 패턴 3: 작성일자 8자리 숫자 (20260727)
+    m = re.search(r'작성일자?\s*[:\s]*(\d{4})(\d{2})(\d{2})', full_text)
+    if m:
+        return f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
+
+    # 패턴 4: 일반 YYYY-MM-DD 날짜 추출
+    m = re.search(r'(\d{4}[-.\s/]\d{2}[-.\s/]\d{2})', full_text)
+    if m:
+        cleaned = m.group(1).replace('.', '-').replace('/', '-').strip()
+        parts = cleaned.split('-')
+        if len(parts) == 3:
+            return f"{parts[0]}-{int(parts[1]):02d}-{int(parts[2]):02d}"
+
+    return ""
+
+if __name__ == '__main__':
+    print("pdf_parser loaded with tax invoice date extractor")
