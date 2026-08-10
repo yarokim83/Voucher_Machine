@@ -26,7 +26,7 @@ def find_edge_path():
 
 def print_pdf_file(pdf_path, printer_name=None, page_range=None):
     """
-    Windows GDI 프린터 드라이버 직통 인쇄 엔진 (ShellExecute 및 외부 프로그램 의존성 0%)
+    고해상도(300 DPI) + 비율 유지(Aspect Ratio Fit) + Safe Margin 잘림 방지 100% 인쇄 엔진
     """
     if not os.path.exists(pdf_path):
         raise FileNotFoundError(f"인쇄할 PDF 파일을 찾을 수 없습니다: {pdf_path}")
@@ -41,20 +41,35 @@ def print_pdf_file(pdf_path, printer_name=None, page_range=None):
         printer_name = win32print.GetDefaultPrinter()
 
     # -------------------------------------------------------------
-    # Engine 1: Windows Direct GDI Spooler Print (오류 31 무조건 100% 회피)
+    # Engine 1: 300 DPI High-Res Direct GDI Print with Aspect Ratio & Safe Margin
     # -------------------------------------------------------------
     if HAS_WIN32:
         try:
             hdc = win32ui.CreateDC()
             hdc.CreatePrinterDC(printer_name)
             
-            # 프린터 출력 가능 해상도 구하기
-            printable_width = hdc.GetDeviceCaps(110)   # PHYSICALWIDTH
-            printable_height = hdc.GetDeviceCaps(111)  # PHYSICALHEIGHT
-            if printable_width <= 0:
-                printable_width = hdc.GetDeviceCaps(8)  # HORZRES
-            if printable_height <= 0:
-                printable_height = hdc.GetDeviceCaps(10) # VERTRES
+            # 물리적 프린터 해상도 및 여백 정보 구하기
+            pw = hdc.GetDeviceCaps(110)   # PHYSICALWIDTH
+            ph = hdc.GetDeviceCaps(111)  # PHYSICALHEIGHT
+            off_x = hdc.GetDeviceCaps(112) # PHYSICALOFFSETX
+            off_y = hdc.GetDeviceCaps(113) # PHYSICALOFFSETY
+            res_x = hdc.GetDeviceCaps(88)  # LOGPIXELSX
+            res_y = hdc.GetDeviceCaps(90)  # LOGPIXELSY
+
+            if pw <= 0:
+                pw = hdc.GetDeviceCaps(8)  # HORZRES
+            if ph <= 0:
+                ph = hdc.GetDeviceCaps(10) # VERTRES
+
+            if res_x <= 0: res_x = 300
+            if res_y <= 0: res_y = 300
+
+            # Safe Margin (약 0.15인치 / 4mm 안전 여백)
+            margin_x = int(res_x * 0.15)
+            margin_y = int(res_y * 0.15)
+
+            target_w = max(100, pw - (margin_x * 2) - (off_x * 2))
+            target_h = max(100, ph - (margin_y * 2) - (off_y * 2))
 
             hdc.StartDoc(os.path.basename(target_pdf))
 
@@ -69,20 +84,30 @@ def print_pdf_file(pdf_path, printer_name=None, page_range=None):
                 
                 for idx in target_indices:
                     page = pdf.pages[idx]
-                    # 페이지를 비트맵 이미지로 변환 (200 DPI 고품질)
-                    pimg = page.to_image(resolution=200).original
-                    
+                    # 300 DPI 초고해상도 렌더링 (텍스트 선명도 극대화)
+                    pimg = page.to_image(resolution=300).original
+                    img_w, img_h = pimg.size
+
+                    # Aspect Ratio (비율 유지 스케일링)
+                    scale = min(target_w / img_w, target_h / img_h)
+                    final_w = int(img_w * scale)
+                    final_h = int(img_h * scale)
+
+                    # 중앙 정렬 위치 좌표
+                    pos_x = margin_x + int((target_w - final_w) / 2)
+                    pos_y = margin_y + int((target_h - final_h) / 2)
+
                     hdc.StartPage()
                     dib = ImageWin.Dib(pimg)
-                    dib.draw(hdc.GetHandleOutput(), (0, 0, printable_width, printable_height))
+                    dib.draw(hdc.GetHandleOutput(), (pos_x, pos_y, pos_x + final_w, pos_y + final_h))
                     hdc.EndPage()
                     
             hdc.EndDoc()
             hdc.DeleteDC()
-            print(f"Direct GDI Print Success to [{printer_name}]: {target_pdf}")
+            print(f"High-Res 300DPI Fit Print Success [{printer_name}]: {target_pdf}")
             return True
         except Exception as e1:
-            print(f"Engine 1 (Direct GDI) warning: {e1}")
+            print(f"Engine 1 (High-Res GDI) warning: {e1}")
 
     # -------------------------------------------------------------
     # Engine 2: Microsoft Edge Headless Print
@@ -112,7 +137,7 @@ def print_pdf_file(pdf_path, printer_name=None, page_range=None):
     except Exception as e3:
         print(f"Engine 3 (PowerShell) warning: {e3}")
 
-    raise RuntimeError(f"프린터 [{printer_name}] 출력 실패. 프린터 상태 및 용지 연결을 확인하세요.")
+    raise RuntimeError(f"프린터 [{printer_name}] 출력 실패. 프린터 상태를 확인하세요.")
 
 def print_excel_file(excel_path, printer_name=None):
     """
@@ -147,9 +172,6 @@ def print_excel_file(excel_path, printer_name=None):
         return False
 
 def get_installed_printers():
-    """
-    현재 시스템에 설치된 프린터 목록 반환
-    """
     printers = []
     if HAS_WIN32 and sys.platform == 'win32':
         try:
