@@ -2,6 +2,13 @@
 
 All notable changes to Voucher_Machine will be documented in this file.
 
+## [v1.4.0] - 2026-08-10
+### Added
+- 브랜드 이름 **VoucherPass** 및 신규 메인 로고/버전 배지 적용
+- macOS 스타일 신호등 제어 아이콘 및 좌측 사이드바 (PDF 업로드, 데이터 연동, 작성/인쇄, 히스토리, 설정, 안전 카드) 구현
+- 4종 파스텔 원형 배경 아이콘 (파랑, 초록, 보라, 오렌지) 적용 대형 GlassDropZone 카드 디자인 100% 매칭 적용
+- 우측 상단 파일 선택, 도움말, 설정 팝업 버튼 및 하단 슬림 바 내 VoucherPass 액션 버튼 디자인 완성
+
 ## [v1.3.1] - 2026-08-10
 ### Fixed
 - GlassDropZone 내 ont=("Malgun Gothic", 9.5) 등 남아있던 소수점 폰트 크기를 모두 정수(9/10/11)로 완벽 교정하여 TclError 구동 방지
@@ -10,7 +17,6 @@ All notable changes to Voucher_Machine will be documented in this file.
 ### Added
 - PDF 제출 서류 Drag & Drop 업로드 영역(1번 섹션) 크기 최대화 (시원시원한 대형 Drop Zone 카드 적용)
 - 파싱 데이터 확인 및 수정 영역(2번 섹션) 1~2줄 슬림 라인 컴팩트화 (세로 높이 최소화)
-- 템플릿/프린터 설정 및 인쇄/작성 버튼부 하단 바(Bottom Bar) 슬림 합체 구조로 가독성 및 사용성 향상
 
 ## [v1.2.1] - 2026-08-10
 ### Fixed
