@@ -1,29 +1,129 @@
 ﻿import os
 import sys
+import re
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
+
+try:
+    from tkinterdnd2 import TkinterDnD, DND_FILES
+    HAS_DND = True
+except ImportError:
+    HAS_DND = False
+    TkinterDnD = tk
+
 import pdf_parser
 import excel_handler
 import printer_handler
 
+class GlassDropZone(tk.Frame):
+    """
+    애플 글래스모피즘 스타일 드래그 앤 드롭 박스 컴포넌트
+    """
+    def __init__(self, parent, title, icon, file_var, on_file_selected=None, **kwargs):
+        super().__init__(parent, bg="#FFFFFF", highlightbackground="#CBD5E1", highlightthickness=1, bd=0, **kwargs)
+        self.file_var = file_var
+        self.on_file_selected = on_file_selected
+
+        self.inner_frame = tk.Frame(self, bg="#FFFFFF", padx=12, pady=10)
+        self.inner_frame.pack(fill="both", expand=True)
+
+        self.lbl_icon = tk.Label(self.inner_frame, text=icon, font=("Segoe UI Emoji", 18), bg="#FFFFFF", fg="#3B82F6")
+        self.lbl_icon.pack(side="left", padx=(0, 8))
+
+        info_box = tk.Frame(self.inner_frame, bg="#FFFFFF")
+        info_box.pack(side="left", fill="both", expand=True)
+
+        self.lbl_title = tk.Label(info_box, text=title, font=("Malgun Gothic", 10, "bold"), bg="#FFFFFF", fg="#1E293B", anchor="w")
+        self.lbl_title.pack(fill="x")
+
+        self.lbl_status = tk.Label(info_box, text="PDF 파일을 이곳에 드래그 앤 드롭 하거나 클릭하세요", font=("Malgun Gothic", 8), bg="#FFFFFF", fg="#94A3B8", anchor="w")
+        self.lbl_status.pack(fill="x")
+
+        for widget in (self, self.inner_frame, self.lbl_icon, info_box, self.lbl_title, self.lbl_status):
+            widget.config(cursor="hand2")
+            widget.bind("<Button-1>", self._browse_file)
+
+        if HAS_DND:
+            self.drop_target_register(DND_FILES)
+            self.dnd_bind('<<Drop>>', self._handle_drop)
+            self.dnd_bind('<<DragEnter>>', self._on_drag_enter)
+            self.dnd_bind('<<DragLeave>>', self._on_drag_leave)
+
+        self.file_var.trace_add("write", self._update_ui_state)
+
+    def _browse_file(self, event=None):
+        path = filedialog.askopenfilename(filetypes=[("PDF Files", "*.pdf"), ("All Files", "*.*")])
+        if path:
+            self.set_file(path)
+
+    def _handle_drop(self, event):
+        self._on_drag_leave()
+        raw_path = event.data.strip()
+        if raw_path.startswith('{') and raw_path.endswith('}'):
+            raw_path = raw_path[1:-1]
+        
+        paths = re.findall(r'\{[^}]+\}|[^\s]+', raw_path)
+        first_path = paths[0].strip('{}') if paths else raw_path
+
+        if first_path.lower().endswith('.pdf') and os.path.exists(first_path):
+            self.set_file(first_path)
+        else:
+            messagebox.showwarning("파일 형식 오류", "PDF 파일만 업로드할 수 있습니다.")
+
+    def _on_drag_enter(self, event=None):
+        self.config(bg="#EFF6FF", highlightbackground="#3B82F6", highlightthickness=2)
+        self.inner_frame.config(bg="#EFF6FF")
+        self.lbl_icon.config(bg="#EFF6FF")
+        self.lbl_title.config(bg="#EFF6FF")
+        self.lbl_status.config(bg="#EFF6FF", fg="#2563EB")
+
+    def _on_drag_leave(self, event=None):
+        bg_col = "#F0FDF4" if self.file_var.get() else "#FFFFFF"
+        border_col = "#22C55E" if self.file_var.get() else "#CBD5E1"
+        self.config(bg=bg_col, highlightbackground=border_col, highlightthickness=1)
+        self.inner_frame.config(bg=bg_col)
+        self.lbl_icon.config(bg=bg_col)
+        self.lbl_title.config(bg=bg_col)
+        self.lbl_status.config(bg=bg_col, fg="#64748B" if self.file_var.get() else "#94A3B8")
+
+    def set_file(self, path):
+        self.file_var.set(path)
+        if self.on_file_selected:
+            self.on_file_selected(path)
+
+    def _update_ui_state(self, *args):
+        path = self.file_var.get()
+        if path and os.path.exists(path):
+            fname = os.path.basename(path)
+            self.lbl_status.config(text=f"✓ {fname}", fg="#15803D", font=("Malgun Gothic", 9, "bold"))
+            self.config(bg="#F0FDF4", highlightbackground="#22C55E")
+            self.inner_frame.config(bg="#F0FDF4")
+            self.lbl_icon.config(bg="#F0FDF4", fg="#16A34A")
+            self.lbl_title.config(bg="#F0FDF4")
+        else:
+            self.lbl_status.config(text="PDF 파일을 이곳에 드래그 앤 드롭 하거나 클릭하세요", fg="#94A3B8", font=("Malgun Gothic", 8))
+            self.config(bg="#FFFFFF", highlightbackground="#CBD5E1")
+            self.inner_frame.config(bg="#FFFFFF")
+            self.lbl_icon.config(bg="#FFFFFF", fg="#3B82F6")
+            self.lbl_title.config(bg="#FFFFFF")
+
+
 class VoucherMachineApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Voucher Machine - 구매 서류 처리 & Voucher 자동 생성/인쇄")
-        self.root.geometry("960x780")
-        self.root.minsize(900, 700)
+        self.root.title("Voucher Machine - Apple Glassmorphic Edition (v1.2.0)")
+        self.root.geometry("1000x860")
+        self.root.minsize(940, 780)
 
-        # 변수 정의
         self.pr_pdf_path = tk.StringVar()
         self.spec_pdf_path = tk.StringVar()   # 거래명세서
         self.tax_pdf_path = tk.StringVar()    # 세금계산서
         self.contract_pdf_path = tk.StringVar() # 계약서
-        self.contract_page = tk.StringVar(value="1") # 계약서 출력 페이지
+        self.contract_page = tk.StringVar(value="1")
 
         self.template_path = tk.StringVar(value=r"C:\Users\baewoong.kim\Desktop\고려제강(2025).xlsx")
         self.selected_printer = tk.StringVar()
 
-        # 파싱 데이터 변수
         self.pr_no_var = tk.StringVar()
         self.pr_title_var = tk.StringVar()
         self.amount_var = tk.StringVar()
@@ -32,126 +132,119 @@ class VoucherMachineApp:
         self.date_var = tk.StringVar()
         self.supplier_var = tk.StringVar()
 
-        self._setup_style()
-        self._create_widgets()
+        self._setup_glass_theme()
+        self._build_ui()
         self._load_printers()
 
-    def _setup_style(self):
-        style = ttk.Style()
-        style.theme_use('clam')
+    def _setup_glass_theme(self):
+        self.bg_main = "#EEF2F6"
+        self.glass_bg = "#FFFFFF"
+        self.primary_blue = "#2563EB"
+        self.root.configure(bg=self.bg_main)
 
-        PRIMARY = "#1E3A8A"
-        SECONDARY = "#2563EB"
-        BG_COLOR = "#F8FAFC"
-        CARD_BG = "#FFFFFF"
+    def _build_ui(self):
+        header = tk.Frame(self.root, bg="#FFFFFF", highlightbackground="#E2E8F0", highlightthickness=1, padx=25, pady=16)
+        header.pack(fill="x")
 
-        self.root.configure(bg=BG_COLOR)
+        title_lbl = tk.Label(header, text="✨ Voucher Machine", font=("Malgun Gothic", 18, "bold"), bg="#FFFFFF", fg="#0F172A")
+        title_lbl.pack(anchor="w")
+        sub_lbl = tk.Label(header, text="Apple Glassmorphism UI  |  구매 서류 드래그 앤 드롭 ➔ 자동 파싱 & 엑셀 인쇄", font=("Malgun Gothic", 9.5), bg="#FFFFFF", fg="#64748B")
+        sub_lbl.pack(anchor="w", pady=(2, 0))
 
-        style.configure("Header.TLabel", font=("Malgun Gothic", 16, "bold"), background=BG_COLOR, foreground=PRIMARY)
-        style.configure("SubHeader.TLabel", font=("Malgun Gothic", 11, "bold"), background=CARD_BG, foreground="#334155")
-        style.configure("Card.TLabelframe", background=CARD_BG, relief="solid", borderwidth=1)
-        style.configure("Card.TLabelframe.Label", font=("Malgun Gothic", 11, "bold"), foreground=PRIMARY)
-        style.configure("Action.TButton", font=("Malgun Gothic", 10, "bold"), background=SECONDARY, foreground="white")
-        style.map("Action.TButton", background=[("active", PRIMARY)])
+        canvas = tk.Canvas(self.root, bg=self.bg_main, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(self.root, orient="vertical", command=canvas.yview)
+        main_box = tk.Frame(canvas, bg=self.bg_main, padx=20, pady=16)
 
-    def _create_widgets(self):
-        header_frame = ttk.Frame(self.root, padding=15)
-        header_frame.pack(fill="x")
-        ttk.Label(header_frame, text="📄 Voucher Machine - 구매 서류 일괄 자동화", style="Header.TLabel").pack(anchor="w")
-        ttk.Label(header_frame, text="PR/거래명세서/세금계산서 PDF 업로드 ➔ 데이터 추출 ➔ Voucher 엑셀 작성 ➔ 일괄 인쇄", font=("Malgun Gothic", 9), foreground="#64748B").pack(anchor="w", pady=(2, 0))
+        main_box.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.create_window((0, 0), window=main_box, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
 
-        main_canvas = tk.Canvas(self.root, bg="#F8FAFC", highlightthickness=0)
-        scrollbar = ttk.Scrollbar(self.root, orient="vertical", command=main_canvas.yview)
-        scrollable_frame = ttk.Frame(main_canvas, padding=15)
-
-        scrollable_frame.bind(
-            "<Configure>",
-            lambda e: main_canvas.configure(scrollregion=main_canvas.bbox("all"))
-        )
-
-        main_canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
-        main_canvas.configure(yscrollcommand=scrollbar.set)
-
-        main_canvas.pack(side="left", fill="both", expand=True)
+        canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
 
-        # 1. PDF 파일 업로드 섹션
-        file_frame = ttk.LabelFrame(scrollable_frame, text=" 1. 제출 서류 PDF 업로드 ", style="Card.TLabelframe", padding=15)
-        file_frame.pack(fill="x", pady=(0, 15))
+        sec1_card = tk.LabelFrame(main_box, text=" 📂 1. 제출 서류 Drag & Drop 업로드 ", font=("Malgun Gothic", 11, "bold"), bg="#FFFFFF", fg="#1E3A8A", bd=1, relief="solid", padx=16, pady=14)
+        sec1_card.pack(fill="x", pady=(0, 16))
 
-        self._create_file_row(file_frame, "① PR Print (구매요청서):", self.pr_pdf_path, self.browse_pr_pdf)
-        self._create_file_row(file_frame, "② 거래명세서 PDF:", self.spec_pdf_path, lambda: self.browse_file(self.spec_pdf_path))
-        self._create_file_row(file_frame, "③ 전자 세금계산서 PDF:", self.tax_pdf_path, lambda: self.browse_file(self.tax_pdf_path))
+        grid_frame = tk.Frame(sec1_card, bg="#FFFFFF")
+        grid_frame.pack(fill="x")
 
-        contract_sub_frame = ttk.Frame(file_frame)
-        contract_sub_frame.pack(fill="x", pady=4)
-        ttk.Label(contract_sub_frame, text="④ 업체 계약서 PDF:", font=("Malgun Gothic", 9, "bold"), width=22).pack(side="left")
-        ttk.Entry(contract_sub_frame, textvariable=self.contract_pdf_path, font=("Malgun Gothic", 9)).pack(side="left", fill="x", expand=True, padx=5)
-        ttk.Button(contract_sub_frame, text="찾아보기", command=lambda: self.browse_file(self.contract_pdf_path)).pack(side="left", padx=2)
-        
-        ttk.Label(contract_sub_frame, text="출력 페이지:", font=("Malgun Gothic", 9)).pack(side="left", padx=(10, 2))
-        ttk.Entry(contract_sub_frame, textvariable=self.contract_page, width=6, font=("Malgun Gothic", 9)).pack(side="left")
+        self.drop_pr = GlassDropZone(grid_frame, "① PR Print (구매요청서)", "📋", self.pr_pdf_path, on_file_selected=self.parse_uploaded_pdf)
+        self.drop_pr.grid(row=0, column=0, padx=8, pady=8, sticky="nsew")
 
-        btn_parse = tk.Button(file_frame, text="🔍 PDF 데이터 자동 분석", font=("Malgun Gothic", 10, "bold"), bg="#2563EB", fg="white", activebackground="#1D4ED8", activeforeground="white", command=self.parse_uploaded_pdf, relief="flat", pady=6)
-        btn_parse.pack(fill="x", pady=(10, 0))
+        self.drop_spec = GlassDropZone(grid_frame, "② 거래명세서", "📑", self.spec_pdf_path)
+        self.drop_spec.grid(row=0, column=1, padx=8, pady=8, sticky="nsew")
 
-        # 2. 추출된 데이터 확인 & 수정 섹션
-        data_frame = ttk.LabelFrame(scrollable_frame, text=" 2. 추출 데이터 확인 및 수정 (Voucher 자동 입력 항목) ", style="Card.TLabelframe", padding=15)
-        data_frame.pack(fill="x", pady=(0, 15))
+        self.drop_tax = GlassDropZone(grid_frame, "③ 전자 세금계산서", "🧾", self.tax_pdf_path)
+        self.drop_tax.grid(row=1, column=0, padx=8, pady=8, sticky="nsew")
 
-        grid_opts = {'padx': 8, 'pady': 6, 'sticky': 'w'}
+        contract_container = tk.Frame(grid_frame, bg="#FFFFFF", highlightbackground="#CBD5E1", highlightthickness=1)
+        contract_container.grid(row=1, column=1, padx=8, pady=8, sticky="nsew")
 
-        ttk.Label(data_frame, text="P/R No.:", font=("Malgun Gothic", 9, "bold")).grid(row=0, column=0, **grid_opts)
-        ttk.Entry(data_frame, textvariable=self.pr_no_var, font=("Malgun Gothic", 10), width=25).grid(row=0, column=1, **grid_opts)
+        self.drop_contract = GlassDropZone(contract_container, "④ 업체 계약서", "📜", self.contract_pdf_path)
+        self.drop_contract.pack(fill="both", expand=True)
 
-        ttk.Label(data_frame, text="Date (작성일):", font=("Malgun Gothic", 9, "bold")).grid(row=0, column=2, **grid_opts)
-        ttk.Entry(data_frame, textvariable=self.date_var, font=("Malgun Gothic", 10), width=25).grid(row=0, column=3, **grid_opts)
+        pg_sub = tk.Frame(contract_container, bg="#F8FAFC", padx=10, pady=4)
+        pg_sub.pack(fill="x")
+        tk.Label(pg_sub, text="출력 페이지:", font=("Malgun Gothic", 8.5, "bold"), bg="#F8FAFC", fg="#475569").pack(side="left")
+        tk.Entry(pg_sub, textvariable=self.contract_page, font=("Malgun Gothic", 9), width=5, relief="solid", bd=1).pack(side="left", padx=5)
+        tk.Label(pg_sub, text="(예: 1 또는 1,2)", font=("Malgun Gothic", 8), bg="#F8FAFC", fg="#94A3B8").pack(side="left")
 
-        ttk.Label(data_frame, text="PR Title (품목/내용):", font=("Malgun Gothic", 9, "bold")).grid(row=1, column=0, **grid_opts)
-        ttk.Entry(data_frame, textvariable=self.pr_title_var, font=("Malgun Gothic", 10), width=65).grid(row=1, column=1, columnspan=3, **grid_opts)
+        grid_frame.columnconfigure(0, weight=1)
+        grid_frame.columnconfigure(1, weight=1)
 
-        ttk.Label(data_frame, text="Payee (거래처명):", font=("Malgun Gothic", 9, "bold")).grid(row=2, column=0, **grid_opts)
-        ttk.Entry(data_frame, textvariable=self.supplier_var, font=("Malgun Gothic", 10), width=25).grid(row=2, column=1, **grid_opts)
+        sec2_card = tk.LabelFrame(main_box, text=" 📝 2. 파싱 데이터 확인 및 수정 (Voucher 연동) ", font=("Malgun Gothic", 11, "bold"), bg="#FFFFFF", fg="#1E3A8A", bd=1, relief="solid", padx=18, pady=16)
+        sec2_card.pack(fill="x", pady=(0, 16))
 
-        ttk.Label(data_frame, text="공급가액 (Amount):", font=("Malgun Gothic", 9, "bold")).grid(row=3, column=0, **grid_opts)
-        amt_entry = ttk.Entry(data_frame, textvariable=self.amount_var, font=("Malgun Gothic", 10), width=25)
-        amt_entry.grid(row=3, column=1, **grid_opts)
-        amt_entry.bind("<KeyRelease>", self._recalc_amounts)
+        lbl_style = {"font": ("Malgun Gothic", 9.5, "bold"), "bg": "#FFFFFF", "fg": "#334155", "anchor": "e"}
+        ent_style = {"font": ("Malgun Gothic", 10.5), "bg": "#F8FAFC", "relief": "solid", "bd": 1}
 
-        ttk.Label(data_frame, text="V.A.T. (부가세 10%):", font=("Malgun Gothic", 9, "bold")).grid(row=3, column=2, **grid_opts)
-        ttk.Entry(data_frame, textvariable=self.vat_var, font=("Malgun Gothic", 10), width=25).grid(row=3, column=3, **grid_opts)
+        tk.Label(sec2_card, text="P/R No.:", **lbl_style).grid(row=0, column=0, padx=8, pady=8, sticky="e")
+        tk.Entry(sec2_card, textvariable=self.pr_no_var, width=24, **ent_style).grid(row=0, column=1, padx=8, pady=8, sticky="w")
 
-        ttk.Label(data_frame, text="합계금액 (Total):", font=("Malgun Gothic", 9, "bold")).grid(row=4, column=0, **grid_opts)
-        ttk.Entry(data_frame, textvariable=self.total_amount_var, font=("Malgun Gothic", 10, "bold"), width=25, foreground="#1E3A8A").grid(row=4, column=1, **grid_opts)
+        tk.Label(sec2_card, text="작성일자 (Date):", **lbl_style).grid(row=0, column=2, padx=8, pady=8, sticky="e")
+        tk.Entry(sec2_card, textvariable=self.date_var, width=24, **ent_style).grid(row=0, column=3, padx=8, pady=8, sticky="w")
 
-        # 3. 템플릿 설정 및 프린터 선택
-        setting_frame = ttk.LabelFrame(scrollable_frame, text=" 3. Voucher 템플릿 & 프린터 설정 ", style="Card.TLabelframe", padding=15)
-        setting_frame.pack(fill="x", pady=(0, 15))
+        tk.Label(sec2_card, text="PR Title (품목명):", **lbl_style).grid(row=1, column=0, padx=8, pady=8, sticky="e")
+        tk.Entry(sec2_card, textvariable=self.pr_title_var, width=68, **ent_style).grid(row=1, column=1, columnspan=3, padx=8, pady=8, sticky="w")
 
-        self._create_file_row(setting_frame, "Voucher 엑셀 템플릿:", self.template_path, lambda: self.browse_file(self.template_path, [("Excel Files", "*.xlsx")]))
+        tk.Label(sec2_card, text="Payee (거래처명):", **lbl_style).grid(row=2, column=0, padx=8, pady=8, sticky="e")
+        tk.Entry(sec2_card, textvariable=self.supplier_var, width=24, **ent_style).grid(row=2, column=1, padx=8, pady=8, sticky="w")
 
-        printer_sub = ttk.Frame(setting_frame)
-        printer_sub.pack(fill="x", pady=4)
-        ttk.Label(printer_sub, text="출력 프린터 선택:", font=("Malgun Gothic", 9, "bold"), width=22).pack(side="left")
-        self.printer_combo = ttk.Combobox(printer_sub, textvariable=self.selected_printer, font=("Malgun Gothic", 9), state="readonly")
-        self.printer_combo.pack(side="left", fill="x", expand=True, padx=5)
+        tk.Label(sec2_card, text="공급가액 (Amount):", **lbl_style).grid(row=3, column=0, padx=8, pady=8, sticky="e")
+        amt_ent = tk.Entry(sec2_card, textvariable=self.amount_var, width=24, **ent_style)
+        amt_ent.grid(row=3, column=1, padx=8, pady=8, sticky="w")
+        amt_ent.bind("<KeyRelease>", self._recalc_amounts)
 
-        # 4. 실행 버튼 그룹
-        action_frame = ttk.Frame(scrollable_frame)
-        action_frame.pack(fill="x", pady=10)
+        tk.Label(sec2_card, text="V.A.T. (부가세 10%):", **lbl_style).grid(row=3, column=2, padx=8, pady=8, sticky="e")
+        tk.Entry(sec2_card, textvariable=self.vat_var, width=24, **ent_style).grid(row=3, column=3, padx=8, pady=8, sticky="w")
 
-        btn_excel = tk.Button(action_frame, text="📊 Voucher 엑셀 자동 생성", font=("Malgun Gothic", 11, "bold"), bg="#059669", fg="white", activebackground="#047857", activeforeground="white", command=self.create_voucher_excel, relief="flat", pady=10, width=28)
-        btn_excel.pack(side="left", padx=(0, 10), expand=True, fill="x")
+        tk.Label(sec2_card, text="합계금액 (Total):", **lbl_style).grid(row=4, column=0, padx=8, pady=8, sticky="e")
+        tot_ent = tk.Entry(sec2_card, textvariable=self.total_amount_var, width=24, font=("Malgun Gothic", 11, "bold"), bg="#EFF6FF", fg="#1D4ED8", relief="solid", bd=1)
+        tot_ent.grid(row=4, column=1, padx=8, pady=8, sticky="w")
 
-        btn_print = tk.Button(action_frame, text="🖨️ Voucher & PDF 3종 일괄 인쇄", font=("Malgun Gothic", 11, "bold"), bg="#DC2626", fg="white", activebackground="#B91C1C", activeforeground="white", command=self.print_all_documents, relief="flat", pady=10, width=32)
-        btn_print.pack(side="right", expand=True, fill="x")
+        sec3_card = tk.LabelFrame(main_box, text=" ⚙️ 3. Voucher 템플릿 & 인쇄 설정 ", font=("Malgun Gothic", 11, "bold"), bg="#FFFFFF", fg="#1E3A8A", bd=1, relief="solid", padx=18, pady=14)
+        sec3_card.pack(fill="x", pady=(0, 16))
 
-    def _create_file_row(self, parent, label_text, var, command):
-        frame = ttk.Frame(parent)
-        frame.pack(fill="x", pady=4)
-        ttk.Label(frame, text=label_text, font=("Malgun Gothic", 9, "bold"), width=22).pack(side="left")
-        ttk.Entry(frame, textvariable=var, font=("Malgun Gothic", 9)).pack(side="left", fill="x", expand=True, padx=5)
-        ttk.Button(frame, text="찾아보기", command=command).pack(side="left")
+        tmpl_row = tk.Frame(sec3_card, bg="#FFFFFF")
+        tmpl_row.pack(fill="x", pady=4)
+        tk.Label(tmpl_row, text="Voucher 엑셀 템플릿:", font=("Malgun Gothic", 9.5, "bold"), bg="#FFFFFF", fg="#334155", width=18, anchor="e").pack(side="left")
+        tk.Entry(tmpl_row, textvariable=self.template_path, font=("Malgun Gothic", 9), bg="#F8FAFC", relief="solid", bd=1).pack(side="left", fill="x", expand=True, padx=8)
+        tk.Button(tmpl_row, text="변경", font=("Malgun Gothic", 8.5), bg="#E2E8F0", fg="#334155", relief="flat", command=self.browse_template).pack(side="left")
+
+        prt_row = tk.Frame(sec3_card, bg="#FFFFFF")
+        prt_row.pack(fill="x", pady=4)
+        tk.Label(prt_row, text="출력 프린터 선택:", font=("Malgun Gothic", 9.5, "bold"), bg="#FFFFFF", fg="#334155", width=18, anchor="e").pack(side="left")
+        self.printer_combo = ttk.Combobox(prt_row, textvariable=self.selected_printer, font=("Malgun Gothic", 9.5), state="readonly")
+        self.printer_combo.pack(side="left", fill="x", expand=True, padx=8)
+
+        btn_box = tk.Frame(main_box, bg=self.bg_main)
+        btn_box.pack(fill="x", pady=10)
+
+        btn_excel = tk.Button(btn_box, text="📊 Voucher 엑셀 자동 작성", font=("Malgun Gothic", 11.5, "bold"), bg="#10B981", fg="white", activebackground="#059669", activeforeground="white", relief="flat", pady=12, cursor="hand2", command=self.create_voucher_excel)
+        btn_excel.pack(side="left", fill="x", expand=True, padx=(0, 10))
+
+        btn_print = tk.Button(btn_box, text="🖨️ Voucher & PDF 서류 일괄 인쇄", font=("Malgun Gothic", 11.5, "bold"), bg="#4F46E5", fg="white", activebackground="#4338CA", activeforeground="white", relief="flat", pady=12, cursor="hand2", command=self.print_all_documents)
+        btn_print.pack(side="right", fill="x", expand=True, padx=(10, 0))
 
     def _load_printers(self):
         printers = printer_handler.get_installed_printers()
@@ -159,21 +252,16 @@ class VoucherMachineApp:
         if printers:
             self.selected_printer.set(printers[0])
 
-    def browse_file(self, var, filetypes=[("PDF Files", "*.pdf"), ("All Files", "*.*")]):
-        path = filedialog.askopenfilename(filetypes=filetypes)
+    def browse_template(self):
+        path = filedialog.askopenfilename(filetypes=[("Excel Files", "*.xlsx")])
         if path:
-            var.set(path)
+            self.template_path.set(path)
 
-    def browse_pr_pdf(self):
-        path = filedialog.askopenfilename(filetypes=[("PDF Files", "*.pdf"), ("All Files", "*.*")])
-        if path:
-            self.pr_pdf_path.set(path)
-            self.parse_uploaded_pdf()
+    def parse_uploaded_pdf(self, pr_path=None):
+        if not pr_path:
+            pr_path = self.pr_pdf_path.get()
 
-    def parse_uploaded_pdf(self):
-        pr_path = self.pr_pdf_path.get()
         if not pr_path or not os.path.exists(pr_path):
-            messagebox.showwarning("경고", "분석할 PR Print (구매요청서) PDF 파일을 먼저 선택하세요.")
             return
 
         try:
@@ -193,9 +281,9 @@ class VoucherMachineApp:
             self.date_var.set(data.get('date', ''))
             self.supplier_var.set(data.get('supplier', ''))
 
-            messagebox.showinfo("성공", "PR PDF 데이터 분석이 완료되었습니다!")
+            messagebox.showinfo("파싱 완료", f"PR PDF 데이터 분석 성공!\n- PR No: {data.get('pr_no')}\n- 공급가액: {amt:,} 원")
         except Exception as e:
-            messagebox.showerror("오류", f"PDF 데이터 파싱 실패:\n{e}")
+            messagebox.showerror("파싱 오류", f"PDF 데이터 자동 추출 실패:\n{e}")
 
     def _recalc_amounts(self, event=None):
         raw = self.amount_var.get().replace(',', '').strip()
@@ -231,10 +319,10 @@ class VoucherMachineApp:
 
         try:
             out_path = excel_handler.generate_voucher_excel(data, template_path=tmpl)
-            messagebox.showinfo("엑셀 생성 완료", f"Voucher 엑셀 파일이 정상적으로 저장되었습니다:\n\n{out_path}")
+            messagebox.showinfo("엑셀 생성 성공", f"Voucher 엑셀 서식이 정상 저장되었습니다!\n\n경로: {out_path}")
             return out_path
         except Exception as e:
-            messagebox.showerror("오류", f"엑셀 생성 실패:\n{e}")
+            messagebox.showerror("오류", f"엑셀 작성 실패:\n{e}")
             return None
 
     def print_all_documents(self):
@@ -274,13 +362,16 @@ class VoucherMachineApp:
                 printed_list.append(f"업체 계약서 PDF ({page_str} 페이지)")
 
             summary = "\n- ".join(printed_list)
-            messagebox.showinfo("일괄 인쇄 완료", f"다음 문서들이 프린터[{printer}]로 인쇄 요청되었습니다:\n\n- {summary}")
+            messagebox.showinfo("일괄 인쇄 요청 완료", f"다음 서류들이 프린터 [{printer}] 로 출력 요청되었습니다:\n\n- {summary}")
 
         except Exception as e:
-            messagebox.showerror("인쇄 오류", f"문서 일괄 인쇄 중 오류 발생:\n{e}")
+            messagebox.showerror("인쇄 오류", f"일괄 인쇄 중 오류 발생:\n{e}")
 
 def main():
-    root = tk.Tk()
+    if HAS_DND:
+        root = TkinterDnD.Tk()
+    else:
+        root = tk.Tk()
     app = VoucherMachineApp(root)
     root.mainloop()
 
