@@ -2,6 +2,10 @@
 
 All notable changes to Voucher_Machine will be documented in this file.
 
+## [v1.3.1] - 2026-08-10
+### Fixed
+- GlassDropZone 내 ont=("Malgun Gothic", 9.5) 등 남아있던 소수점 폰트 크기를 모두 정수(9/10/11)로 완벽 교정하여 TclError 구동 방지
+
 ## [v1.3.0] - 2026-08-10
 ### Added
 - PDF 제출 서류 Drag & Drop 업로드 영역(1번 섹션) 크기 최대화 (시원시원한 대형 Drop Zone 카드 적용)

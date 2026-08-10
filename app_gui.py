@@ -33,7 +33,7 @@ class GlassDropZone(tk.Frame):
         self.lbl_title = tk.Label(self.inner_frame, text=title, font=("Malgun Gothic", 12, "bold"), bg="#FFFFFF", fg="#0F172A")
         self.lbl_title.pack(side="top")
 
-        self.lbl_status = tk.Label(self.inner_frame, text="PDF 파일을 이곳으로 드래그 앤 드롭 하거나 클릭하세요", font=("Malgun Gothic", 9.5), bg="#FFFFFF", fg="#64748B")
+        self.lbl_status = tk.Label(self.inner_frame, text="PDF 파일을 이곳으로 드래그 앤 드롭 하거나 클릭하세요", font=("Malgun Gothic", 9), bg="#FFFFFF", fg="#64748B")
         self.lbl_status.pack(side="top", pady=(4, 4))
 
         for widget in (self, self.inner_frame, self.lbl_icon, self.lbl_title, self.lbl_status):
@@ -98,7 +98,7 @@ class GlassDropZone(tk.Frame):
             self.lbl_icon.config(bg="#F0FDF4", fg="#16A34A")
             self.lbl_title.config(bg="#F0FDF4")
         else:
-            self.lbl_status.config(text="PDF 파일을 이곳으로 드래그 앤 드롭 하거나 클릭하세요", fg="#64748B", font=("Malgun Gothic", 9.5))
+            self.lbl_status.config(text="PDF 파일을 이곳으로 드래그 앤 드롭 하거나 클릭하세요", fg="#64748B", font=("Malgun Gothic", 9))
             self.config(bg="#FFFFFF", highlightbackground="#CBD5E1")
             self.inner_frame.config(bg="#FFFFFF")
             self.lbl_icon.config(bg="#FFFFFF", fg="#2563EB")
@@ -108,7 +108,7 @@ class GlassDropZone(tk.Frame):
 class VoucherMachineApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Voucher Machine - Compact Layout Edition (v1.3.0)")
+        self.root.title("Voucher Machine - Compact Layout Edition (v1.3.1)")
         self.root.geometry("1020x860")
         self.root.minsize(980, 800)
 
@@ -138,7 +138,6 @@ class VoucherMachineApp:
         self.root.configure(bg=self.bg_main)
 
     def _build_ui(self):
-        # Header (Slim Glass Bar)
         header = tk.Frame(self.root, bg="#FFFFFF", highlightbackground="#E2E8F0", highlightthickness=1, padx=20, pady=10)
         header.pack(fill="x")
 
@@ -159,7 +158,6 @@ class VoucherMachineApp:
         grid_frame = tk.Frame(sec1_card, bg="#FFFFFF")
         grid_frame.pack(fill="both", expand=True)
 
-        # 2x2 대형 Drop Zone
         self.drop_pr = GlassDropZone(grid_frame, "① PR Print (구매요청서)", "📋", self.pr_pdf_path, on_file_selected=self.parse_uploaded_pdf)
         self.drop_pr.grid(row=0, column=0, padx=8, pady=6, sticky="nsew")
 
@@ -169,7 +167,6 @@ class VoucherMachineApp:
         self.drop_tax = GlassDropZone(grid_frame, "③ 전자 세금계산서 PDF", "🧾", self.tax_pdf_path)
         self.drop_tax.grid(row=1, column=0, padx=8, pady=6, sticky="nsew")
 
-        # 계약서 대형 Drop Zone + 페이지 선택 하단 바
         contract_container = tk.Frame(grid_frame, bg="#FFFFFF")
         contract_container.grid(row=1, column=1, padx=8, pady=6, sticky="nsew")
 
@@ -178,8 +175,8 @@ class VoucherMachineApp:
 
         pg_sub = tk.Frame(contract_container, bg="#F8FAFC", padx=8, pady=3, highlightbackground="#CBD5E1", highlightthickness=1)
         pg_sub.pack(fill="x", pady=(4, 0))
-        tk.Label(pg_sub, text="📄 인쇄 대상 페이지:", font=("Malgun Gothic", 8.5, "bold"), bg="#F8FAFC", fg="#475569").pack(side="left")
-        tk.Entry(pg_sub, textvariable=self.contract_page, font=("Malgun Gothic", 8.5), width=4, relief="solid", bd=1).pack(side="left", padx=4)
+        tk.Label(pg_sub, text="📄 인쇄 대상 페이지:", font=("Malgun Gothic", 9, "bold"), bg="#F8FAFC", fg="#475569").pack(side="left")
+        tk.Entry(pg_sub, textvariable=self.contract_page, font=("Malgun Gothic", 9), width=4, relief="solid", bd=1).pack(side="left", padx=4)
         tk.Label(pg_sub, text="(예: 1 또는 1,2)", font=("Malgun Gothic", 8), bg="#F8FAFC", fg="#94A3B8").pack(side="left")
 
         grid_frame.columnconfigure(0, weight=1)
@@ -193,10 +190,9 @@ class VoucherMachineApp:
         sec2_card = tk.LabelFrame(main_box, text=" 📝 2. 추출 데이터 (Voucher 자동 연동) ", font=("Malgun Gothic", 10, "bold"), bg="#FFFFFF", fg="#1E3A8A", bd=1, relief="solid", padx=12, pady=6)
         sec2_card.pack(fill="x", pady=(0, 10))
 
-        lbl_style = {"font": ("Malgun Gothic", 8.5, "bold"), "bg": "#FFFFFF", "fg": "#334155", "anchor": "e"}
+        lbl_style = {"font": ("Malgun Gothic", 9, "bold"), "bg": "#FFFFFF", "fg": "#334155", "anchor": "e"}
         ent_style = {"font": ("Malgun Gothic", 9), "bg": "#F8FAFC", "relief": "solid", "bd": 1}
 
-        # Row 0: PR No / Date / Payee (1줄에 정렬)
         r0 = tk.Frame(sec2_card, bg="#FFFFFF")
         r0.pack(fill="x", pady=2)
         
@@ -209,13 +205,11 @@ class VoucherMachineApp:
         tk.Label(r0, text="거래처명 (Payee):", **lbl_style).pack(side="left")
         tk.Entry(r0, textvariable=self.supplier_var, width=22, **ent_style).pack(side="left", padx=(4, 0))
 
-        # Row 1: PR Title (가로 전체 차지)
         r1 = tk.Frame(sec2_card, bg="#FFFFFF")
         r1.pack(fill="x", pady=2)
         tk.Label(r1, text="PR Title:", **lbl_style).pack(side="left")
         tk.Entry(r1, textvariable=self.pr_title_var, **ent_style).pack(side="left", fill="x", expand=True, padx=(4, 0))
 
-        # Row 2: Amount / VAT / Total (1줄 슬림 배치)
         r2 = tk.Frame(sec2_card, bg="#FFFFFF")
         r2.pack(fill="x", pady=2)
 
@@ -228,7 +222,7 @@ class VoucherMachineApp:
         tk.Entry(r2, textvariable=self.vat_var, width=16, **ent_style).pack(side="left", padx=(4, 16))
 
         tk.Label(r2, text="합계금액:", **lbl_style).pack(side="left")
-        tot_ent = tk.Entry(r2, textvariable=self.total_amount_var, width=18, font=("Malgun Gothic", 9.5, "bold"), bg="#EFF6FF", fg="#1D4ED8", relief="solid", bd=1)
+        tot_ent = tk.Entry(r2, textvariable=self.total_amount_var, width=18, font=("Malgun Gothic", 10, "bold"), bg="#EFF6FF", fg="#1D4ED8", relief="solid", bd=1)
         tot_ent.pack(side="left", padx=(4, 0))
 
         # -----------------------------------------------------------
@@ -237,23 +231,21 @@ class VoucherMachineApp:
         bottom_bar = tk.Frame(main_box, bg="#FFFFFF", highlightbackground="#CBD5E1", highlightthickness=1, padx=12, pady=8)
         bottom_bar.pack(fill="x")
 
-        # Left: Settings (Template & Printer)
         sett_box = tk.Frame(bottom_bar, bg="#FFFFFF")
         sett_box.pack(side="left", fill="x", expand=True, padx=(0, 10))
 
         s_r1 = tk.Frame(sett_box, bg="#FFFFFF")
         s_r1.pack(fill="x", pady=1)
-        tk.Label(s_r1, text="템플릿:", font=("Malgun Gothic", 8.5, "bold"), bg="#FFFFFF", fg="#475569").pack(side="left")
-        tk.Entry(s_r1, textvariable=self.template_path, font=("Malgun Gothic", 8.5), bg="#F8FAFC", relief="solid", bd=1).pack(side="left", fill="x", expand=True, padx=4)
+        tk.Label(s_r1, text="템플릿:", font=("Malgun Gothic", 9, "bold"), bg="#FFFFFF", fg="#475569").pack(side="left")
+        tk.Entry(s_r1, textvariable=self.template_path, font=("Malgun Gothic", 9), bg="#F8FAFC", relief="solid", bd=1).pack(side="left", fill="x", expand=True, padx=4)
         tk.Button(s_r1, text="변경", font=("Malgun Gothic", 8), bg="#E2E8F0", relief="flat", command=self.browse_template).pack(side="left")
 
         s_r2 = tk.Frame(sett_box, bg="#FFFFFF")
         s_r2.pack(fill="x", pady=1)
-        tk.Label(s_r2, text="프린터:", font=("Malgun Gothic", 8.5, "bold"), bg="#FFFFFF", fg="#475569").pack(side="left")
-        self.printer_combo = ttk.Combobox(s_r2, textvariable=self.selected_printer, font=("Malgun Gothic", 8.5), state="readonly")
+        tk.Label(s_r2, text="프린터:", font=("Malgun Gothic", 9, "bold"), bg="#FFFFFF", fg="#475569").pack(side="left")
+        self.printer_combo = ttk.Combobox(s_r2, textvariable=self.selected_printer, font=("Malgun Gothic", 9), state="readonly")
         self.printer_combo.pack(side="left", fill="x", expand=True, padx=4)
 
-        # Right: Action Buttons
         act_box = tk.Frame(bottom_bar, bg="#FFFFFF")
         act_box.pack(side="right")
 
