@@ -1,6 +1,7 @@
 ﻿import os
 import sys
 import re
+import urllib.parse
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 
@@ -41,7 +42,7 @@ class PastelGlassDropZone(tk.Frame):
         self.lbl_title = tk.Label(txt_box, text=title, font=("Malgun Gothic", 11, "bold"), bg="#FFFFFF", fg="#0F172A", anchor="w")
         self.lbl_title.pack(fill="x")
 
-        self.lbl_status = tk.Label(txt_box, text="PDF 파일을 이곳으로 드래그 앤 드롭\n하되나 클릭하세요", font=("Malgun Gothic", 8), bg="#FFFFFF", fg="#94A3B8", anchor="w", justify="left")
+        self.lbl_status = tk.Label(txt_box, text="PDF 파일을 이곳으로 드래그 앤 드롭\n하거나 클릭하세요", font=("Malgun Gothic", 8), bg="#FFFFFF", fg="#94A3B8", anchor="w", justify="left")
         self.lbl_status.pack(fill="x", pady=(2, 0))
 
         for w in (self, self.inner, self.icon_bg, self.lbl_icon, txt_box, self.lbl_title, self.lbl_status):
@@ -63,17 +64,28 @@ class PastelGlassDropZone(tk.Frame):
 
     def _handle_drop(self, event):
         self._on_drag_leave()
-        raw_path = event.data.strip()
-        if raw_path.startswith('{') and raw_path.endswith('}'):
-            raw_path = raw_path[1:-1]
+        raw_data = event.data if event and hasattr(event, 'data') else ''
         
-        paths = re.findall(r'\{[^}]+\}|[^\s]+', raw_path)
-        first_path = paths[0].strip('{}') if paths else raw_path
+        cleaned_data = urllib.parse.unquote(str(raw_data)).strip()
+        if cleaned_data.startswith('file:///'):
+            cleaned_data = cleaned_data[8:]
 
-        if first_path.lower().endswith('.pdf') and os.path.exists(first_path):
-            self.set_file(first_path)
+        matches = re.findall(r'\{([^}]+)\}|(\S+)', cleaned_data)
+        valid_pdf = None
+
+        for m in matches:
+            p = m[0] if m[0] else m[1]
+            p = p.strip('\"\'{} \t\r\n')
+            if p:
+                norm_p = os.path.abspath(os.path.normpath(p))
+                if norm_p.lower().endswith('.pdf') and os.path.exists(norm_p):
+                    valid_pdf = norm_p
+                    break
+
+        if valid_pdf:
+            self.set_file(valid_pdf)
         else:
-            messagebox.showwarning("파일 형식 오류", "PDF 파일만 업로드할 수 있습니다.")
+            messagebox.showwarning("파일 형식 오류", "올바른 PDF 파일을 업로드해 주세요.")
 
     def _on_drag_enter(self, event=None):
         self.config(bg="#F0F9FF", highlightbackground="#0284C7", highlightthickness=2)
@@ -99,7 +111,7 @@ class PastelGlassDropZone(tk.Frame):
             self.config(bg="#F0FDF4", highlightbackground="#16A34A")
             self.inner.config(bg="#F0FDF4")
         else:
-            self.lbl_status.config(text="PDF 파일을 이곳으로 드래그 앤 드롭\n하되나 클릭하세요", fg="#94A3B8", font=("Malgun Gothic", 8))
+            self.lbl_status.config(text="PDF 파일을 이곳으로 드래그 앤 드롭\n하거나 클릭하세요", fg="#94A3B8", font=("Malgun Gothic", 8))
             self.config(bg="#FFFFFF", highlightbackground="#E2E8F0")
             self.inner.config(bg="#FFFFFF")
 
@@ -107,7 +119,7 @@ class PastelGlassDropZone(tk.Frame):
 class VoucherPassApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("VoucherPass v1.4.1")
+        self.root.title("VoucherPass v1.4.2")
         self.root.geometry("1160x780")
         self.root.minsize(1100, 720)
 
@@ -154,7 +166,7 @@ class VoucherPassApp:
         logo_txt = tk.Label(header, text="VoucherPass", font=("Malgun Gothic", 15, "bold"), bg="#FFFFFF", fg="#0F172A")
         logo_txt.pack(side="left")
 
-        ver_badge = tk.Label(header, text="v1.4.1", font=("Malgun Gothic", 8, "bold"), bg="#EFF6FF", fg="#2563EB", padx=6, pady=2)
+        ver_badge = tk.Label(header, text="v1.4.2", font=("Malgun Gothic", 8, "bold"), bg="#EFF6FF", fg="#2563EB", padx=6, pady=2)
         ver_badge.pack(side="left", padx=(8, 16))
 
         sub_desc = tk.Label(header, text="⚙️ 제출 서류 PDF Drag & Drop 업로드 ➔ 자동 파싱 & Voucher 작성/인쇄", font=("Malgun Gothic", 9), bg="#FFFFFF", fg="#64748B")
