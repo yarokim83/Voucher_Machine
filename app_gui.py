@@ -1,4 +1,4 @@
-﻿import os
+import os
 import sys
 import re
 import urllib.parse
@@ -129,6 +129,8 @@ class VoucherPassApp:
         self.root = root
         self.root.title("Voucher Pass")
         self.root.geometry("400x535+1100+100")
+        self.root.minsize(400, 535)
+        self.root.maxsize(400, 535)
         self.root.overrideredirect(True)
         self.root.attributes("-topmost", True)
         self.root.configure(bg="#F8FAFC", highlightbackground="#2563EB", highlightthickness=2)
