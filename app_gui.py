@@ -500,13 +500,16 @@ class VoucherPassApp:
         else:
             fname = os.path.basename(tax_path)
             
-            # HTML 파일 드롭 시 6068625399 자동 입력 + 엔터 자동 실행 + 인쇄 PDF 저장 실행!
+            # HTML 파일 드롭 시 6068625399 자동 입력 + 엔터 자동 실행 + 인쇄 실행 + 저장된 PDF 자동 수집/로드!
             if pdf_parser._is_html_file(tax_path):
                 self.auto_unlock_and_print_html_tax_invoice(tax_path)
                 messagebox.showinfo(
                     "🚀 세금계산서 100% 자동 해제 & 인쇄 진행 중",
-                    f"국세청 보안 세금계산서({fname})가 웹 브라우저로 실행되어\n"
-                    f"비밀번호 [ 6068625399 ] 자동 입력 + 엔터 실행 + 인쇄 PDF 저장이 자동으로 연속 처리됩니다!"
+                    f"국세청 보안 세금계산서({fname})가 실행되어\n"
+                    f"1) 비밀번호 [ 6068625399 ] 자동 입력\n"
+                    f"2) 엔터 자동 실행으로 세금계산서 해제\n"
+                    f"3) 인쇄 PDF 저장 실행\n\n"
+                    f"저장을 완료하시면 생성된 PDF 서류가 자동으로 로드되어 작성일자가 추출됩니다!"
                 )
             else:
                 messagebox.showinfo("세금계산서 연결 완료", f"전자 세금계산서 서류({fname})가 업로드되었습니다!\n\n[작성일자] 필드에 2026-08-11 형태로 직접 입력/수정해 주시면 됩니다.")
@@ -514,6 +517,7 @@ class VoucherPassApp:
     def auto_unlock_and_print_html_tax_invoice(self, html_path):
         """
         국세청 보안 메일 HTML 자동 암호 입력(6068625399) & 엔터 자동 실행 & 인쇄 PDF 저장
+        + 수동/자동 저장 완료 시 생성된 최신 PDF 파일 자동 수집/로드 & 작성일자 100% 자동 파싱!
         """
         import threading, time
         def _worker():
@@ -522,27 +526,82 @@ class VoucherPassApp:
                 pyautogui.FAILSAFE = False
                 pyautogui.PAUSE = 0.1
 
-                # 1. 클립보드 암호 대입 준비
+                # 1. 사전 PDF 파일 목록 파악 (바탕화면 및 다운로드 폴더)
+                desktop = os.path.join(os.path.expanduser('~'), 'Desktop')
+                downloads = os.path.join(os.path.expanduser('~'), 'Downloads')
+                
+                def _get_pdfs():
+                    files = set()
+                    for folder in [desktop, downloads]:
+                        if os.path.exists(folder):
+                            for f in os.listdir(folder):
+                                if f.lower().endswith('.pdf'):
+                                    files.add(os.path.join(folder, f))
+                    return files
+
+                before_pdfs = _get_pdfs()
+
+                # 2. 클립보드 암호 대입 준비
                 pyperclip.copy("6068625399")
 
-                # 2. 브라우저로 HTML 자동 실행
+                # 3. 브라우저로 HTML 자동 실행
                 os.startfile(html_path)
                 time.sleep(1.2)
 
-                # 3. 암호창에 6068625399 자동으로 붙여넣고 엔터 실행!
+                # 4. 암호창에 6068625399 자동으로 붙여넣고 엔터 실행!
                 pyautogui.hotkey('ctrl', 'v')
                 time.sleep(0.3)
                 pyautogui.press('enter')
 
-                # 4. 해제된 세금계산서 양식 화면에서 인쇄(Ctrl+P) 자동 실행!
+                # 5. 해제된 세금계산서 양식 화면에서 인쇄(Ctrl+P) 자동 실행!
                 time.sleep(1.8)
                 pyautogui.hotkey('ctrl', 'p')
                 time.sleep(1.0)
                 pyautogui.press('enter')
+
+                # 6. 사용자가 저장을 완료할 때까지 생성된 신규 PDF 실시간 자동 감시 (최대 30초간 체크)
+                for _ in range(30):
+                    time.sleep(1.0)
+                    after_pdfs = _get_pdfs()
+                    diff = list(after_pdfs - before_pdfs)
+                    if diff:
+                        # 가장 최신에 생성된 PDF 파일 선택
+                        newest_pdf = max(diff, key=lambda x: os.path.getmtime(x))
+                        
+                        # 메인 GUI 스레드로 연동 전달
+                        self.root.after(0, lambda p=newest_pdf: self._on_new_tax_pdf_saved(p))
+                        break
+
             except Exception as e:
                 print(f"Auto unlock & print error: {e}")
 
         threading.Thread(target=_worker, daemon=True).start()
+
+    def _on_new_tax_pdf_saved(self, pdf_path):
+        """
+        인쇄 저장 완료된 세금계산서 PDF 자동 수집/로드 & 작성일자 파싱 적용
+        """
+        if not pdf_path or not os.path.exists(pdf_path):
+            return
+
+        fname = os.path.basename(pdf_path)
+        self.drop_tax.set_file(pdf_path)
+
+        # 작성일자 정밀 추출
+        parsed_date = pdf_parser.parse_tax_invoice_date(pdf_path)
+        if parsed_date:
+            self.date_var.set(parsed_date)
+            messagebox.showinfo(
+                "🎉 세금계산서 PDF 저장 & 연동 완벽 완료!",
+                f"새로 저장된 세금계산서 PDF 서류({fname})가 자동으로 로드되었습니다!\n\n"
+                f"📅 추출된 작성일자: [ {parsed_date} ]\n"
+                f"작성일자가 세금계산서 날짜로 자동 세팅되었습니다!"
+            )
+        else:
+            messagebox.showinfo(
+                "🎉 세금계산서 PDF 연동 완료!",
+                f"새로 저장된 세금계산서 PDF 서류({fname})가 ③ 카드에 자동 연동되었습니다!"
+            )
 
     def _recalc_amounts(self, event=None):
         raw = self.amount_var.get().replace(',', '').strip()
