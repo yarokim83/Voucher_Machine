@@ -1,4 +1,4 @@
-﻿import os
+import os
 import sys
 import re
 import urllib.parse
@@ -206,7 +206,7 @@ class VoucherPassApp:
         lbl_logo.bind("<Button-1>", self._click_title)
         lbl_logo.bind("<B1-Motion>", self._drag_title)
 
-        ver_b = tk.Label(hdr, text="v6.0.0", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=5, pady=1)
+        ver_b = tk.Label(hdr, text="v6.1.0", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=5, pady=1)
         ver_b.pack(side="left", padx=(6, 0))
 
         btn_min = tk.Label(hdr, text=" ─ ", font=("Arial", 10, "bold"), bg="#2563EB", fg="#DBEAFE", cursor="hand2")
@@ -454,7 +454,9 @@ class VoucherPassApp:
 
     def parse_tax_invoice_uploaded(self, tax_path=None):
         """
-        저장된 세금계산서 PDF 파일에서 작성일자(2026/08/11) 자동 추출
+        1) HTML/PDF 파일 업로드 감지
+        2) HTML일 경우 자동 비밀번호 입력 및 지정 폴더 PDF 저장
+        3) 저장된 PDF 파일에서 작성일자(2026/08/11) 자동 파싱
         """
         if not tax_path:
             tax_path = self.tax_pdf_path.get()
@@ -462,6 +464,12 @@ class VoucherPassApp:
         if not tax_path or not os.path.exists(tax_path):
             return
 
+        # Step 1 & 2: HTML 세금계산서일 경우 무음 자동 해제 및 PDF 변환 저장 파이프라인 가동
+        if pdf_parser._is_html_file(tax_path):
+            self.auto_unlock_and_save_pdf(tax_path)
+            return
+
+        # Step 3: PDF 파일에서 작성일자 파싱
         try:
             tax_date = pdf_parser.parse_tax_invoice_date(tax_path)
             if tax_date:
@@ -473,6 +481,115 @@ class VoucherPassApp:
                 messagebox.showwarning("작성일자 미추출", f"PDF 세금계산서 [{os.path.basename(tax_path)}] 에서 작성일자를 발견하지 못했습니다. 수동으로 입력해 주세요.")
         except Exception as e:
             messagebox.showerror("세금계산서 파싱 오류", f"세금계산서 작성일자 파싱 중 오류 발생:\n{e}")
+
+    def auto_unlock_and_save_pdf(self, html_path):
+        import threading, time
+        def _worker():
+            try:
+                import pyautogui, pyperclip
+                pyautogui.FAILSAFE = False
+                pyautogui.PAUSE = 0.1
+
+                desktop = os.path.join(os.path.expanduser('~'), 'Desktop')
+                downloads = os.path.join(os.path.expanduser('~'), 'Downloads')
+                
+                def _get_pdfs():
+                    files = set()
+                    for folder in [desktop, downloads]:
+                        if os.path.exists(folder):
+                            for f in os.listdir(folder):
+                                if f.lower().endswith('.pdf'):
+                                    files.add(os.path.join(folder, f))
+                    return files
+
+                before_pdfs = _get_pdfs()
+                pyperclip.copy("6068625399")
+
+                # Step 2-1: HTML 자동 열기
+                os.startfile(html_path)
+                time.sleep(1.8)
+
+                # Step 2-2: 브라우저 포커스 클릭 후 비밀번호 6068625399 입력 및 저장
+                sw, sh = pyautogui.size()
+                pyautogui.click(sw // 2, sh // 2)
+                time.sleep(0.3)
+
+                pyautogui.hotkey('ctrl', 'v')
+                time.sleep(0.3)
+                pyautogui.press('enter')
+                time.sleep(0.5)
+                pyautogui.press('enter')
+
+                time.sleep(2.0)
+                pyautogui.hotkey('ctrl', 'p')
+                time.sleep(1.2)
+                pyautogui.press('enter')
+
+                # Step 3: 지정 폴더에 새로 생성된 PDF 감지 후 작성일자 자동 추출 호출
+                for _ in range(40):
+                    time.sleep(1.0)
+                    after_pdfs = _get_pdfs()
+                    diff = list(after_pdfs - before_pdfs)
+                    if diff:
+                        newest_pdf = max(diff, key=lambda x: os.path.getmtime(x))
+                        self.root.after(0, lambda p=newest_pdf: self._on_new_tax_pdf_saved(p))
+                        return
+
+                now = time.time()
+                recent_pdfs = []
+                for folder in [desktop, downloads]:
+                    if os.path.exists(folder):
+                        for f in os.listdir(folder):
+                            if f.lower().endswith('.pdf'):
+                                fp = os.path.join(folder, f)
+                                if now - os.path.getmtime(fp) < 120:
+                                    recent_pdfs.append(fp)
+
+                if recent_pdfs:
+                    newest = max(recent_pdfs, key=lambda x: os.path.getmtime(x))
+                    self.root.after(0, lambda p=newest: self._on_new_tax_pdf_saved(p))
+
+            except Exception as e:
+                print(f"Auto unlock & save PDF error: {e}")
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _on_new_tax_pdf_saved(self, pdf_path):
+        if not pdf_path or not os.path.exists(pdf_path):
+            return
+
+        def _parse_job():
+            import time
+            for _ in range(10):
+                try:
+                    if os.path.getsize(pdf_path) > 500:
+                        break
+                except Exception:
+                    pass
+                time.sleep(0.3)
+
+            time.sleep(0.5)
+            self.drop_tax.set_file(pdf_path)
+
+            tax_date = ''
+            for _ in range(3):
+                tax_date = pdf_parser.parse_tax_invoice_date(pdf_path)
+                if tax_date:
+                    break
+                time.sleep(0.3)
+
+            if tax_date:
+                self.root.after(0, lambda d=tax_date: self._apply_tax_date(d))
+            else:
+                self.root.after(0, lambda: messagebox.showwarning("작성일자 미추출", f"저장된 PDF 세금계산서 [{os.path.basename(pdf_path)}] 에서 작성일자를 발견하지 못했습니다."))
+
+        threading.Thread(target=_parse_job, daemon=True).start()
+
+    def _apply_tax_date(self, tax_date):
+        self.date_var.set(tax_date)
+        self.root.update_idletasks()
+        self.root.update()
+        messagebox.showinfo("작성일자 자동 추출 완료", f"🎉 HTML 세금계산서 PDF 저장 및 작성일자 자동 추출 성공!\n\n📅 작성일자: {tax_date}")
 
     def _recalc_amounts(self, event=None):
         raw = self.amount_var.get().replace(',', '').strip()
