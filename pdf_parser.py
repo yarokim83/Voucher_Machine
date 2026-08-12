@@ -1,4 +1,4 @@
-﻿import re
+import re
 import os
 import tempfile
 import base64
@@ -83,26 +83,48 @@ def parse_tax_invoice_date(file_path):
     else:
         full_text = extract_pdf_text_safely(file_path)
 
-    m = re.search(r'작성일자?\s*[:\s]*(\d{4})[년\-.\s/]\s*(\d{1,2})[월\-.\s/]\s*(\d{1,2})[일\s]?', full_text)
+    if not full_text or not full_text.strip():
+        return ''
+
+    # 1. 작성/발행 키워드 주변 50자 내 202X 날짜 수집
+    kw_match = re.search(r'(?:작\s*성\s*일\s*자?|발\s*행\s*일\s*자?|작\s*성\s*년\s*월\s*일)\s*[:\s\n]*([^\n]{1,50})', full_text)
+    if kw_match:
+        sub_text = kw_match.group(1)
+        m = re.search(r'(202[0-9])[\s년\-./\\]+(\d{1,2})[\s월\-./\\]+(\d{1,2})', sub_text)
+        if m:
+            y, month, d = m.group(1), int(m.group(2)), int(m.group(3))
+            if 1 <= month <= 12 and 1 <= d <= 31:
+                return f"{y}-{month:02d}-{d:02d}"
+        
+        m_dig = re.search(r'(202[0-9])(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])', sub_text)
+        if m_dig:
+            y, month, d = m_dig.group(1), int(m_dig.group(2)), int(m_dig.group(3))
+            return f"{y}-{month:02d}-{d:02d}"
+
+    # 2. 일반 작성/발행일자 정규식 (줄바꿈 허용)
+    m = re.search(r'(?:작성|발행|발급)\s*일\s*자?\s*[:\s\n]*(\d{4})[년\-.\s/]*(\d{1,2})[월\-.\s/]*(\d{1,2})[일\s]?', full_text)
     if m and int(m.group(1)) >= 2020:
         y, month, d = m.group(1), int(m.group(2)), int(m.group(3))
-        return f"{y}-{month:02d}-{d:02d}"
+        if 1 <= month <= 12 and 1 <= d <= 31:
+            return f"{y}-{month:02d}-{d:02d}"
 
-    m = re.search(r'발[급행]일자?\s*[:\s]*(\d{4})[년\-.\s/]\s*(\d{1,2})[월\-.\s/]\s*(\d{1,2})[일\s]?', full_text)
-    if m and int(m.group(1)) >= 2020:
-        y, month, d = m.group(1), int(m.group(2)), int(m.group(3))
-        return f"{y}-{month:02d}-{d:02d}"
-
-    matches = re.findall(r'(202[0-9])[년\-.\s/]\s*(\d{1,2})[월\-.\s/]\s*(\d{1,2})[일\s]?', full_text)
+    # 3. 202X년 XX월 XX일
+    matches = re.findall(r'(202[0-9])[년\-.\s/]+\s*(\d{1,2})[월\-.\s/]+\s*(\d{1,2})[일\s]?', full_text)
     if matches:
-        y, month, d = matches[0][0], int(matches[0][1]), int(matches[0][2])
-        return f"{y}-{month:02d}-{d:02d}"
+        for mat in matches:
+            y, month, d = mat[0], int(mat[1]), int(mat[2])
+            if 1 <= month <= 12 and 1 <= d <= 31:
+                return f"{y}-{month:02d}-{d:02d}"
 
+    # 4. 202X-XX-XX / 202X.XX.XX / 202X/XX/XX
     matches_fmt = re.findall(r'(202[0-9])[-.\s/](\d{1,2})[-.\s/](\d{1,2})', full_text)
     if matches_fmt:
-        y, month, d = matches_fmt[0][0], int(matches_fmt[0][1]), int(matches_fmt[0][2])
-        return f"{y}-{month:02d}-{d:02d}"
+        for mat in matches_fmt:
+            y, month, d = mat[0], int(mat[1]), int(mat[2])
+            if 1 <= month <= 12 and 1 <= d <= 31:
+                return f"{y}-{month:02d}-{d:02d}"
 
+    # 5. 202X0727 (8자리 연속 숫자)
     matches_digits = re.findall(r'(202[0-9])(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])', full_text)
     if matches_digits:
         y, month, d = matches_digits[0][0], int(matches_digits[0][1]), int(matches_digits[0][2])

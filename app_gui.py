@@ -1,4 +1,4 @@
-﻿import os
+import os
 import sys
 import re
 import urllib.parse
@@ -451,12 +451,28 @@ class VoucherPassApp:
         if not tax_path or not os.path.exists(tax_path):
             return
 
-        tax_date = pdf_parser.parse_tax_invoice_date(tax_path)
-        if tax_date:
-            self.date_var.set(tax_date)
-        else:
-            if pdf_parser._is_html_file(tax_path):
-                self.auto_unlock_and_print_html_tax_invoice(tax_path)
+        try:
+            # 암호화된 PDF 세금계산서의 경우 템프 해제 시도
+            parse_target = tax_path
+            if not pdf_parser._is_html_file(tax_path):
+                try:
+                    dec_path = pdf_parser.decrypt_pdf_to_temp(tax_path)
+                    if dec_path and os.path.exists(dec_path):
+                        parse_target = dec_path
+                except Exception:
+                    pass
+
+            tax_date = pdf_parser.parse_tax_invoice_date(parse_target)
+            if tax_date:
+                self.date_var.set(tax_date)
+                messagebox.showinfo("세금계산서 파싱 완료", f"전자 세금계산서 작성일자가 성공적으로 추출되었습니다!\n\n📅 작성일자: {tax_date}")
+            else:
+                if pdf_parser._is_html_file(tax_path):
+                    self.auto_unlock_and_print_html_tax_invoice(tax_path)
+                else:
+                    messagebox.showwarning("작성일자 미추출", "세금계산서에서 작성일자를 자동으로 찾지 못했습니다. 수동으로 입력해 주세요.")
+        except Exception as e:
+            messagebox.showerror("세금계산서 파싱 오류", f"세금계산서 작성일자 파싱 중 오류 발생:\n{e}")
 
     def auto_unlock_and_print_html_tax_invoice(self, html_path):
         import threading, time
