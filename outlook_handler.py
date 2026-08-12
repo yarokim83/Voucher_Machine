@@ -1,4 +1,4 @@
-﻿import os
+import os
 import tempfile
 import sys
 
@@ -53,7 +53,8 @@ def fetch_outlook_attachments():
                 if hasattr(item, 'Attachments') and item.Attachments.Count > 0:
                     for att in item.Attachments:
                         fname = att.FileName
-                        if fname.lower().endswith('.pdf'):
+                        fname_lower = fname.lower()
+                        if fname_lower.endswith('.pdf') or fname_lower.endswith('.html') or fname_lower.endswith('.htm'):
                             save_path = os.path.join(temp_dir, f"outlook_{fname}")
                             att.SaveAsFile(save_path)
                             extracted_files.append(save_path)

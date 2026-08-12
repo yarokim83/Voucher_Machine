@@ -1,4 +1,4 @@
-﻿import re
+import re
 import os
 import tempfile
 
@@ -156,40 +156,81 @@ def parse_pr_pdf(pdf_path):
 
     return extracted_data
 
-def parse_tax_invoice_date(pdf_path):
-    if not os.path.exists(pdf_path):
+def _read_html_text(html_path):
+    """HTML 파일(국세청 NTS_eTaxInvoice.html 등)에서 텍스트 추출"""
+    try:
+        with open(html_path, 'r', encoding='utf-8', errors='ignore') as f:
+            content = f.read()
+        # HTML 태그 제거
+        text = re.sub(r'<[^>]+>', ' ', content)
+        text = re.sub(r'&[a-zA-Z]+;', ' ', text)
+        text = re.sub(r'\s+', ' ', text)
+        return text
+    except Exception:
+        try:
+            with open(html_path, 'r', encoding='euc-kr', errors='ignore') as f:
+                content = f.read()
+            text = re.sub(r'<[^>]+>', ' ', content)
+            text = re.sub(r'&[a-zA-Z]+;', ' ', text)
+            text = re.sub(r'\s+', ' ', text)
+            return text
+        except Exception:
+            return ''
+
+def _is_html_file(file_path):
+    return file_path.lower().endswith(('.html', '.htm'))
+
+def parse_tax_invoice_date(file_path):
+    """전자세금계산서 PDF 또는 HTML(NTS_eTaxInvoice.html)에서 작성일자 추출"""
+    if not os.path.exists(file_path):
         return ''
 
-    full_text = extract_pdf_text_safely(pdf_path)
+    if _is_html_file(file_path):
+        full_text = _read_html_text(file_path)
+    else:
+        full_text = extract_pdf_text_safely(file_path)
 
+    # 패턴 1: 작성일자 YYYY년 MM월 DD일
     m = re.search(r'작성일자?\s*[:\s]*(\d{4})[년\-.\s/]\s*(\d{1,2})[월\-.\s/]\s*(\d{1,2})[일\s]?', full_text)
     if m:
         y, month, d = m.group(1), int(m.group(2)), int(m.group(3))
         return f"{y}-{month:02d}-{d:02d}"
 
-    m = re.search(r'발행일자?\s*[:\s]*(\d{4})[년\-.\s/]\s*(\d{1,2})[월\-.\s/]\s*(\d{1,2})[일\s]?', full_text)
+    # 패턴 2: 발급일자 / 발행일자
+    m = re.search(r'발[급행]일자?\s*[:\s]*(\d{4})[년\-.\s/]\s*(\d{1,2})[월\-.\s/]\s*(\d{1,2})[일\s]?', full_text)
     if m:
         y, month, d = m.group(1), int(m.group(2)), int(m.group(3))
         return f"{y}-{month:02d}-{d:02d}"
 
+    # 패턴 3: YYYY년 MM월 DD일 (일반)
+    m = re.search(r'(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일', full_text)
+    if m:
+        y, month, d = m.group(1), int(m.group(2)), int(m.group(3))
+        return f"{y}-{month:02d}-{d:02d}"
+
+    # 패턴 4: 8자리 숫자 (20260811)
     m = re.search(r'작성일자?\s*[:\s]*(\d{4})(\d{2})(\d{2})', full_text)
     if m:
         return f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
 
-    m = re.search(r'(\d{4}[-.\s/]\d{2}[-.\s/]\d{2})', full_text)
+    # 패턴 5: YYYY-MM-DD / YYYY.MM.DD
+    m = re.search(r'(\d{4})[-.\s/](\d{2})[-.\s/](\d{2})', full_text)
     if m:
-        cleaned = m.group(1).replace('.', '-').replace('/', '-').strip()
-        parts = cleaned.split('-')
-        if len(parts) == 3:
-            return f"{parts[0]}-{int(parts[1]):02d}-{int(parts[2]):02d}"
+        return f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
 
     return ''
 
-def classify_pdf_type(pdf_path):
-    if not os.path.exists(pdf_path):
+def classify_pdf_type(file_path):
+    """PDF 또는 HTML 파일 내용/파일명으로 4개 카드 타입 분류"""
+    if not os.path.exists(file_path):
         return 'unknown'
 
-    fname = os.path.basename(pdf_path).lower()
+    fname = os.path.basename(file_path).lower()
+
+    # 국세청 홈택스 전자세금계산서 HTML 즉시 인식
+    if 'nts_etaxinvoice' in fname or 'etaxinvoice' in fname:
+        return 'tax'
+
     if '구매요청' in fname or 'pr' in fname or 'requisition' in fname:
         return 'pr'
     if '명세서' in fname or '거래' in fname or 'spec' in fname:
@@ -199,7 +240,12 @@ def classify_pdf_type(pdf_path):
     if '계약' in fname or 'contract' in fname or '협약' in fname:
         return 'contract'
 
-    txt = extract_pdf_text_safely(pdf_path)
+    # 파일 내용으로 분류
+    if _is_html_file(file_path):
+        txt = _read_html_text(file_path)
+    else:
+        txt = extract_pdf_text_safely(file_path)
+
     txt_upper = txt.upper()
     if 'PURCHASE REQUISITION' in txt_upper or '구매요청서' in txt or 'P/R NO' in txt_upper:
         return 'pr'

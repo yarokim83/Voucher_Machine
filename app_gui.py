@@ -1,4 +1,4 @@
-﻿import os
+import os
 import sys
 import re
 import urllib.parse
@@ -59,7 +59,7 @@ class PastelGlassDropZone(tk.Frame):
         self.file_var.trace_add("write", self._update_ui_state)
 
     def _browse_file(self, event=None):
-        path = filedialog.askopenfilename(filetypes=[("PDF Files", "*.pdf"), ("All Files", "*.*")])
+        path = filedialog.askopenfilename(filetypes=[("PDF Files", "*.pdf"), ("HTML Files", "*.html;*.htm"), ("All Files", "*.*")])
         if path:
             self.set_file(path)
 
@@ -72,21 +72,22 @@ class PastelGlassDropZone(tk.Frame):
             cleaned_data = cleaned_data[8:]
 
         matches = re.findall(r'\{([^}]+)\}|(\S+)', cleaned_data)
-        valid_pdf = None
+        valid_file = None
 
         for m in matches:
             p = m[0] if m[0] else m[1]
             p = p.strip('\"\'{} \t\r\n')
             if p:
                 norm_p = os.path.abspath(os.path.normpath(p))
-                if norm_p.lower().endswith('.pdf') and os.path.exists(norm_p):
-                    valid_pdf = norm_p
+                ext = norm_p.lower()
+                if (ext.endswith('.pdf') or ext.endswith('.html') or ext.endswith('.htm')) and os.path.exists(norm_p):
+                    valid_file = norm_p
                     break
 
-        if valid_pdf:
-            self.set_file(valid_pdf)
+        if valid_file:
+            self.set_file(valid_file)
         else:
-            messagebox.showwarning("파일 형식 오류", "올바른 PDF 파일을 업로드해 주세요.")
+            messagebox.showwarning("파일 형식 오류", "PDF 또는 HTML 파일을 업로드해 주세요.")
 
     def _on_drag_enter(self, event=None):
         self.config(bg="#F0F9FF", highlightbackground="#0284C7", highlightthickness=2)
