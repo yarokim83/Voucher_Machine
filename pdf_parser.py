@@ -91,45 +91,77 @@ def parse_tax_invoice_date(file_path):
     else:
         try:
             dec_pdf = decrypt_pdf_to_temp(file_path)
-            if dec_pdf and os.path.exists(dec_pdf):
-                full_text = extract_pdf_text_safely(dec_pdf)
-            else:
-                full_text = extract_pdf_text_safely(file_path)
+            target_p = dec_pdf if (dec_pdf and os.path.exists(dec_pdf)) else file_path
         except Exception:
-            full_text = extract_pdf_text_safely(file_path)
+            target_p = file_path
+
+        full_text = extract_pdf_text_safely(target_p)
+
+        # 표(Table) 셀 텍스트도 추가 평탄화 수집
+        if HAS_PDFPLUMBER:
+            try:
+                for pwd in DEFAULT_PASSWORDS:
+                    try:
+                        with pdfplumber.open(target_p, password=pwd) as pdf:
+                            for page in pdf.pages:
+                                tables = page.extract_tables()
+                                for tbl in tables:
+                                    for row in tbl:
+                                        if row:
+                                            row_str = " ".join([str(cell) for cell in row if cell is not None])
+                                            full_text += "\n" + row_str
+                    except Exception:
+                        continue
+            except Exception:
+                pass
 
     if not full_text or not full_text.strip():
         return ''
 
-    # 1. 원본 c7e501b 알고리즘: 작성일자/발행일자 키워드 탐색 (줄바꿈 및 다양한 구분자 허용)
-    m = re.search(r'작성일자?\s*[:\s\n]*(\d{4})[년\-.\s/]+\s*(\d{1,2})[월\-.\s/]+\s*(\d{1,2})[일\s]?', full_text)
-    if m and int(m.group(1)) >= 2020:
-        y, month, d = m.group(1), int(m.group(2)), int(m.group(3))
-        if 1 <= month <= 12 and 1 <= d <= 31:
+    # 1. 스크린샷 국세청 세금계산서 전용: '작성일자' 키워드 뒤/아래 100자 문맥 잘라내어 202X 날짜 수집
+    kw_pos = full_text.find("작성일자")
+    if kw_pos != -1:
+        sub_text = full_text[kw_pos:kw_pos + 120]
+        m = re.search(r'(202[0-9]|203[0-9])[\s/.\-년]+(\d{1,2})[\s/.\-월]+(\d{1,2})', sub_text)
+        if m:
+            y, month, d = m.group(1), int(m.group(2)), int(m.group(3))
+            if 1 <= month <= 12 and 1 <= d <= 31:
+                return f"{y}-{month:02d}-{d:02d}"
+
+        m_dig = re.search(r'(202[0-9]|203[0-9])(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])', sub_text)
+        if m_dig:
+            y, month, d = m_dig.group(1), int(m_dig.group(2)), int(m_dig.group(3))
             return f"{y}-{month:02d}-{d:02d}"
 
-    m_bal = re.search(r'발[급행]일자?\s*[:\s\n]*(\d{4})[년\-.\s/]+\s*(\d{1,2})[월\-.\s/]+\s*(\d{1,2})[일\s]?', full_text)
-    if m_bal and int(m.group(1)) >= 2020:
-        y, month, d = m_bal.group(1), int(m_bal.group(2)), int(m_bal.group(3))
-        if 1 <= month <= 12 and 1 <= d <= 31:
-            return f"{y}-{month:02d}-{d:02d}"
+    # 2. '발행일자' / '공급일자' 키워드 뒤/아래 문맥 탐색
+    kw_pos_bal = full_text.find("발행일자")
+    if kw_pos_bal == -1:
+        kw_pos_bal = full_text.find("공급일자")
 
-    # 2. 원본 c7e501b 연월일 정규식 (예: 2026년 08월 11일, 2026/08/11, 2026.08.11, 2026-08-11)
-    matches = re.findall(r'(202[0-9])[년\-.\s/]+\s*(\d{1,2})[월\-.\s/]+\s*(\d{1,2})[일\s]?', full_text)
+    if kw_pos_bal != -1:
+        sub_text = full_text[kw_pos_bal:kw_pos_bal + 120]
+        m = re.search(r'(202[0-9]|203[0-9])[\s/.\-년]+(\d{1,2})[\s/.\-월]+(\d{1,2})', sub_text)
+        if m:
+            y, month, d = m.group(1), int(m.group(2)), int(m.group(3))
+            if 1 <= month <= 12 and 1 <= d <= 31:
+                return f"{y}-{month:02d}-{d:02d}"
+
+    # 3. 문서 전체 202X년/월/일 탐색 (예: 2026/08/11, 2026.08.11, 2026-08-11, 2026년 08월 11일)
+    matches = re.findall(r'(202[0-9]|203[0-9])[\s/.\-년]+\s*(\d{1,2})[\s/.\-월]+\s*(\d{1,2})[일\s]?', full_text)
     if matches:
         for mat in matches:
             y, month, d = mat[0], int(mat[1]), int(mat[2])
             if 1 <= month <= 12 and 1 <= d <= 31:
                 return f"{y}-{month:02d}-{d:02d}"
 
-    matches_fmt = re.findall(r'(202[0-9])[-.\s/](\d{1,2})[-.\s/](\d{1,2})', full_text)
+    matches_fmt = re.findall(r'(202[0-9]|203[0-9])[-.\s/](\d{1,2})[-.\s/](\d{1,2})', full_text)
     if matches_fmt:
         for mat in matches_fmt:
             y, month, d = mat[0], int(mat[1]), int(mat[2])
             if 1 <= month <= 12 and 1 <= d <= 31:
                 return f"{y}-{month:02d}-{d:02d}"
 
-    matches_digits = re.findall(r'(202[0-9])(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])', full_text)
+    matches_digits = re.findall(r'(202[0-9]|203[0-9])(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])', full_text)
     if matches_digits:
         y, month, d = matches_digits[0][0], int(matches_digits[0][1]), int(matches_digits[0][2])
         return f"{y}-{month:02d}-{d:02d}"
