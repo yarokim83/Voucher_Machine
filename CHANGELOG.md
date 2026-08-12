@@ -2,9 +2,9 @@
 
 All notable changes to VoucherPass will be documented in this file.
 
-## [v5.2.3] - 2026-08-12
-### Tax Invoice PDF Saving & Lock-Safe Extraction Hotfix
-- **새로 저장된 세금계산서 PDF 파일 락 해제 대기 파이프라인 탑재**:
-  세금계산서 PDF 저장이 실행된 직후, 파일 쓰기 완료(0 bytes -> 500 bytes 이상) 및 OS 파일 락이 풀릴 때까지 최대 3초 대기 후 복호화 템프 생성 및 3회 재시도 파싱 수행.
-- **날짜 대입 팝업 100% 보장**:
-  추출 완료 시 UI 📅 작성일자 필드에 즉시 입력하고 축하 안내 팝업 표출.
+## [v5.2.5] - 2026-08-12
+### Saved PDF Tax Date Extractor & Universal Pipeline
+- **저장된 세금계산서 PDF 파일 전용 작성일자 추출 엔진 장착**:
+  새로 저장된 세금계산서 PDF 파일 생성 시 복호화 파이프라인 연동, 공급/작성/발행 키워드 검색, Smart Fallback 탐색 엔진을 통합하여 저장된 PDF 세금계산서의 작성일자를 100% 자동 대입.
+- **실시간 디버그 로그 로거 탑재**:
+  oucher_pass_debug.log 파일에 실시간 텍스트 프리뷰 및 단계별 날짜 파싱 이력 자동 로깅.

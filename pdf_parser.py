@@ -74,37 +74,64 @@ def _read_html_text(html_path):
 def _is_html_file(file_path):
     return file_path.lower().endswith(('.html', '.htm'))
 
+def _log_debug(msg):
+    try:
+        log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'voucher_pass_debug.log')
+        with open(log_path, 'a', encoding='utf-8') as f:
+            f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {msg}\n")
+    except Exception:
+        pass
+
 def parse_tax_invoice_date(file_path):
+    import time
+    _log_debug(f"parse_tax_invoice_date started for: {file_path}")
     if not os.path.exists(file_path):
+        _log_debug("File does not exist!")
         return ''
 
     if _is_html_file(file_path):
         full_text = _read_html_text(file_path)
     else:
-        full_text = extract_pdf_text_safely(file_path)
+        # 암호 해제 시도 후 PDF 텍스트 추출
+        try:
+            dec_pdf = decrypt_pdf_to_temp(file_path)
+            if dec_pdf and os.path.exists(dec_pdf):
+                full_text = extract_pdf_text_safely(dec_pdf)
+            else:
+                full_text = extract_pdf_text_safely(file_path)
+        except Exception:
+            full_text = extract_pdf_text_safely(file_path)
 
+    _log_debug(f"Extracted full_text length: {len(full_text)}")
     if not full_text or not full_text.strip():
+        _log_debug("full_text is empty!")
         return ''
 
-    # 1. 작성/발행 키워드 직후 40자 이내 202X 날짜 최우선 탐색
-    kw_matches = re.findall(r'(?:작\s*성\s*일\s*자?|발\s*행\s*일\s*자?|작\s*성\s*년\s*월\s*일|작\s*성)\s*[:\s\n]*([^\n]{1,40})', full_text)
+    _log_debug(f"Full Text Preview: {full_text[:400]}")
+
+    # 1. 작성/발행/공급 키워드 주변 50자 이내 202X 날짜 최우선 탐색
+    kw_matches = re.findall(r'(?:작\s*성\s*일\s*자?|발\s*행\s*일\s*자?|공\s*급\s*일\s*자?|작\s*성\s*년\s*월\s*일|작\s*성|일\s*자)\s*[:\s\n]*([^\n]{1,50})', full_text)
     for sub in kw_matches:
-        m = re.search(r'(202[0-9])[\s년\-./\\]+(\d{1,2})[\s월\-./\\]+(\d{1,2})', sub)
+        m = re.search(r'(202[0-9]|203[0-9])[\s년\-./\\]+(\d{1,2})[\s월\-./\\]+(\d{1,2})', sub)
         if m:
             y, month, d = m.group(1), int(m.group(2)), int(m.group(3))
             if 1 <= month <= 12 and 1 <= d <= 31:
-                return f"{y}-{month:02d}-{d:02d}"
+                res = f"{y}-{month:02d}-{d:02d}"
+                _log_debug(f"Match Step 1 Keyword SUCCESS: {res}")
+                return res
         
-        m_dig = re.search(r'(202[0-9])(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])', sub)
+        m_dig = re.search(r'(202[0-9]|203[0-9])(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])', sub)
         if m_dig:
             y, month, d = m_dig.group(1), int(m_dig.group(2)), int(m_dig.group(3))
-            return f"{y}-{month:02d}-{d:02d}"
+            res = f"{y}-{month:02d}-{d:02d}"
+            _log_debug(f"Match Step 1 Digits SUCCESS: {res}")
+            return res
 
-    # 2. 전천후 202X년/월/일 파싱 (공백 자유자재)
+    # 2. 전천후 202X년/월/일 파싱 (다양한 구분자)
     patterns = [
-        r'(202[0-9])[\s년\-./\\]+(\d{1,2})[\s월\-./\\]+(\d{1,2})',
-        r'(202[0-9])[-.\s/](\d{1,2})[-.\s/](\d{1,2})',
-        r'(202[0-9])(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])'
+        r'(202[0-9]|203[0-9])[\s년\-./\\]+(\d{1,2})[\s월\-./\\]+(\d{1,2})',
+        r'(202[0-9]|203[0-9])[-.\s/](\d{1,2})[-.\s/](\d{1,2})',
+        r'(202[0-9]|203[0-9])(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])'
     ]
 
     for pat in patterns:
@@ -113,8 +140,21 @@ def parse_tax_invoice_date(file_path):
             for mat in matches:
                 y, month, d = mat[0], int(mat[1]), int(mat[2])
                 if 1 <= month <= 12 and 1 <= d <= 31:
-                    return f"{y}-{month:02d}-{d:02d}"
+                    res = f"{y}-{month:02d}-{d:02d}"
+                    _log_debug(f"Match Step 2 Pattern SUCCESS: {res}")
+                    return res
 
+    # 3. Smart Fallback Engine: 문서 전체에서 2020~2030 날짜 추출
+    fallback_matches = re.findall(r'(202[0-9]|203[0-9])[\s년\-./\\]*(\d{1,2})[\s월\-./\\]*(\d{1,2})', full_text)
+    if fallback_matches:
+        for mat in fallback_matches:
+            y, month, d = mat[0], int(mat[1]), int(mat[2])
+            if 1 <= month <= 12 and 1 <= d <= 31:
+                res = f"{y}-{month:02d}-{d:02d}"
+                _log_debug(f"Smart Fallback SUCCESS: {res}")
+                return res
+
+    _log_debug("No date match found in full_text!")
     return ''
 
 def parse_pr_pdf(pdf_path):
