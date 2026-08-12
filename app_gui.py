@@ -210,7 +210,7 @@ class VoucherPassApp:
         lbl_logo.bind("<Button-1>", self._click_title)
         lbl_logo.bind("<B1-Motion>", self._drag_title)
 
-        ver_b = tk.Label(hdr, text="v6.4.0", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=5, pady=1)
+        ver_b = tk.Label(hdr, text="v6.5.0", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=5, pady=1)
         ver_b.pack(side="left", padx=(6, 0))
 
         btn_min = tk.Label(hdr, text=" ─ ", font=("Arial", 10, "bold"), bg="#2563EB", fg="#DBEAFE", cursor="hand2")
@@ -253,12 +253,12 @@ class VoucherPassApp:
         r1 = tk.Frame(hud, bg="#FFFFFF")
         r1.pack(fill="x", pady=1)
         tk.Label(r1, text="P/R No:", **lbl_s).pack(side="left")
-        e_prno = tk.Entry(r1, textvariable=self.pr_no_var, width=11, **ent_s)
-        e_prno.pack(side="left", padx=(2, 4))
+        self.e_prno = tk.Entry(r1, textvariable=self.pr_no_var, width=11, **ent_s)
+        self.e_prno.pack(side="left", padx=(2, 4))
 
         tk.Label(r1, text="📅 작성일자:", **lbl_s).pack(side="left")
-        e_date = tk.Entry(r1, textvariable=self.date_var, font=("Malgun Gothic", 9, "bold"), bg="#F0FDF4", fg="#15803D", width=10, relief="solid", bd=1)
-        e_date.pack(side="left", padx=(2, 2))
+        self.e_date = tk.Entry(r1, textvariable=self.date_var, font=("Malgun Gothic", 9, "bold"), bg="#F0FDF4", fg="#15803D", width=10, relief="solid", bd=1)
+        self.e_date.pack(side="left", padx=(2, 2))
         tk.Button(r1, text="📋", command=lambda: self.copy_to_clipboard(self.date_var.get(), "작성일자"), **btn_cp).pack(side="left")
 
         # Row 2: PR Title
@@ -277,25 +277,25 @@ class VoucherPassApp:
         r3 = tk.Frame(hud, bg="#FFFFFF")
         r3.pack(fill="x", pady=1)
         tk.Label(r3, text="🏢 거래처명:", **lbl_s).pack(side="left")
-        e_sup = tk.Entry(r3, textvariable=self.supplier_var, width=11, **ent_s)
-        e_sup.pack(side="left", padx=(2, 4))
+        self.e_sup = tk.Entry(r3, textvariable=self.supplier_var, width=11, **ent_s)
+        self.e_sup.pack(side="left", padx=(2, 4))
 
         tk.Label(r3, text="💰 공급가액:", **lbl_s).pack(side="left")
-        e_amt = tk.Entry(r3, textvariable=self.amount_var, font=("Malgun Gothic", 9, "bold"), bg="#EFF6FF", fg="#1D4ED8", width=10, relief="solid", bd=1)
-        e_amt.pack(side="left", padx=(2, 2))
-        e_amt.bind("<KeyRelease>", self._recalc_amounts)
+        self.e_amt = tk.Entry(r3, textvariable=self.amount_var, font=("Malgun Gothic", 9, "bold"), bg="#EFF6FF", fg="#1D4ED8", width=10, relief="solid", bd=1)
+        self.e_amt.pack(side="left", padx=(2, 2))
+        self.e_amt.bind("<KeyRelease>", self._recalc_amounts)
         tk.Button(r3, text="📋", command=lambda: self.copy_to_clipboard(self.amount_var.get(), "공급가액"), **btn_cp).pack(side="left")
 
         # Row 4: VAT & Total Amount
         r4 = tk.Frame(hud, bg="#FFFFFF")
         r4.pack(fill="x", pady=1)
         tk.Label(r4, text="💵 부가세:", **lbl_s).pack(side="left")
-        e_vat = tk.Entry(r4, textvariable=self.vat_var, width=10, **ent_s)
-        e_vat.pack(side="left", padx=(2, 4))
+        self.e_vat = tk.Entry(r4, textvariable=self.vat_var, width=10, **ent_s)
+        self.e_vat.pack(side="left", padx=(2, 4))
 
         tk.Label(r4, text="💳 합계금액:", **lbl_s).pack(side="left")
-        e_tot = tk.Entry(r4, textvariable=self.total_amount_var, font=("Malgun Gothic", 9, "bold"), bg="#EFF6FF", fg="#1D4ED8", width=11, relief="solid", bd=1)
-        e_tot.pack(side="left", padx=(2, 0))
+        self.e_tot = tk.Entry(r4, textvariable=self.total_amount_var, font=("Malgun Gothic", 9, "bold"), bg="#EFF6FF", fg="#1D4ED8", width=11, relief="solid", bd=1)
+        self.e_tot.pack(side="left", padx=(2, 0))
 
         # Row 5: Live Interactive Status Banner (재미있는 인앱 실시간 피드백)
         r5 = tk.Frame(hud, bg="#F0FDF4", highlightbackground="#86EFAC", highlightthickness=1, padx=4, pady=2)
@@ -463,6 +463,11 @@ class VoucherPassApp:
 
             self.supplier_var.set(data.get('supplier', ''))
 
+            if hasattr(self, 'txt_pr_title'):
+                self._shake_widget(self.txt_pr_title, highlight_bg="#BAE6FD")
+            if hasattr(self, 'e_amt'):
+                self._shake_widget(self.e_amt, highlight_bg="#93C5FD")
+
             self.set_live_status(f"🚀 PR 서류 Title & 공급가액 {amt:,}원 추출 획득 완료! 💎", type="success")
         except Exception as e:
             self.set_live_status(f"⚠️ PR 서류 파싱 실패: {e}", type="error")
@@ -584,11 +589,46 @@ class VoucherPassApp:
 
         threading.Thread(target=_parse_job, daemon=True).start()
 
+    def _shake_widget(self, widget, highlight_bg="#FEF08A"):
+        """
+        추출된 데이터 셀창이 좌-우-좌-우 통통통~ 재미있게 흔들리는 쉐이크 애니메이션
+        """
+        if not widget or not os.path.exists if not hasattr(widget, 'config') else False:
+            pass
+
+        try:
+            orig_bg = widget.cget("bg")
+            widget.config(bg=highlight_bg)
+
+            # 좌우 오프셋 패턴 (Shake Sequence)
+            offsets = [5, -5, 4, -4, 2, -2, 0]
+
+            def _animate(idx):
+                if idx < len(offsets):
+                    dx = offsets[idx]
+                    try:
+                        widget.pack_configure(padx=(2 + dx, 2 - dx))
+                    except Exception:
+                        pass
+                    self.root.after(25, lambda: _animate(idx + 1))
+                else:
+                    try:
+                        widget.pack_configure(padx=(2, 2))
+                        widget.config(bg=orig_bg)
+                    except Exception:
+                        pass
+
+            _animate(0)
+        except Exception:
+            pass
+
     def _apply_tax_date(self, tax_date):
         self.date_var.set(tax_date)
         self.root.update_idletasks()
         self.root.update()
-        self.set_live_status(f"🎉 0.1초 만에 작성일자 [{tax_date}] 자동 획득 성공! ✨", type="success")
+        if hasattr(self, 'e_date'):
+            self._shake_widget(self.e_date, highlight_bg="#86EFAC")
+        self.set_live_status(f"🎉 작성일자 [{tax_date}] 추출 완료! (셀이 통통~ 튀어올랐어요)", type="success")
 
     def _recalc_amounts(self, event=None):
         raw = self.amount_var.get().replace(',', '').strip()
