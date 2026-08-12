@@ -210,7 +210,7 @@ class VoucherPassApp:
         lbl_logo.bind("<Button-1>", self._click_title)
         lbl_logo.bind("<B1-Motion>", self._drag_title)
 
-        ver_b = tk.Label(hdr, text="v6.3.1", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=5, pady=1)
+        ver_b = tk.Label(hdr, text="v6.4.0", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=5, pady=1)
         ver_b.pack(side="left", padx=(6, 0))
 
         btn_min = tk.Label(hdr, text=" ─ ", font=("Arial", 10, "bold"), bg="#2563EB", fg="#DBEAFE", cursor="hand2")
@@ -296,6 +296,13 @@ class VoucherPassApp:
         tk.Label(r4, text="💳 합계금액:", **lbl_s).pack(side="left")
         e_tot = tk.Entry(r4, textvariable=self.total_amount_var, font=("Malgun Gothic", 9, "bold"), bg="#EFF6FF", fg="#1D4ED8", width=11, relief="solid", bd=1)
         e_tot.pack(side="left", padx=(2, 0))
+
+        # Row 5: Live Interactive Status Banner (재미있는 인앱 실시간 피드백)
+        r5 = tk.Frame(hud, bg="#F0FDF4", highlightbackground="#86EFAC", highlightthickness=1, padx=4, pady=2)
+        r5.pack(fill="x", pady=(3, 1))
+
+        self.lbl_live_status = tk.Label(r5, text="✨ 서류를 올려주시면 데이터가 0.1초 만에 쏙! 추출됩니다.", font=("Malgun Gothic", 8, "bold"), bg="#F0FDF4", fg="#15803D", anchor="w")
+        self.lbl_live_status.pack(fill="x")
 
         # 5. Clean Minimal Action Buttons
         act_panel = tk.Frame(main_box, bg="#F8FAFC")
@@ -390,13 +397,13 @@ class VoucherPassApp:
 
     def copy_to_clipboard(self, text, label_name):
         if not text:
-            messagebox.showwarning("복사 실패", f"{label_name} 값이 비어 있습니다.")
+            self.set_live_status(f"⚠️ {label_name} 값이 비어 있습니다.", type="error")
             return
         
         self.root.clipboard_clear()
         self.root.clipboard_append(text)
         self.root.update()
-        messagebox.showinfo("클립보드 복사 완료", f"[{label_name}] 텍스트가 복사되었습니다!\n\n📋 복사된 내용: {text}")
+        self.set_live_status(f"📋 [{label_name}] 텍스트 복사 완료: {text}", type="success")
 
     def copy_all_3items(self):
         d = self.date_var.get().strip()
@@ -404,7 +411,7 @@ class VoucherPassApp:
         a = self.amount_var.get().strip()
 
         if not d and not t and not a:
-            messagebox.showwarning("복사 실패", "복사할 데이터 항목이 없습니다. PDF 파싱을 먼저 진행하세요.")
+            self.set_live_status("⚠️ 복사할 데이터 항목이 없습니다. 서류를 먼저 올려주세요.", type="error")
             return
 
         combined_text = f"{d}\n{t}\n{a}"
@@ -412,19 +419,23 @@ class VoucherPassApp:
         self.root.clipboard_append(combined_text)
         self.root.update()
 
-        messagebox.showinfo(
-            "Voucher 엑셀 양식 복사 완료",
-            f"다음 3가지 항목이 세로 줄바꿈(\\n)으로 복사되었습니다.\n엑셀 셀 선택 후 Ctrl+V 하시면 세로 3개 셀에 순서대로 들어갑니다!\n\n"
-            f"1) 작성일자: {d}\n"
-            f"2) PR Title: {t}\n"
-            f"3) 공급가액: {a}"
-        )
+        self.set_live_status(f"🎉 Voucher 엑셀 양식 3종 항목 복사 완료! (엑셀 셀 선택 후 Ctrl+V)", type="success")
 
     def _load_printers(self):
         printers = printer_handler.get_installed_printers()
         self.printer_combo['values'] = printers
         if printers:
             self.selected_printer.set(printers[0])
+
+    def set_live_status(self, msg, type="info"):
+        if not hasattr(self, 'lbl_live_status'):
+            return
+        
+        bg_col = "#F0FDF4" if type == "success" else "#EFF6FF" if type == "info" else "#FEF2F2"
+        fg_col = "#15803D" if type == "success" else "#1D4ED8" if type == "info" else "#B91C1C"
+        
+        self.lbl_live_status.master.config(bg=bg_col)
+        self.lbl_live_status.config(text=msg, bg=bg_col, fg=fg_col)
 
     def parse_uploaded_pdf(self, pr_path=None):
         if not pr_path:
@@ -452,9 +463,9 @@ class VoucherPassApp:
 
             self.supplier_var.set(data.get('supplier', ''))
 
-            messagebox.showinfo("파싱 완료", f"PR/발주서 PDF 데이터 분석 성공!\n\n- Title: {data.get('pr_title')}\n- 공급가액: {amt:,} 원")
+            self.set_live_status(f"🚀 PR 서류 Title & 공급가액 {amt:,}원 추출 획득 완료! 💎", type="success")
         except Exception as e:
-            messagebox.showerror("파싱 오류", f"PDF 데이터 자동 추출 실패:\n{e}")
+            self.set_live_status(f"⚠️ PR 서류 파싱 실패: {e}", type="error")
 
     def parse_tax_invoice_uploaded(self, tax_path=None):
         """
@@ -470,6 +481,7 @@ class VoucherPassApp:
 
         # Step 1 & 2: HTML 세금계산서일 경우 무음 자동 해제 및 PDF 변환 저장 파이프라인 가동
         if pdf_parser._is_html_file(tax_path):
+            self.set_live_status("⚡ 국세청 HTML 암호 해제 & PDF 저장 파이프라인 가동 중...", type="info")
             self.auto_unlock_and_save_pdf(tax_path)
             return
 
@@ -480,11 +492,11 @@ class VoucherPassApp:
                 self.date_var.set(tax_date)
                 self.root.update_idletasks()
                 self.root.update()
-                messagebox.showinfo("작성일자 자동 추출 완료", f"🎉 세금계산서 PDF 작성일자가 성공적으로 추출되었습니다!\n\n📅 작성일자: {tax_date}")
+                self.set_live_status(f"🎉 작성일자 [{tax_date}] 자동 획득 성공! ✨", type="success")
             else:
-                messagebox.showwarning("작성일자 미추출", f"PDF 세금계산서 [{os.path.basename(tax_path)}] 에서 작성일자를 발견하지 못했습니다. 수동으로 입력해 주세요.")
+                self.set_live_status("⚠️ 세금계산서 작성일자를 찾지 못했습니다. 수동 입력해 주세요.", type="error")
         except Exception as e:
-            messagebox.showerror("세금계산서 파싱 오류", f"세금계산서 작성일자 파싱 중 오류 발생:\n{e}")
+            self.set_live_status(f"⚠️ 파싱 오류: {e}", type="error")
 
     def auto_unlock_and_save_pdf(self, html_path):
         import threading, time
@@ -576,7 +588,7 @@ class VoucherPassApp:
         self.date_var.set(tax_date)
         self.root.update_idletasks()
         self.root.update()
-        messagebox.showinfo("작성일자 자동 추출 완료", f"🎉 HTML 세금계산서 PDF 저장 및 작성일자 자동 추출 성공!\n\n📅 작성일자: {tax_date}")
+        self.set_live_status(f"🎉 0.1초 만에 작성일자 [{tax_date}] 자동 획득 성공! ✨", type="success")
 
     def _recalc_amounts(self, event=None):
         raw = self.amount_var.get().replace(',', '').strip()
