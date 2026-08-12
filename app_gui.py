@@ -62,7 +62,7 @@ class CleanMinimalDropZone(tk.Frame):
         self.file_var.trace_add("write", self._update_ui_state)
 
     def _browse_file(self, event=None):
-        path = filedialog.askopenfilename(filetypes=[("PDF Files", "*.pdf"), ("HTML Files", "*.html;*.htm"), ("All Files", "*.*")])
+        path = filedialog.askopenfilename(filetypes=[("All Files", "*.*")])
         if path:
             self.set_file(path)
 
@@ -81,15 +81,19 @@ class CleanMinimalDropZone(tk.Frame):
             p = p.strip('\"\'{} \t\r\n')
             if p:
                 norm_p = os.path.abspath(os.path.normpath(p))
-                ext = norm_p.lower()
-                if (ext.endswith('.pdf') or ext.endswith('.html') or ext.endswith('.htm')) and os.path.exists(norm_p):
+                if os.path.exists(norm_p):
                     valid_file = norm_p
                     break
+
+        if not valid_file and cleaned_data:
+            possible_p = cleaned_data.strip('\"\'{} \t\r\n')
+            if os.path.exists(possible_p):
+                valid_file = os.path.abspath(os.path.normpath(possible_p))
 
         if valid_file:
             self.set_file(valid_file)
         else:
-            messagebox.showwarning("파일 형식 오류", "PDF 또는 HTML 세금계산서 서류 파일을 드롭해 주세요.")
+            messagebox.showwarning("파일 드롭 경고", "유효한 세금계산서 파일 경로를 감지하지 못했습니다.")
 
     def _on_drag_enter(self, event=None):
         self.config(bg="#EFF6FF", highlightbackground="#2563EB", highlightthickness=2)
@@ -206,7 +210,7 @@ class VoucherPassApp:
         lbl_logo.bind("<Button-1>", self._click_title)
         lbl_logo.bind("<B1-Motion>", self._drag_title)
 
-        ver_b = tk.Label(hdr, text="v6.3.0", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=5, pady=1)
+        ver_b = tk.Label(hdr, text="v6.3.1", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=5, pady=1)
         ver_b.pack(side="left", padx=(6, 0))
 
         btn_min = tk.Label(hdr, text=" ─ ", font=("Arial", 10, "bold"), bg="#2563EB", fg="#DBEAFE", cursor="hand2")
