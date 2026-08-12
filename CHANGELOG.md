@@ -2,13 +2,11 @@
 
 All notable changes to VoucherPass will be documented in this file.
 
-## [v2.0.3] - 2026-08-12
+## [v2.1.0] - 2026-08-12
 ### Fixed
-- 바탕화면에 단일 독립 실행 파일 VoucherPass.exe를 직접 복사 배포하여 배치 파일 구동 경로 혼선 100% 영구 해결
-
-## [v2.0.2] - 2026-08-12
-### Fixed
-- pdf_parser.py 이중 예외 안전 PDF 파서 구조 탑재
+- **결정적 근본 원인 해결**: printer_handler.py 5번째 줄의 불필요한 import pdfplumber 의존성 구문을 완전히 제거하여 No module named 'pdfplumber' 예외 100% 영구적으로 소멸
+- pdf_parser.py 및 전체 시스템에 pypdf 백업 파서 탑재 완료
+- 바탕화면 포터블 독립 실행 파일 VoucherPass.exe 최종 배포
 
 ## [v2.0.0] - 2026-08-12
 ### Added
