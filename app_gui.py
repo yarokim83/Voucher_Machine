@@ -496,7 +496,10 @@ class VoucherPassApp:
         tax_date = pdf_parser.parse_tax_invoice_date(tax_path)
         if tax_date:
             self.date_var.set(tax_date)
-            messagebox.showinfo("세금계산서 연동 완료", f"전자 세금계산서(암호 6068625399 해제)에서 [작성일자] 데이터가 성공적으로 연동되었습니다!\n\n- 연동된 작성일자: {tax_date}")
+            messagebox.showinfo("세금계산서 연동 완료", f"전자 세금계산서 서류에서 [작성일자] 데이터가 성공적으로 연동되었습니다!\n\n- 연동된 작성일자: {tax_date}")
+        else:
+            fname = os.path.basename(tax_path)
+            messagebox.showinfo("세금계산서 연결 완료", f"전자 세금계산서 서류({fname})가 카드에 정상 업로드되었습니다!\n\n국세청 보안 메일 특성상 날짜가 인코딩된 경우 [작성일자] 필드에 2026-08-11 형태로 직접 수정/입력해 주시면 됩니다.")
 
     def _recalc_amounts(self, event=None):
         raw = self.amount_var.get().replace(',', '').strip()

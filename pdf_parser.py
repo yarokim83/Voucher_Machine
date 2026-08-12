@@ -106,6 +106,12 @@ def parse_tax_invoice_date(file_path):
         y, month, d = matches_fmt[0][0], int(matches_fmt[0][1]), int(matches_fmt[0][2])
         return f"{y}-{month:02d}-{d:02d}"
 
+    # 4. 8자리 숫자 (20260811)
+    matches_digits = re.findall(r'(202[0-9])(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])', full_text)
+    if matches_digits:
+        y, month, d = matches_digits[0][0], int(matches_digits[0][1]), int(matches_digits[0][2])
+        return f"{y}-{month:02d}-{d:02d}"
+
     return ''
 
 def parse_pr_pdf(pdf_path):
