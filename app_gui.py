@@ -179,7 +179,7 @@ class VoucherPassApp:
     def __init__(self, root):
         self.root = root
         self.root.title("VoucherPass Smart Widget")
-        self.root.geometry("440x790+1100+100")
+        self.root.geometry("430x640+1100+140")
         self.root.overrideredirect(True)
         self.root.attributes("-topmost", True)
         self.root.configure(bg="#0F172A", highlightbackground="#3B82F6", highlightthickness=2)
@@ -231,7 +231,7 @@ class VoucherPassApp:
 
     def _build_widget_layout(self):
         # 1. Header Bar (Dark Glass Accent)
-        hdr = tk.Frame(self.root, bg="#1E293B", padx=12, pady=6)
+        hdr = tk.Frame(self.root, bg="#1E293B", padx=10, pady=5)
         hdr.pack(fill="x")
         hdr.bind("<Button-1>", self._click_title)
         hdr.bind("<B1-Motion>", self._drag_title)
@@ -241,7 +241,7 @@ class VoucherPassApp:
         lbl_logo.bind("<Button-1>", self._click_title)
         lbl_logo.bind("<B1-Motion>", self._drag_title)
 
-        ver_b = tk.Label(hdr, text="v3.2 Full HUD", font=("Malgun Gothic", 7, "bold"), bg="#0284C7", fg="white", padx=4, pady=1)
+        ver_b = tk.Label(hdr, text="v3.3 Compact", font=("Malgun Gothic", 7, "bold"), bg="#0284C7", fg="white", padx=4, pady=1)
         ver_b.pack(side="left", padx=(6, 0))
 
         btn_min = tk.Label(hdr, text=" ─ ", font=("Arial", 10, "bold"), bg="#1E293B", fg="#94A3B8", cursor="hand2")
@@ -253,28 +253,28 @@ class VoucherPassApp:
         btn_close.bind("<Button-1>", lambda e: self.root.destroy())
 
         # 2. Main Content Frame
-        main_box = tk.Frame(self.root, bg="#F8FAFC", padx=8, pady=6)
+        main_box = tk.Frame(self.root, bg="#F8FAFC", padx=6, pady=5)
         main_box.pack(fill="both", expand=True)
 
-        # 3. 5가지 서류 미니 스마트 드롭존
-        self.drop_pr = PastelGlassDropZone(main_box, "① PR Print (구매요청서) PDF", "🛒", "#EFF6FF", "#2563EB", self.pr_pdf_path, on_file_selected=self.parse_uploaded_pdf)
-        self.drop_pr.pack(fill="x", pady=1)
+        # 3. 5가지 서류 미니 스마트 드롭존 (순서: 세금계산서 - 거래명세서 - PR - 발주서 - 계약서)
+        self.drop_tax = PastelGlassDropZone(main_box, "① 전자 세금계산서 (암호 6068625399)", "🧾", "#F5F3FF", "#7C3AED", self.tax_pdf_path, on_file_selected=self.parse_tax_invoice_uploaded)
+        self.drop_tax.pack(fill="x", pady=1)
 
-        self.drop_po = PastelGlassDropZone(main_box, "② 발주서 (PO) PDF", "📦", "#F0F9FF", "#0284C7", self.po_pdf_path, on_file_selected=self.parse_uploaded_pdf)
-        self.drop_po.pack(fill="x", pady=1)
-
-        self.drop_spec = PastelGlassDropZone(main_box, "③ 거래명세서 PDF", "📄", "#ECFDF5", "#059669", self.spec_pdf_path)
+        self.drop_spec = PastelGlassDropZone(main_box, "② 거래명세서 PDF", "📄", "#ECFDF5", "#059669", self.spec_pdf_path)
         self.drop_spec.pack(fill="x", pady=1)
 
-        self.drop_tax = PastelGlassDropZone(main_box, "④ 전자 세금계산서", "🧾", "#F5F3FF", "#7C3AED", self.tax_pdf_path, on_file_selected=self.parse_tax_invoice_uploaded)
-        self.drop_tax.pack(fill="x", pady=1)
+        self.drop_pr = PastelGlassDropZone(main_box, "③ PR Print (구매요청서) PDF", "🛒", "#EFF6FF", "#2563EB", self.pr_pdf_path, on_file_selected=self.parse_uploaded_pdf)
+        self.drop_pr.pack(fill="x", pady=1)
+
+        self.drop_po = PastelGlassDropZone(main_box, "④ 발주서 (PO) PDF", "📦", "#F0F9FF", "#0284C7", self.po_pdf_path, on_file_selected=self.parse_uploaded_pdf)
+        self.drop_po.pack(fill="x", pady=1)
 
         self.drop_contract = PastelGlassDropZone(main_box, "⑤ 업체 계약서 PDF", "📝", "#FFFBEB", "#D97706", self.contract_pdf_path)
         self.drop_contract.pack(fill="x", pady=1)
 
-        # 4. Modern Smart HUD Data Board (추출 데이터 7종 시인성 보드 100% 완전 복원)
-        hud = tk.LabelFrame(main_box, text=" 📝 추출 데이터 7종 (수정/복사 가능) ", font=("Malgun Gothic", 9, "bold"), bg="#FFFFFF", fg="#1E3A8A", bd=1, relief="solid", padx=6, pady=4)
-        hud.pack(fill="x", pady=(3, 3))
+        # 4. Modern Smart HUD Data Board (추출 데이터 7종 시인성 보드)
+        hud = tk.LabelFrame(main_box, text=" 📝 추출 데이터 7종 (수정/복사 가능) ", font=("Malgun Gothic", 9, "bold"), bg="#FFFFFF", fg="#1E3A8A", bd=1, relief="solid", padx=6, pady=3)
+        hud.pack(fill="x", pady=(2, 2))
 
         lbl_s = {"font": ("Malgun Gothic", 8, "bold"), "bg": "#FFFFFF", "fg": "#334155"}
         ent_s = {"font": ("Malgun Gothic", 8), "bg": "#F8FAFC", "relief": "solid", "bd": 1}
@@ -324,14 +324,11 @@ class VoucherPassApp:
         e_tot = tk.Entry(r4, textvariable=self.total_amount_var, font=("Malgun Gothic", 8, "bold"), bg="#EFF6FF", fg="#1D4ED8", width=14, relief="solid", bd=1)
         e_tot.pack(side="left", padx=(2, 0))
 
-        # 5. Quick Actions Bar (엑셀 템플릿 저장, 세로복사, 건별보관, 일괄인쇄)
+        # 5. Quick Actions Bar
         act_panel = tk.Frame(main_box, bg="#F8FAFC")
         act_panel.pack(fill="x", pady=(2, 0))
 
-        btn_excel = tk.Button(act_panel, text="📊 엑셀 템플릿 (고려제강) 자동 기록 저장", font=("Malgun Gothic", 9, "bold"), bg="#1E40AF", fg="white", activebackground="#1E3A8A", activeforeground="white", relief="flat", padx=8, pady=5, cursor="hand2", command=self.generate_excel_action)
-        btn_excel.pack(side="top", fill="x", pady=1)
-
-        btn_copy_all = tk.Button(act_panel, text="✨ 3종 항목 세로 복사 (엑셀 셀 붙여넣기용)", font=("Malgun Gothic", 8, "bold"), bg="#2563EB", fg="white", activebackground="#1D4ED8", activeforeground="white", relief="flat", padx=8, pady=4, cursor="hand2", command=self.copy_all_3items)
+        btn_copy_all = tk.Button(act_panel, text="📋 Voucher 엑셀 양식 붙여넣기 클립보드 복사", font=("Malgun Gothic", 9, "bold"), bg="#2563EB", fg="white", activebackground="#1D4ED8", activeforeground="white", relief="flat", padx=8, pady=6, cursor="hand2", command=self.copy_all_3items)
         btn_copy_all.pack(side="top", fill="x", pady=1)
 
         bot_btn_f = tk.Frame(act_panel, bg="#F8FAFC")
@@ -615,29 +612,34 @@ class VoucherPassApp:
 
     def print_pdf_documents_only(self):
         """
-        업로드된 제출서류 5종 (① PR, ② 발주서 PO, ③ 거래명세서, ④ 세금계산서, ⑤ 업체 계약서) 통합 일괄 인쇄
+        업로드된 제출서류 5종 (① 세금계산서, ② 거래명세서, ③ PR, ④ 발주서 PO, ⑤ 업체 계약서) 통합 일괄 인쇄
         """
         printer = self.selected_printer.get()
         printed_list = []
 
         try:
-            if self.pr_pdf_path.get() and os.path.exists(self.pr_pdf_path.get()):
-                printer_handler.print_pdf_file(self.pr_pdf_path.get(), printer_name=printer)
-                printed_list.append("① PR Print PDF (구매요청서)")
-
-            if self.po_pdf_path.get() and os.path.exists(self.po_pdf_path.get()):
-                printer_handler.print_pdf_file(self.po_pdf_path.get(), printer_name=printer)
-                printed_list.append("② 발주서 (PO) PDF")
-
-            if self.spec_pdf_path.get() and os.path.exists(self.spec_pdf_path.get()):
-                printer_handler.print_pdf_file(self.spec_pdf_path.get(), printer_name=printer)
-                printed_list.append("③ 거래명세서 PDF")
-
+            # 1. 전자 세금계산서 (암호 해제 후 인쇄)
             if self.tax_pdf_path.get() and os.path.exists(self.tax_pdf_path.get()):
                 dec_pdf = pdf_parser.decrypt_pdf_to_temp(self.tax_pdf_path.get())
                 printer_handler.print_pdf_file(dec_pdf, printer_name=printer)
-                printed_list.append("④ 전자 세금계산서 PDF (암호해제 인쇄)")
+                printed_list.append("① 전자 세금계산서 PDF (암호해제 인쇄)")
 
+            # 2. 거래명세서
+            if self.spec_pdf_path.get() and os.path.exists(self.spec_pdf_path.get()):
+                printer_handler.print_pdf_file(self.spec_pdf_path.get(), printer_name=printer)
+                printed_list.append("② 거래명세서 PDF")
+
+            # 3. PR Print (구매요청서)
+            if self.pr_pdf_path.get() and os.path.exists(self.pr_pdf_path.get()):
+                printer_handler.print_pdf_file(self.pr_pdf_path.get(), printer_name=printer)
+                printed_list.append("③ PR Print PDF (구매요청서)")
+
+            # 4. 발주서 (PO)
+            if self.po_pdf_path.get() and os.path.exists(self.po_pdf_path.get()):
+                printer_handler.print_pdf_file(self.po_pdf_path.get(), printer_name=printer)
+                printed_list.append("④ 발주서 (PO) PDF")
+
+            # 5. 업체 계약서
             if self.contract_pdf_path.get() and os.path.exists(self.contract_pdf_path.get()):
                 page_str = self.contract_page.get().strip()
                 page_indices, label_str = self._parse_contract_pages(page_str)
