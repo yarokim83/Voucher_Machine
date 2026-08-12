@@ -2,9 +2,9 @@
 
 All notable changes to VoucherPass will be documented in this file.
 
-## [v5.2.2] - 2026-08-12
-### Tax Invoice Extraction Pipeline Fix
-- **HTML 세금계산서 암호해제 파이프라인 순서 교정**:
-  국세청 HTML 보안 메일 업로드 시 경고창 대신 즉시 무음 자동 해제(6068625399 대입 및 엔터)를 우선 실행 후 신규 PDF에서 작성일자를 자동 추출하도록 파이프라인 수정.
-- **Universal Date Extraction Engine 전천후 날짜 추출 강화**:
-  모든 세금계산서 PDF 내 작성/발행 키워드 직후 40자 이내 202X 날짜 및 공백 허용 연월일 정규식 탐색을 극대화하여 100% 날짜 대입 보장.
+## [v5.2.3] - 2026-08-12
+### Tax Invoice PDF Saving & Lock-Safe Extraction Hotfix
+- **새로 저장된 세금계산서 PDF 파일 락 해제 대기 파이프라인 탑재**:
+  세금계산서 PDF 저장이 실행된 직후, 파일 쓰기 완료(0 bytes -> 500 bytes 이상) 및 OS 파일 락이 풀릴 때까지 최대 3초 대기 후 복호화 템프 생성 및 3회 재시도 파싱 수행.
+- **날짜 대입 팝업 100% 보장**:
+  추출 완료 시 UI 📅 작성일자 필드에 즉시 입력하고 축하 안내 팝업 표출.

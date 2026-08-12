@@ -528,10 +528,46 @@ class VoucherPassApp:
         if not pdf_path or not os.path.exists(pdf_path):
             return
 
-        self.drop_tax.set_file(pdf_path)
-        parsed_date = pdf_parser.parse_tax_invoice_date(pdf_path)
-        if parsed_date:
-            self.date_var.set(parsed_date)
+        def _parse_job():
+            import time
+            # 1. 새로 생성된 PDF 파일 쓰기가 완료될 때까지 최대 3초 대기
+            for _ in range(10):
+                try:
+                    if os.path.getsize(pdf_path) > 500:
+                        break
+                except Exception:
+                    pass
+                time.sleep(0.3)
+
+            time.sleep(0.5)
+            self.drop_tax.set_file(pdf_path)
+
+            # 2. 복호화 및 날짜 파싱 재시도 3회
+            parse_target = pdf_path
+            try:
+                dec_p = pdf_parser.decrypt_pdf_to_temp(pdf_path)
+                if dec_p and os.path.exists(dec_p):
+                    parse_target = dec_p
+            except Exception:
+                pass
+
+            parsed_date = ''
+            for _ in range(3):
+                parsed_date = pdf_parser.parse_tax_invoice_date(parse_target)
+                if parsed_date:
+                    break
+                time.sleep(0.3)
+
+            if parsed_date:
+                self.root.after(0, lambda d=parsed_date: self._apply_tax_date(d))
+            else:
+                self.root.after(0, lambda: messagebox.showwarning("작성일자 미추출", f"PDF 세금계산서 [{os.path.basename(pdf_path)}] 에서 작성일자를 자동으로 찾지 못했습니다.\n수동으로 작성일자를 입력해 주세요."))
+
+        threading.Thread(target=_parse_job, daemon=True).start()
+
+    def _apply_tax_date(self, tax_date):
+        self.date_var.set(tax_date)
+        messagebox.showinfo("세금계산서 날짜 추출 성공", f"🎉 새로 저장된 세금계산서 PDF에서 작성일자가 자동으로 추출되었습니다!\n\n📅 작성일자: {tax_date}")
 
     def _recalc_amounts(self, event=None):
         raw = self.amount_var.get().replace(',', '').strip()
