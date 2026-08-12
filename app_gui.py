@@ -1,4 +1,4 @@
-import os
+﻿import os
 import sys
 import re
 import urllib.parse
@@ -23,7 +23,7 @@ import pdf_watcher
 
 class CleanMinimalDropZone(tk.Frame):
     """
-    VoucherPass v5.2 Large Font & Zero Right-Margin DropZone
+    VoucherPass v6.0 Folder Watcher & Auto PDF Extractor DropZone
     """
     def __init__(self, parent, title, icon, accent_color, file_var, on_file_selected=None, **kwargs):
         super().__init__(parent, bg="#FFFFFF", highlightbackground="#CBD5E1", highlightthickness=1, bd=0, **kwargs)
@@ -34,7 +34,6 @@ class CleanMinimalDropZone(tk.Frame):
         self.inner = tk.Frame(self, bg="#FFFFFF", padx=5, pady=3)
         self.inner.pack(fill="both", expand=True)
 
-        # 아이콘 타겟 드롭존 박스
         self.icon_bg = tk.Frame(self.inner, bg="#F8FAFC", padx=6, pady=2, highlightbackground=accent_color, highlightthickness=1)
         self.icon_bg.pack(side="left", padx=(0, 6))
 
@@ -63,7 +62,7 @@ class CleanMinimalDropZone(tk.Frame):
         self.file_var.trace_add("write", self._update_ui_state)
 
     def _browse_file(self, event=None):
-        path = filedialog.askopenfilename(filetypes=[("PDF Files", "*.pdf"), ("HTML Files", "*.html;*.htm"), ("All Files", "*.*")])
+        path = filedialog.askopenfilename(filetypes=[("PDF Files", "*.pdf"), ("All Files", "*.*")])
         if path:
             self.set_file(path)
 
@@ -83,14 +82,14 @@ class CleanMinimalDropZone(tk.Frame):
             if p:
                 norm_p = os.path.abspath(os.path.normpath(p))
                 ext = norm_p.lower()
-                if (ext.endswith('.pdf') or ext.endswith('.html') or ext.endswith('.htm')) and os.path.exists(norm_p):
+                if ext.endswith('.pdf') and os.path.exists(norm_p):
                     valid_file = norm_p
                     break
 
         if valid_file:
             self.set_file(valid_file)
         else:
-            messagebox.showwarning("파일 형식 오류", "PDF 또는 HTML 파일을 업로드해 주세요.")
+            messagebox.showwarning("파일 형식 오류", "PDF 세금계산서 서류 파일을 드롭해 주세요.")
 
     def _on_drag_enter(self, event=None):
         self.config(bg="#EFF6FF", highlightbackground="#2563EB", highlightthickness=2)
@@ -123,7 +122,7 @@ class CleanMinimalDropZone(tk.Frame):
 
 class VoucherPassApp:
     """
-    VoucherPass v5.2 Large Font & Zero Margin Engine
+    VoucherPass v6.0 Folder Watcher & Auto PDF Date Extractor Engine
     """
     def __init__(self, root):
         self.root = root
@@ -196,7 +195,7 @@ class VoucherPassApp:
         self.root.geometry(f"+{x}+{y}")
 
     def _build_widget_layout(self):
-        # 1. Header Bar (HPNT Style Vibrant Blue Header)
+        # 1. Header Bar (HPNT Style Blue Header)
         hdr = tk.Frame(self.root, bg="#2563EB", padx=8, pady=5)
         hdr.pack(fill="x")
         hdr.bind("<Button-1>", self._click_title)
@@ -207,7 +206,7 @@ class VoucherPassApp:
         lbl_logo.bind("<Button-1>", self._click_title)
         lbl_logo.bind("<B1-Motion>", self._drag_title)
 
-        ver_b = tk.Label(hdr, text="v5.5.0", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=5, pady=1)
+        ver_b = tk.Label(hdr, text="v6.0.0", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=5, pady=1)
         ver_b.pack(side="left", padx=(6, 0))
 
         btn_min = tk.Label(hdr, text=" ─ ", font=("Arial", 10, "bold"), bg="#2563EB", fg="#DBEAFE", cursor="hand2")
@@ -218,7 +217,7 @@ class VoucherPassApp:
         btn_close.pack(side="right")
         btn_close.bind("<Button-1>", lambda e: self.root.destroy())
 
-        # 2. Main Content Canvas (Soft Ice White Canvas - 좌우 여백 타이트 3px)
+        # 2. Main Content Canvas
         main_box = tk.Frame(self.root, bg="#F8FAFC", padx=3, pady=2)
         main_box.pack(fill="both", expand=True)
 
@@ -238,7 +237,7 @@ class VoucherPassApp:
         self.drop_contract = CleanMinimalDropZone(main_box, "⑤ 업체 계약서 PDF", "📝", "#D97706", self.contract_pdf_path)
         self.drop_contract.pack(fill="x", pady=1)
 
-        # 4. Clean Minimal Spotlight HUD Data Board (대형 시원한 폰트 보드)
+        # 4. Clean Minimal Spotlight HUD Data Board
         hud = tk.LabelFrame(main_box, text=" 📝 추출 데이터 7종 ", font=("Malgun Gothic", 9, "bold"), bg="#FFFFFF", fg="#1E3A8A", bd=1, relief="solid", padx=4, pady=2)
         hud.pack(fill="x", pady=(2, 1))
 
@@ -258,7 +257,7 @@ class VoucherPassApp:
         e_date.pack(side="left", padx=(2, 2))
         tk.Button(r1, text="📋", command=lambda: self.copy_to_clipboard(self.date_var.get(), "작성일자"), **btn_cp).pack(side="left")
 
-        # Row 2: PR Title (가로폭 꽉 차게 width=22 및 우측 복사 버튼 고정 밀착)
+        # Row 2: PR Title
         r2 = tk.Frame(hud, bg="#FFFFFF")
         r2.pack(fill="x", pady=1)
         tk.Label(r2, text="📌 PR Title:", **lbl_s).pack(side="left", anchor="n", pady=2)
@@ -294,7 +293,7 @@ class VoucherPassApp:
         e_tot = tk.Entry(r4, textvariable=self.total_amount_var, font=("Malgun Gothic", 9, "bold"), bg="#EFF6FF", fg="#1D4ED8", width=11, relief="solid", bd=1)
         e_tot.pack(side="left", padx=(2, 0))
 
-        # 5. Clean Minimal Action Buttons (대형 10pt 폰트)
+        # 5. Clean Minimal Action Buttons
         act_panel = tk.Frame(main_box, bg="#F8FAFC")
         act_panel.pack(fill="x", pady=(1, 0))
 
@@ -326,22 +325,31 @@ class VoucherPassApp:
         self.root.after(2000, self._start_folder_watch_timer)
 
     def handle_auto_detected_pdf(self, pdf_path):
+        """
+        지정 폴더(다운로드/바탕화면)에 새로운 PDF가 감지되면 자동으로 파싱 및 분류
+        """
+        if not pdf_path or not os.path.exists(pdf_path):
+            return
+
         pdf_type = pdf_parser.classify_pdf_type(pdf_path)
-        if pdf_type == 'pr':
+        if pdf_type == 'tax' or '세금' in os.path.basename(pdf_path) or '조회' in os.path.basename(pdf_path):
+            self.drop_tax.set_file(pdf_path)
+            self.parse_tax_invoice_uploaded(pdf_path)
+        elif pdf_type == 'pr':
             self.drop_pr.set_file(pdf_path)
+            self.parse_uploaded_pdf(pdf_path)
         elif pdf_type == 'po':
             self.drop_po.set_file(pdf_path)
+            self.parse_uploaded_pdf(pdf_path)
         elif pdf_type == 'spec':
             self.drop_spec.set_file(pdf_path)
-        elif pdf_type == 'tax':
-            self.drop_tax.set_file(pdf_path)
         elif pdf_type == 'contract':
             self.drop_contract.set_file(pdf_path)
 
     def generate_excel_action(self):
         data = self._get_form_data()
         if not data.get('pr_no') and not data.get('pr_title') and not data.get('amount'):
-            messagebox.showwarning("엑셀 생성 실패", "기록할 데이터가 없습니다. PDF 서류를 먼저 드롭해 주세요.")
+            messagebox.showwarning("엑셀 생성 실패", "기록할 데이터가 없습니다. PDF 서류를 먼저 업로드해 주세요.")
             return
 
         try:
@@ -445,6 +453,9 @@ class VoucherPassApp:
             messagebox.showerror("파싱 오류", f"PDF 데이터 자동 추출 실패:\n{e}")
 
     def parse_tax_invoice_uploaded(self, tax_path=None):
+        """
+        저장된 세금계산서 PDF 파일에서 작성일자(2026/08/11) 자동 추출
+        """
         if not tax_path:
             tax_path = self.tax_pdf_path.get()
 
@@ -452,124 +463,16 @@ class VoucherPassApp:
             return
 
         try:
-            # HTML 파일일 경우 즉시 무음 자동 해제 및 PDF 생성 파이프라인 작동
-            if pdf_parser._is_html_file(tax_path):
-                self.auto_unlock_and_print_html_tax_invoice(tax_path)
-                return
-
-            # PDF 파일 파싱
-            parse_target = tax_path
-            try:
-                dec_path = pdf_parser.decrypt_pdf_to_temp(tax_path)
-                if dec_path and os.path.exists(dec_path):
-                    parse_target = dec_path
-            except Exception:
-                pass
-
-            tax_date = pdf_parser.parse_tax_invoice_date(parse_target)
+            tax_date = pdf_parser.parse_tax_invoice_date(tax_path)
             if tax_date:
                 self.date_var.set(tax_date)
-                messagebox.showinfo("세금계산서 파싱 완료", f"전자 세금계산서 작성일자가 성공적으로 추출되었습니다!\n\n📅 작성일자: {tax_date}")
+                self.root.update_idletasks()
+                self.root.update()
+                messagebox.showinfo("작성일자 자동 추출 완료", f"🎉 세금계산서 PDF 작성일자가 성공적으로 추출되었습니다!\n\n📅 작성일자: {tax_date}")
             else:
-                messagebox.showwarning("작성일자 미추출", "세금계산서에서 작성일자를 자동으로 찾지 못했습니다. 수동으로 입력해 주세요.")
+                messagebox.showwarning("작성일자 미추출", f"PDF 세금계산서 [{os.path.basename(tax_path)}] 에서 작성일자를 발견하지 못했습니다. 수동으로 입력해 주세요.")
         except Exception as e:
             messagebox.showerror("세금계산서 파싱 오류", f"세금계산서 작성일자 파싱 중 오류 발생:\n{e}")
-
-    def auto_unlock_and_print_html_tax_invoice(self, html_path):
-        import threading, time
-        def _worker():
-            try:
-                import pyautogui, pyperclip
-                pyautogui.FAILSAFE = False
-                pyautogui.PAUSE = 0.1
-
-                desktop = os.path.join(os.path.expanduser('~'), 'Desktop')
-                downloads = os.path.join(os.path.expanduser('~'), 'Downloads')
-                
-                def _get_pdfs():
-                    files = set()
-                    for folder in [desktop, downloads]:
-                        if os.path.exists(folder):
-                            for f in os.listdir(folder):
-                                if f.lower().endswith('.pdf'):
-                                    files.add(os.path.join(folder, f))
-                    return files
-
-                before_pdfs = _get_pdfs()
-                pyperclip.copy("6068625399")
-
-                os.startfile(html_path)
-                time.sleep(1.2)
-
-                pyautogui.hotkey('ctrl', 'v')
-                time.sleep(0.3)
-                pyautogui.press('enter')
-
-                time.sleep(1.8)
-                pyautogui.hotkey('ctrl', 'p')
-                time.sleep(1.0)
-                pyautogui.press('enter')
-
-                for _ in range(30):
-                    time.sleep(1.0)
-                    after_pdfs = _get_pdfs()
-                    diff = list(after_pdfs - before_pdfs)
-                    if diff:
-                        newest_pdf = max(diff, key=lambda x: os.path.getmtime(x))
-                        self.root.after(0, lambda p=newest_pdf: self._on_new_tax_pdf_saved(p))
-                        break
-
-            except Exception as e:
-                print(f"Auto unlock & print error: {e}")
-
-        threading.Thread(target=_worker, daemon=True).start()
-
-    def _on_new_tax_pdf_saved(self, pdf_path):
-        if not pdf_path or not os.path.exists(pdf_path):
-            return
-
-        def _parse_job():
-            import time
-            # 1. 새로 생성된 PDF 파일 쓰기가 완료될 때까지 최대 3초 대기
-            for _ in range(10):
-                try:
-                    if os.path.getsize(pdf_path) > 500:
-                        break
-                except Exception:
-                    pass
-                time.sleep(0.3)
-
-            time.sleep(0.5)
-            self.drop_tax.set_file(pdf_path)
-
-            # 2. 복호화 및 날짜 파싱 재시도 3회
-            parse_target = pdf_path
-            try:
-                dec_p = pdf_parser.decrypt_pdf_to_temp(pdf_path)
-                if dec_p and os.path.exists(dec_p):
-                    parse_target = dec_p
-            except Exception:
-                pass
-
-            parsed_date = ''
-            for _ in range(3):
-                parsed_date = pdf_parser.parse_tax_invoice_date(parse_target)
-                if parsed_date:
-                    break
-                time.sleep(0.3)
-
-            if parsed_date:
-                self.root.after(0, lambda d=parsed_date: self._apply_tax_date(d))
-            else:
-                self.root.after(0, lambda: messagebox.showwarning("작성일자 미추출", f"PDF 세금계산서 [{os.path.basename(pdf_path)}] 에서 작성일자를 자동으로 찾지 못했습니다.\n수동으로 작성일자를 입력해 주세요."))
-
-        threading.Thread(target=_parse_job, daemon=True).start()
-
-    def _apply_tax_date(self, tax_date):
-        self.date_var.set(tax_date)
-        self.root.update_idletasks()
-        self.root.update()
-        messagebox.showinfo("작성일자 자동 추출 완료", f"🎉 HTML 세금계산서 PDF 저장 및 작성일자 자동 추출 성공!\n\n📅 작성일자: {tax_date}")
 
     def _recalc_amounts(self, event=None):
         raw = self.amount_var.get().replace(',', '').strip()
@@ -652,7 +555,7 @@ class VoucherPassApp:
                 printed_list.append(f"⑤ 업체 계약서 PDF ({label_str} 페이지)")
 
             if not printed_list:
-                messagebox.showwarning("인쇄할 PDF 없음", "인쇄할 PDF 서류가 하나도 업로드되지 않았습니다.\nPDF 파일을 드래그 앤 드롭 업로드해 주세요.")
+                messagebox.showwarning("인쇄할 PDF 없음", "인쇄할 PDF 서류가 하나도 업로드되지 않았습니다.\nPDF 파일을 업로드해 주세요.")
                 return
 
             summary = "\n- ".join(printed_list)
