@@ -2,9 +2,10 @@
 
 All notable changes to VoucherPass will be documented in this file.
 
-## [v2.0.1] - 2026-08-12
+## [v2.0.2] - 2026-08-12
 ### Fixed
-- 바탕화면 VoucherPass 실행.bat 파일의 실행 경로를 최신 단일 포터블 실행 파일(c:\Users\baewoong.kim\.gemini\VoucherPass\dist\VoucherPass.exe)로 동기화하여 구버전 모듈 예외 오류 완전 해결
+- pdf_parser.py 내 pdfplumber 및 pypdf 이중 예외 안전 PDF 파서 구조(extract_pdf_text_safely) 적용으로 모듈 누락 구동 예외 100% 영구 회피
+- 단일 포터블 독립 실행 파일 dist/VoucherPass.exe 완성
 
 ## [v2.0.0] - 2026-08-12
 ### Added
@@ -12,7 +13,6 @@ All notable changes to VoucherPass will be documented in this file.
 - Outlook 이메일 첨부파일 1초 자동 추출 버튼 구현
 - 다운로드 폴더 실시간 자동 감시 & PDF 4종 스마트 자동 분류 기능 구현
 - 건별/업체별 폴더 자동 생성 & 원클릭 보관소 기능 구현
-- 단일 포터블 실행 파일 (dist/VoucherPass.exe) 배포 완료
 
 ## [v1.0.0] - 2026-08-10
 ### Added

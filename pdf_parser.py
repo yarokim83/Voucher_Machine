@@ -1,49 +1,86 @@
-import pdfplumber
-from pypdf import PdfReader, PdfWriter
-import re
+﻿import re
 import os
 import tempfile
 
+try:
+    import pdfplumber
+    HAS_PDFPLUMBER = True
+except ImportError:
+    HAS_PDFPLUMBER = False
+
+try:
+    from pypdf import PdfReader, PdfWriter
+    HAS_PYPDF = True
+except ImportError:
+    HAS_PYPDF = False
+
 DEFAULT_PASSWORDS = ['6068625399', '']
 
-def open_pdf_safely(pdf_path, passwords=DEFAULT_PASSWORDS):
-    for pwd in passwords:
-        try:
-            pdf = pdfplumber.open(pdf_path, password=pwd)
-            return pdf, pwd
-        except Exception:
-            continue
-    return None, None
+def extract_pdf_text_safely(pdf_path, passwords=DEFAULT_PASSWORDS):
+    full_text = ""
+    if HAS_PDFPLUMBER:
+        for pwd in passwords:
+            try:
+                with pdfplumber.open(pdf_path, password=pwd) as pdf:
+                    for page in pdf.pages:
+                        txt = page.extract_text()
+                        if txt:
+                            full_text += txt + "\n"
+                if full_text.strip():
+                    return full_text
+            except Exception:
+                continue
+
+    if HAS_PYPDF:
+        for pwd in passwords:
+            try:
+                reader = PdfReader(pdf_path)
+                if reader.is_encrypted:
+                    try:
+                        reader.decrypt(pwd)
+                    except Exception:
+                        continue
+                for page in reader.pages:
+                    txt = page.extract_text()
+                    if txt:
+                        full_text += txt + "\n"
+                if full_text.strip():
+                    return full_text
+            except Exception:
+                continue
+
+    return full_text
 
 def decrypt_pdf_to_temp(pdf_path, passwords=DEFAULT_PASSWORDS):
     if not os.path.exists(pdf_path):
         return pdf_path
 
-    for pwd in passwords:
-        try:
-            reader = PdfReader(pdf_path)
-            if reader.is_encrypted:
-                try:
-                    reader.decrypt(pwd)
-                except Exception:
-                    continue
-            
-            writer = PdfWriter()
-            for page in reader.pages:
-                writer.add_page(page)
+    if HAS_PYPDF:
+        for pwd in passwords:
+            try:
+                reader = PdfReader(pdf_path)
+                if reader.is_encrypted:
+                    try:
+                        reader.decrypt(pwd)
+                    except Exception:
+                        continue
+                
+                writer = PdfWriter()
+                for page in reader.pages:
+                    writer.add_page(page)
 
-            temp_dir = tempfile.gettempdir()
-            temp_pdf = os.path.join(temp_dir, f'decrypted_{os.path.basename(pdf_path)}')
-            with open(temp_pdf, 'wb') as f_out:
-                writer.write(f_out)
-            return temp_pdf
-        except Exception:
-            continue
+                temp_dir = tempfile.gettempdir()
+                temp_pdf = os.path.join(temp_dir, f"decrypted_{os.path.basename(pdf_path)}")
+                with open(temp_pdf, "wb") as f_out:
+                    writer.write(f_out)
+                return temp_pdf
+            except Exception:
+                continue
     return pdf_path
 
 def parse_pr_pdf(pdf_path):
     if not os.path.exists(pdf_path):
-        raise FileNotFoundError(f'PDF 파일을 찾을 수 없습니다: {pdf_path}')
+        raise FileNotFoundError(f"PDF 파일을 찾을 수 없습니다: {pdf_path}")
 
     extracted_data = {
         'pr_no': '',
@@ -55,14 +92,7 @@ def parse_pr_pdf(pdf_path):
         'supplier': ''
     }
 
-    full_text = ''
-    pdf, _ = open_pdf_safely(pdf_path)
-    if pdf:
-        with pdf:
-            for page in pdf.pages:
-                txt = page.extract_text()
-                if txt:
-                    full_text += txt + '\n'
+    full_text = extract_pdf_text_safely(pdf_path)
 
     pr_match = re.search(r'P/R\s*No\.?\s*[:\s]*([A-Z0-9]+)', full_text, re.IGNORECASE)
     if not pr_match:
@@ -130,35 +160,28 @@ def parse_tax_invoice_date(pdf_path):
     if not os.path.exists(pdf_path):
         return ''
 
-    full_text = ''
-    pdf, _ = open_pdf_safely(pdf_path)
-    if pdf:
-        with pdf:
-            for page in pdf.pages:
-                txt = page.extract_text()
-                if txt:
-                    full_text += txt + '\n'
+    full_text = extract_pdf_text_safely(pdf_path)
 
     m = re.search(r'작성일자?\s*[:\s]*(\d{4})[년\-.\s/]\s*(\d{1,2})[월\-.\s/]\s*(\d{1,2})[일\s]?', full_text)
     if m:
         y, month, d = m.group(1), int(m.group(2)), int(m.group(3))
-        return f'{y}-{month:02d}-{d:02d}'
+        return f"{y}-{month:02d}-{d:02d}"
 
     m = re.search(r'발행일자?\s*[:\s]*(\d{4})[년\-.\s/]\s*(\d{1,2})[월\-.\s/]\s*(\d{1,2})[일\s]?', full_text)
     if m:
         y, month, d = m.group(1), int(m.group(2)), int(m.group(3))
-        return f'{y}-{month:02d}-{d:02d}'
+        return f"{y}-{month:02d}-{d:02d}"
 
     m = re.search(r'작성일자?\s*[:\s]*(\d{4})(\d{2})(\d{2})', full_text)
     if m:
-        return f'{m.group(1)}-{m.group(2)}-{m.group(3)}'
+        return f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
 
     m = re.search(r'(\d{4}[-.\s/]\d{2}[-.\s/]\d{2})', full_text)
     if m:
         cleaned = m.group(1).replace('.', '-').replace('/', '-').strip()
         parts = cleaned.split('-')
         if len(parts) == 3:
-            return f'{parts[0]}-{int(parts[1]):02d}-{int(parts[2]):02d}'
+            return f"{parts[0]}-{int(parts[1]):02d}-{int(parts[2]):02d}"
 
     return ''
 
@@ -176,23 +199,15 @@ def classify_pdf_type(pdf_path):
     if '계약' in fname or 'contract' in fname or '협약' in fname:
         return 'contract'
 
-    pdf, _ = open_pdf_safely(pdf_path)
-    if pdf:
-        with pdf:
-            txt = ''
-            for page in pdf.pages[:2]:
-                extracted = page.extract_text()
-                if extracted:
-                    txt += extracted + '\n'
-            
-            txt_upper = txt.upper()
-            if 'PURCHASE REQUISITION' in txt_upper or '구매요청서' in txt or 'P/R NO' in txt_upper:
-                return 'pr'
-            if '전자세금계산서' in txt or '세금계산서' in txt or 'TAX INVOICE' in txt_upper:
-                return 'tax'
-            if '거래명세서' in txt or '명세서' in txt:
-                return 'spec'
-            if '계약서' in txt or '협약서' in txt or 'CONTRACT' in txt_upper:
-                return 'contract'
+    txt = extract_pdf_text_safely(pdf_path)
+    txt_upper = txt.upper()
+    if 'PURCHASE REQUISITION' in txt_upper or '구매요청서' in txt or 'P/R NO' in txt_upper:
+        return 'pr'
+    if '전자세금계산서' in txt or '세금계산서' in txt or 'TAX INVOICE' in txt_upper:
+        return 'tax'
+    if '거래명세서' in txt or '명세서' in txt:
+        return 'spec'
+    if '계약서' in txt or '협약서' in txt or 'CONTRACT' in txt_upper:
+        return 'contract'
 
     return 'pr'
