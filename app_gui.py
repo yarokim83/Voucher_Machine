@@ -1,8 +1,10 @@
-import os
+﻿import os
 import sys
 import re
 import urllib.parse
 import subprocess
+import time
+import threading
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from PIL import Image, ImageTk
@@ -19,27 +21,30 @@ import excel_handler
 import printer_handler
 import pdf_watcher
 
-class PastelGlassDropZone(tk.Frame):
-    def __init__(self, parent, title, icon, bg_circle_color, icon_color, file_var, on_file_selected=None, **kwargs):
+class AppleGlassDropZone(tk.Frame):
+    """
+    Apple iOS 18 / macOS Sequoia Glassmorphism + TikTok Dynamic Neon Pill 드롭존
+    """
+    def __init__(self, parent, title, icon, accent_bg, accent_fg, file_var, on_file_selected=None, **kwargs):
         super().__init__(parent, bg="#FFFFFF", highlightbackground="#E2E8F0", highlightthickness=1, bd=0, **kwargs)
         self.file_var = file_var
         self.on_file_selected = on_file_selected
-        self.bg_circle_color = bg_circle_color
-        self.icon_color = icon_color
+        self.accent_bg = accent_bg
+        self.accent_fg = accent_fg
 
         self.inner = tk.Frame(self, bg="#FFFFFF", padx=8, pady=4)
         self.inner.pack(fill="both", expand=True)
 
-        self.icon_bg = tk.Frame(self.inner, bg=bg_circle_color, padx=6, pady=4)
+        self.icon_bg = tk.Frame(self.inner, bg=accent_bg, padx=6, pady=4)
         self.icon_bg.pack(side="left", padx=(0, 8))
 
-        self.lbl_icon = tk.Label(self.icon_bg, text=icon, font=("Segoe UI Emoji", 14), bg=bg_circle_color, fg=icon_color)
+        self.lbl_icon = tk.Label(self.icon_bg, text=icon, font=("Segoe UI Emoji", 13), bg=accent_bg, fg=accent_fg)
         self.lbl_icon.pack()
 
         txt_box = tk.Frame(self.inner, bg="#FFFFFF")
         txt_box.pack(side="left", fill="both", expand=True)
 
-        self.lbl_title = tk.Label(txt_box, text=title, font=("Malgun Gothic", 9, "bold"), bg="#FFFFFF", fg="#0F172A", anchor="w")
+        self.lbl_title = tk.Label(txt_box, text=title, font=("Malgun Gothic", 8, "bold"), bg="#FFFFFF", fg="#0F172A", anchor="w")
         self.lbl_title.pack(fill="x")
 
         self.lbl_status = tk.Label(txt_box, text="PDF/HTML 파일 드래그 앤 드롭 또는 클릭", font=("Malgun Gothic", 8), bg="#FFFFFF", fg="#94A3B8", anchor="w", justify="left")
@@ -65,7 +70,6 @@ class PastelGlassDropZone(tk.Frame):
     def _handle_drop(self, event):
         self._on_drag_leave()
         raw_data = event.data if event and hasattr(event, 'data') else ''
-        
         cleaned_data = urllib.parse.unquote(str(raw_data)).strip()
         if cleaned_data.startswith('file:///'):
             cleaned_data = cleaned_data[8:]
@@ -89,7 +93,7 @@ class PastelGlassDropZone(tk.Frame):
             messagebox.showwarning("파일 형식 오류", "PDF 또는 HTML 파일을 업로드해 주세요.")
 
     def _on_drag_enter(self, event=None):
-        self.config(bg="#F0F9FF", highlightbackground="#0284C7", highlightthickness=2)
+        self.config(bg="#F0F9FF", highlightbackground="#38BDF8", highlightthickness=2)
         self.inner.config(bg="#F0F9FF")
 
     def _on_drag_leave(self, event=None):
@@ -108,81 +112,26 @@ class PastelGlassDropZone(tk.Frame):
         path = self.file_var.get()
         if path and os.path.exists(path):
             fname = os.path.basename(path)
-            self.lbl_status.config(text=f"✓ {fname}", fg="#15803D", font=("Malgun Gothic", 9, "bold"))
+            self.lbl_status.config(text=f"✓ {fname}", fg="#15803D", font=("Malgun Gothic", 8, "bold"))
             self.config(bg="#F0FDF4", highlightbackground="#16A34A")
             self.inner.config(bg="#F0FDF4")
         else:
-            self.lbl_status.config(text="PDF/HTML 파일을 이곳으로 드래그 앤 드롭\n하거나 클릭하세요", fg="#94A3B8", font=("Malgun Gothic", 8))
+            self.lbl_status.config(text="PDF/HTML 파일 드래그 앤 드롭 또는 클릭", fg="#94A3B8", font=("Malgun Gothic", 8))
             self.config(bg="#FFFFFF", highlightbackground="#E2E8F0")
             self.inner.config(bg="#FFFFFF")
 
 
-class SmartFloatingWidget(tk.Toplevel):
-    """
-    Ctrl+Shift+V 스마트 플로팅 미니 위젯 (Always-on-Top / Drag & Drop 최적화)
-    """
-    def __init__(self, main_app):
-        super().__init__(main_app.root)
-        self.main_app = main_app
-        self.title("VoucherPass Widget")
-        self.geometry("360x490+1200+180")
-        self.overrideredirect(True)
-        self.attributes("-topmost", True)
-        self.configure(bg="#F8FAFC", highlightbackground="#2563EB", highlightthickness=2)
-
-        self._offsetx = 0
-        self._offsety = 0
-
-        hdr = tk.Frame(self, bg="#2563EB", padx=10, pady=6)
-        hdr.pack(fill="x")
-        hdr.bind("<Button-1>", self._click_title)
-        hdr.bind("<B1-Motion>", self._drag_title)
-
-        lbl_t = tk.Label(hdr, text="⚡ VoucherPass Smart Widget", font=("Malgun Gothic", 9, "bold"), bg="#2563EB", fg="white")
-        lbl_t.pack(side="left")
-        lbl_t.bind("<Button-1>", self._click_title)
-        lbl_t.bind("<B1-Motion>", self._drag_title)
-
-        btn_close = tk.Label(hdr, text="✕", font=("Arial", 10, "bold"), bg="#2563EB", fg="white", cursor="hand2")
-        btn_close.pack(side="right")
-        btn_close.bind("<Button-1>", lambda e: self.withdraw())
-
-        body = tk.Frame(self, bg="#F8FAFC", padx=10, pady=8)
-        body.pack(fill="both", expand=True)
-
-        tk.Label(body, text="Ctrl+Shift+V 서류 빠른 수집 위젯", font=("Malgun Gothic", 9, "bold"), bg="#F8FAFC", fg="#1E293B").pack(anchor="w", pady=(0, 6))
-
-        self.w_pr = PastelGlassDropZone(body, "① PR / 발주서 PDF", "🛒", "#EFF6FF", "#2563EB", self.main_app.pr_pdf_path, on_file_selected=self.main_app.parse_uploaded_pdf)
-        self.w_pr.pack(fill="x", pady=3)
-
-        self.w_spec = PastelGlassDropZone(body, "② 거래명세서 PDF", "📄", "#ECFDF5", "#059669", self.main_app.spec_pdf_path)
-        self.w_spec.pack(fill="x", pady=3)
-
-        self.w_tax = PastelGlassDropZone(body, "③ 전자 세금계산서", "🧾", "#F5F3FF", "#7C3AED", self.main_app.tax_pdf_path, on_file_selected=self.main_app.parse_tax_invoice_uploaded)
-        self.w_tax.pack(fill="x", pady=3)
-
-        self.w_contract = PastelGlassDropZone(body, "④ 업체 계약서 PDF", "📝", "#FFFBEB", "#D97706", self.main_app.contract_pdf_path)
-        self.w_contract.pack(fill="x", pady=3)
-
-        act_frame = tk.Frame(body, bg="#F8FAFC")
-        act_frame.pack(fill="x", pady=(8, 0))
-
-        btn_s_copy = tk.Button(act_frame, text="✨ 세로 복사", font=("Malgun Gothic", 8, "bold"), bg="#2563EB", fg="white", relief="flat", padx=6, pady=4, cursor="hand2", command=self.main_app.copy_all_3items)
-        btn_s_copy.pack(side="left", fill="x", expand=True, padx=2)
-
-        btn_s_arch = tk.Button(act_frame, text="📂 건별 보관", font=("Malgun Gothic", 8, "bold"), bg="#059669", fg="white", relief="flat", padx=6, pady=4, cursor="hand2", command=self.main_app.archive_voucher_files)
-        btn_s_arch.pack(side="left", fill="x", expand=True, padx=2)
 class VoucherPassApp:
     """
-    VoucherPass v3.0 - 100% 독립 스마트 플로팅 위젯 단일 앱 (Ctrl+Shift+V)
+    VoucherPass v3.5 Apple Glassmorphism + TikTok Dynamic Glass Widget Engine
     """
     def __init__(self, root):
         self.root = root
         self.root.title("VoucherPass Smart Widget")
-        self.root.geometry("430x640+1100+140")
+        self.root.geometry("430x645+1100+120")
         self.root.overrideredirect(True)
         self.root.attributes("-topmost", True)
-        self.root.configure(bg="#0F172A", highlightbackground="#3B82F6", highlightthickness=2)
+        self.root.configure(bg="#0F172A", highlightbackground="#38BDF8", highlightthickness=2)
 
         self._offsetx = 0
         self._offsety = 0
@@ -230,55 +179,55 @@ class VoucherPassApp:
         self.root.geometry(f"+{x}+{y}")
 
     def _build_widget_layout(self):
-        # 1. Header Bar (Dark Glass Accent)
-        hdr = tk.Frame(self.root, bg="#1E293B", padx=10, pady=5)
+        # 1. Header Bar (Apple Dark Glass Accent)
+        hdr = tk.Frame(self.root, bg="#0F172A", padx=10, pady=6)
         hdr.pack(fill="x")
         hdr.bind("<Button-1>", self._click_title)
         hdr.bind("<B1-Motion>", self._drag_title)
 
-        lbl_logo = tk.Label(hdr, text="⚡ VoucherPass Smart Widget", font=("Malgun Gothic", 10, "bold"), bg="#1E293B", fg="#38BDF8")
+        lbl_logo = tk.Label(hdr, text="⚡ VoucherPass Glass Widget", font=("Malgun Gothic", 10, "bold"), bg="#0F172A", fg="#38BDF8")
         lbl_logo.pack(side="left")
         lbl_logo.bind("<Button-1>", self._click_title)
         lbl_logo.bind("<B1-Motion>", self._drag_title)
 
-        ver_b = tk.Label(hdr, text="v3.3 Compact", font=("Malgun Gothic", 7, "bold"), bg="#0284C7", fg="white", padx=4, pady=1)
+        ver_b = tk.Label(hdr, text="iOS 18 Glass", font=("Malgun Gothic", 7, "bold"), bg="#7C3AED", fg="white", padx=5, pady=1)
         ver_b.pack(side="left", padx=(6, 0))
 
-        btn_min = tk.Label(hdr, text=" ─ ", font=("Arial", 10, "bold"), bg="#1E293B", fg="#94A3B8", cursor="hand2")
+        btn_min = tk.Label(hdr, text=" ─ ", font=("Arial", 10, "bold"), bg="#0F172A", fg="#94A3B8", cursor="hand2")
         btn_min.pack(side="right", padx=(4, 0))
         btn_min.bind("<Button-1>", lambda e: self.root.withdraw())
 
-        btn_close = tk.Label(hdr, text=" ✕ ", font=("Arial", 10, "bold"), bg="#1E293B", fg="#EF4444", cursor="hand2")
+        btn_close = tk.Label(hdr, text=" ✕ ", font=("Arial", 10, "bold"), bg="#0F172A", fg="#EF4444", cursor="hand2")
         btn_close.pack(side="right")
         btn_close.bind("<Button-1>", lambda e: self.root.destroy())
 
-        # 2. Main Content Frame
+        # 2. Main Content Frame (Light Translucent Canvas)
         main_box = tk.Frame(self.root, bg="#F8FAFC", padx=6, pady=5)
         main_box.pack(fill="both", expand=True)
 
-        # 3. 5가지 서류 미니 스마트 드롭존 (순서: 세금계산서 - 거래명세서 - PR - 발주서 - 계약서)
-        self.drop_tax = PastelGlassDropZone(main_box, "① 전자 세금계산서 (암호 6068625399)", "🧾", "#F5F3FF", "#7C3AED", self.tax_pdf_path, on_file_selected=self.parse_tax_invoice_uploaded)
+        # 3. 5가지 서류 Apple Dynamic Glass 드롭존 (순서: 세금계산서 - 거래명세서 - PR - 발주서 - 계약서)
+        self.drop_tax = AppleGlassDropZone(main_box, "① 전자 세금계산서 (6068625399 무음 대입)", "🧾", "#F5F3FF", "#7C3AED", self.tax_pdf_path, on_file_selected=self.parse_tax_invoice_uploaded)
         self.drop_tax.pack(fill="x", pady=1)
 
-        self.drop_spec = PastelGlassDropZone(main_box, "② 거래명세서 PDF", "📄", "#ECFDF5", "#059669", self.spec_pdf_path)
+        self.drop_spec = AppleGlassDropZone(main_box, "② 거래명세서 PDF", "📄", "#ECFDF5", "#059669", self.spec_pdf_path)
         self.drop_spec.pack(fill="x", pady=1)
 
-        self.drop_pr = PastelGlassDropZone(main_box, "③ PR Print (구매요청서) PDF", "🛒", "#EFF6FF", "#2563EB", self.pr_pdf_path, on_file_selected=self.parse_uploaded_pdf)
+        self.drop_pr = AppleGlassDropZone(main_box, "③ PR Print (구매요청서) PDF", "🛒", "#EFF6FF", "#2563EB", self.pr_pdf_path, on_file_selected=self.parse_uploaded_pdf)
         self.drop_pr.pack(fill="x", pady=1)
 
-        self.drop_po = PastelGlassDropZone(main_box, "④ 발주서 (PO) PDF", "📦", "#F0F9FF", "#0284C7", self.po_pdf_path, on_file_selected=self.parse_uploaded_pdf)
+        self.drop_po = AppleGlassDropZone(main_box, "④ 발주서 (PO) PDF", "📦", "#F0F9FF", "#0284C7", self.po_pdf_path, on_file_selected=self.parse_uploaded_pdf)
         self.drop_po.pack(fill="x", pady=1)
 
-        self.drop_contract = PastelGlassDropZone(main_box, "⑤ 업체 계약서 PDF", "📝", "#FFFBEB", "#D97706", self.contract_pdf_path)
+        self.drop_contract = AppleGlassDropZone(main_box, "⑤ 업체 계약서 PDF", "📝", "#FFFBEB", "#D97706", self.contract_pdf_path)
         self.drop_contract.pack(fill="x", pady=1)
 
-        # 4. Modern Smart HUD Data Board (추출 데이터 7종 시인성 보드)
-        hud = tk.LabelFrame(main_box, text=" 📝 추출 데이터 7종 (수정/복사 가능) ", font=("Malgun Gothic", 9, "bold"), bg="#FFFFFF", fg="#1E3A8A", bd=1, relief="solid", padx=6, pady=3)
+        # 4. Apple Spotlight HUD Data Board (추출 데이터 7종 시인성 보드)
+        hud = tk.LabelFrame(main_box, text=" 📝 추출 데이터 7종 (수정/1클릭 복사) ", font=("Malgun Gothic", 9, "bold"), bg="#FFFFFF", fg="#1E3A8A", bd=1, relief="solid", padx=6, pady=3)
         hud.pack(fill="x", pady=(2, 2))
 
         lbl_s = {"font": ("Malgun Gothic", 8, "bold"), "bg": "#FFFFFF", "fg": "#334155"}
         ent_s = {"font": ("Malgun Gothic", 8), "bg": "#F8FAFC", "relief": "solid", "bd": 1}
-        btn_cp = {"font": ("Malgun Gothic", 7, "bold"), "bg": "#EFF6FF", "fg": "#2563EB", "relief": "flat", "padx": 3}
+        btn_cp = {"font": ("Malgun Gothic", 7, "bold"), "bg": "#EFF6FF", "fg": "#2563EB", "relief": "flat", "padx": 3, "cursor": "hand2"}
 
         # Row 1: P/R No & Date
         r1 = tk.Frame(hud, bg="#FFFFFF")
@@ -324,7 +273,7 @@ class VoucherPassApp:
         e_tot = tk.Entry(r4, textvariable=self.total_amount_var, font=("Malgun Gothic", 8, "bold"), bg="#EFF6FF", fg="#1D4ED8", width=14, relief="solid", bd=1)
         e_tot.pack(side="left", padx=(2, 0))
 
-        # 5. Quick Actions Bar
+        # 5. TikTok Dynamic Action Bar (Vivid Neon Gradient Feel)
         act_panel = tk.Frame(main_box, bg="#F8FAFC")
         act_panel.pack(fill="x", pady=(2, 0))
 
@@ -348,9 +297,6 @@ class VoucherPassApp:
         self.printer_combo.pack(side="left", fill="x", expand=True, padx=4)
 
     def _start_folder_watch_timer(self):
-        """
-        다운로드 폴더 실시간 자동 감시 스케줄러 (2초마다 체크)
-        """
         if self.auto_watch_enabled.get():
             try:
                 self.folder_watcher.check_new_files()
@@ -359,9 +305,6 @@ class VoucherPassApp:
         self.root.after(2000, self._start_folder_watch_timer)
 
     def handle_auto_detected_pdf(self, pdf_path):
-        """
-        다운로드 폴더에서 새로 감지된 PDF 파일 스마트 자동 분류 및 드롭 연동 (5종)
-        """
         pdf_type = pdf_parser.classify_pdf_type(pdf_path)
         if pdf_type == 'pr':
             self.drop_pr.set_file(pdf_path)
@@ -375,9 +318,7 @@ class VoucherPassApp:
             self.drop_contract.set_file(pdf_path)
 
     def generate_excel_action(self):
-        """
-        고려제강 엑셀 템플릿에 파싱 데이터 자동 대입 기록 저장
-        """
+        """백엔드 보존 기능"""
         data = self._get_form_data()
         if not data.get('pr_no') and not data.get('pr_title') and not data.get('amount'):
             messagebox.showwarning("엑셀 생성 실패", "기록할 데이터가 없습니다. PDF 서류를 먼저 드롭해 주세요.")
@@ -393,9 +334,6 @@ class VoucherPassApp:
             messagebox.showerror("엑셀 저장 오류", f"엑셀 생성 중 오류가 발생했습니다:\n{e}")
 
     def archive_voucher_files(self):
-        """
-        건별/업체별 (날짜_업체명_PR번호) 자동 폴더 생성 및 5종 PDF/엑셀 일괄 정리 보관
-        """
         data = self._get_form_data()
         pdf_paths = [
             self.pr_pdf_path.get(),
@@ -443,7 +381,7 @@ class VoucherPassApp:
         self.root.update()
 
         messagebox.showinfo(
-            "3종 세로 복사 완료",
+            "Voucher 엑셀 양식 복사 완료",
             f"다음 3가지 항목이 세로 줄바꿈(\\n)으로 복사되었습니다.\n엑셀 셀 선택 후 Ctrl+V 하시면 세로 3개 셀에 순서대로 들어갑니다!\n\n"
             f"1) 작성일자: {d}\n"
             f"2) PR Title: {t}\n"
@@ -618,28 +556,23 @@ class VoucherPassApp:
         printed_list = []
 
         try:
-            # 1. 전자 세금계산서 (암호 해제 후 인쇄)
             if self.tax_pdf_path.get() and os.path.exists(self.tax_pdf_path.get()):
                 dec_pdf = pdf_parser.decrypt_pdf_to_temp(self.tax_pdf_path.get())
                 printer_handler.print_pdf_file(dec_pdf, printer_name=printer)
                 printed_list.append("① 전자 세금계산서 PDF (암호해제 인쇄)")
 
-            # 2. 거래명세서
             if self.spec_pdf_path.get() and os.path.exists(self.spec_pdf_path.get()):
                 printer_handler.print_pdf_file(self.spec_pdf_path.get(), printer_name=printer)
                 printed_list.append("② 거래명세서 PDF")
 
-            # 3. PR Print (구매요청서)
             if self.pr_pdf_path.get() and os.path.exists(self.pr_pdf_path.get()):
                 printer_handler.print_pdf_file(self.pr_pdf_path.get(), printer_name=printer)
                 printed_list.append("③ PR Print PDF (구매요청서)")
 
-            # 4. 발주서 (PO)
             if self.po_pdf_path.get() and os.path.exists(self.po_pdf_path.get()):
                 printer_handler.print_pdf_file(self.po_pdf_path.get(), printer_name=printer)
                 printed_list.append("④ 발주서 (PO) PDF")
 
-            # 5. 업체 계약서
             if self.contract_pdf_path.get() and os.path.exists(self.contract_pdf_path.get()):
                 page_str = self.contract_page.get().strip()
                 page_indices, label_str = self._parse_contract_pages(page_str)
