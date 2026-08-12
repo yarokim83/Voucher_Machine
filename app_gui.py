@@ -206,7 +206,7 @@ class VoucherPassApp:
         lbl_logo.bind("<Button-1>", self._click_title)
         lbl_logo.bind("<B1-Motion>", self._drag_title)
 
-        ver_b = tk.Label(hdr, text="v6.1.2", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=5, pady=1)
+        ver_b = tk.Label(hdr, text="v6.2.0", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=5, pady=1)
         ver_b.pack(side="left", padx=(6, 0))
 
         btn_min = tk.Label(hdr, text=" ─ ", font=("Arial", 10, "bold"), bg="#2563EB", fg="#DBEAFE", cursor="hand2")
@@ -488,7 +488,7 @@ class VoucherPassApp:
             try:
                 import pyautogui, pyperclip
                 pyautogui.FAILSAFE = False
-                pyautogui.PAUSE = 0.1
+                pyautogui.PAUSE = 0.05
 
                 desktop = os.path.join(os.path.expanduser('~'), 'Desktop')
                 downloads = os.path.join(os.path.expanduser('~'), 'Downloads')
@@ -505,25 +505,24 @@ class VoucherPassApp:
                 before_pdfs = _get_pdfs()
                 pyperclip.copy("6068625399")
 
-                # Step 2-1: HTML 자동 열기 및 클립보드 암호 복사
-                pyperclip.copy("6068625399")
+                # Step 2-1: 초고속 HTML 자동 열기
                 os.startfile(html_path)
-                time.sleep(1.2)
+                time.sleep(0.6)
 
-                # Step 2-2: 기존 원본 방식 - 바로 비밀번호 붙여넣기(Ctrl+V) 후 Enter
+                # Step 2-2: 초고속 Ctrl+V 붙여넣기 및 Enter
                 pyautogui.hotkey('ctrl', 'v')
-                time.sleep(0.3)
+                time.sleep(0.15)
                 pyautogui.press('enter')
 
-                time.sleep(1.5)
-                # Step 2-3: 인쇄/PDF 저장(Ctrl+P) 후 Enter
+                time.sleep(0.5)
+                # Step 2-3: 초고속 Ctrl+P 인쇄저장 및 Enter
                 pyautogui.hotkey('ctrl', 'p')
-                time.sleep(1.0)
+                time.sleep(0.4)
                 pyautogui.press('enter')
 
-                # Step 3: 지정 폴더에 새로 생성된 PDF 감지 후 작성일자 자동 추출 호출
-                for _ in range(40):
-                    time.sleep(1.0)
+                # Step 3: 0.2초 단위 고주파 초고속 PDF 저장 감지 (최대 100회 = 20초)
+                for _ in range(100):
+                    time.sleep(0.2)
                     after_pdfs = _get_pdfs()
                     diff = list(after_pdfs - before_pdfs)
                     if diff:
@@ -556,23 +555,22 @@ class VoucherPassApp:
 
         def _parse_job():
             import time
-            for _ in range(10):
+            # 초고속 0.1초 단위 파일 생성 감지
+            for _ in range(15):
                 try:
-                    if os.path.getsize(pdf_path) > 500:
+                    if os.path.getsize(pdf_path) > 300:
                         break
                 except Exception:
                     pass
-                time.sleep(0.3)
+                time.sleep(0.1)
 
-            time.sleep(0.5)
+            time.sleep(0.15)
             self.drop_tax.set_file(pdf_path)
 
-            tax_date = ''
-            for _ in range(3):
+            tax_date = pdf_parser.parse_tax_invoice_date(pdf_path)
+            if not tax_date:
+                time.sleep(0.2)
                 tax_date = pdf_parser.parse_tax_invoice_date(pdf_path)
-                if tax_date:
-                    break
-                time.sleep(0.3)
 
             if tax_date:
                 self.root.after(0, lambda d=tax_date: self._apply_tax_date(d))
