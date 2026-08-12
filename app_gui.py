@@ -17,7 +17,6 @@ except ImportError:
 import pdf_parser
 import excel_handler
 import printer_handler
-import outlook_handler
 import pdf_watcher
 
 class PastelGlassDropZone(tk.Frame):
@@ -189,6 +188,7 @@ class VoucherPassApp:
         self._offsety = 0
 
         self.pr_pdf_path = tk.StringVar()
+        self.po_pdf_path = tk.StringVar()
         self.spec_pdf_path = tk.StringVar()
         self.tax_pdf_path = tk.StringVar()
         self.contract_pdf_path = tk.StringVar()
@@ -239,7 +239,7 @@ class VoucherPassApp:
         lbl_logo.bind("<Button-1>", self._click_title)
         lbl_logo.bind("<B1-Motion>", self._drag_title)
 
-        ver_b = tk.Label(hdr, text="v3.0 HUD", font=("Malgun Gothic", 7, "bold"), bg="#0284C7", fg="white", padx=4, pady=1)
+        ver_b = tk.Label(hdr, text="v3.1 5-Doc", font=("Malgun Gothic", 7, "bold"), bg="#0284C7", fg="white", padx=4, pady=1)
         ver_b.pack(side="left", padx=(6, 0))
 
         btn_min = tk.Label(hdr, text=" ─ ", font=("Arial", 10, "bold"), bg="#1E293B", fg="#94A3B8", cursor="hand2")
@@ -257,22 +257,22 @@ class VoucherPassApp:
         top_ctrl = tk.Frame(main_box, bg="#F8FAFC")
         top_ctrl.pack(fill="x", pady=(0, 4))
 
-        tk.Label(top_ctrl, text="Ctrl+Shift+V 서류 수집 위젯", font=("Malgun Gothic", 8, "bold"), bg="#F8FAFC", fg="#64748B").pack(side="left")
+        tk.Label(top_ctrl, text="Ctrl+Shift+V 서류 빠른 수집 위젯 (제출서류 5종)", font=("Malgun Gothic", 8, "bold"), bg="#F8FAFC", fg="#64748B").pack(side="left")
 
-        btn_outlook = tk.Button(top_ctrl, text="📧 아웃룩 1초", font=("Malgun Gothic", 8, "bold"), bg="#2563EB", fg="white", relief="flat", padx=6, pady=2, cursor="hand2", command=self.fetch_from_outlook)
-        btn_outlook.pack(side="right")
-
-        # 3. 4가지 서류 미니 스마트 드롭존
-        self.drop_pr = PastelGlassDropZone(main_box, "① PR / 발주서 PDF", "🛒", "#EFF6FF", "#2563EB", self.pr_pdf_path, on_file_selected=self.parse_uploaded_pdf)
+        # 3. 5가지 서류 미니 스마트 드롭존
+        self.drop_pr = PastelGlassDropZone(main_box, "① PR Print (구매요청서) PDF", "🛒", "#EFF6FF", "#2563EB", self.pr_pdf_path, on_file_selected=self.parse_uploaded_pdf)
         self.drop_pr.pack(fill="x", pady=2)
 
-        self.drop_spec = PastelGlassDropZone(main_box, "② 거래명세서 PDF", "📄", "#ECFDF5", "#059669", self.spec_pdf_path)
+        self.drop_po = PastelGlassDropZone(main_box, "② 발주서 (PO) PDF", "📦", "#F0F9FF", "#0284C7", self.po_pdf_path, on_file_selected=self.parse_uploaded_pdf)
+        self.drop_po.pack(fill="x", pady=2)
+
+        self.drop_spec = PastelGlassDropZone(main_box, "③ 거래명세서 PDF", "📄", "#ECFDF5", "#059669", self.spec_pdf_path)
         self.drop_spec.pack(fill="x", pady=2)
 
-        self.drop_tax = PastelGlassDropZone(main_box, "③ 전자 세금계산서", "🧾", "#F5F3FF", "#7C3AED", self.tax_pdf_path, on_file_selected=self.parse_tax_invoice_uploaded)
+        self.drop_tax = PastelGlassDropZone(main_box, "④ 전자 세금계산서", "🧾", "#F5F3FF", "#7C3AED", self.tax_pdf_path, on_file_selected=self.parse_tax_invoice_uploaded)
         self.drop_tax.pack(fill="x", pady=2)
 
-        self.drop_contract = PastelGlassDropZone(main_box, "④ 업체 계약서 PDF", "📝", "#FFFBEB", "#D97706", self.contract_pdf_path)
+        self.drop_contract = PastelGlassDropZone(main_box, "⑤ 업체 계약서 PDF", "📝", "#FFFBEB", "#D97706", self.contract_pdf_path)
         self.drop_contract.pack(fill="x", pady=2)
 
         # 4. Modern Smart HUD Data Board (추출 데이터 최상위 시인성 보드)
@@ -331,7 +331,7 @@ class VoucherPassApp:
         btn_arch = tk.Button(bot_btn_f, text="📂 건별 폴더 보관", font=("Malgun Gothic", 8, "bold"), bg="#059669", fg="white", activebackground="#047857", activeforeground="white", relief="flat", padx=8, pady=6, cursor="hand2", command=self.archive_voucher_files)
         btn_arch.pack(side="left", fill="x", expand=True, padx=(0, 2))
 
-        btn_print = tk.Button(bot_btn_f, text="🖨️ 서류 일괄 인쇄", font=("Malgun Gothic", 8, "bold"), bg="#7C3AED", fg="white", activebackground="#6D28D9", activeforeground="white", relief="flat", padx=8, pady=6, cursor="hand2", command=self.print_pdf_documents_only)
+        btn_print = tk.Button(bot_btn_f, text="🖨️ 제출서류 5종 일괄 인쇄", font=("Malgun Gothic", 8, "bold"), bg="#7C3AED", fg="white", activebackground="#6D28D9", activeforeground="white", relief="flat", padx=8, pady=6, cursor="hand2", command=self.print_pdf_documents_only)
         btn_print.pack(side="right", fill="x", expand=True, padx=(2, 0))
 
         # 6. Printer Selector Bar
@@ -354,11 +354,13 @@ class VoucherPassApp:
 
     def handle_auto_detected_pdf(self, pdf_path):
         """
-        다운로드 폴더에서 새로 감지된 PDF 파일 스마트 자동 분류 및 드롭 연동
+        다운로드 폴더에서 새로 감지된 PDF 파일 스마트 자동 분류 및 드롭 연동 (5종)
         """
         pdf_type = pdf_parser.classify_pdf_type(pdf_path)
         if pdf_type == 'pr':
             self.drop_pr.set_file(pdf_path)
+        elif pdf_type == 'po':
+            self.drop_po.set_file(pdf_path)
         elif pdf_type == 'spec':
             self.drop_spec.set_file(pdf_path)
         elif pdf_type == 'tax':
@@ -366,29 +368,14 @@ class VoucherPassApp:
         elif pdf_type == 'contract':
             self.drop_contract.set_file(pdf_path)
 
-    def fetch_from_outlook(self):
-        """
-        아웃룩(Outlook) 선택/최신 이메일에서 PDF 4종 1초 자동 수집
-        """
-        files = outlook_handler.fetch_outlook_attachments()
-        if not files:
-            messagebox.showwarning("아웃룩 추출", "아웃룩이 켜져 있지 않거나 선택된 메일에 PDF 첨부파일이 없습니다.")
-            return
-
-        count = 0
-        for f in files:
-            self.handle_auto_detected_pdf(f)
-            count += 1
-
-        messagebox.showinfo("아웃룩 추출 성공", f"아웃룩 메일에서 {count}개의 PDF 서류가 추출되어 자동 분류 배치되었습니다!")
-
     def archive_voucher_files(self):
         """
-        건별/업체별 (날짜_업체명_PR번호) 자동 폴더 생성 및 4종 PDF/엑셀 일괄 정리 보관
+        건별/업체별 (날짜_업체명_PR번호) 자동 폴더 생성 및 5종 PDF/엑셀 일괄 정리 보관
         """
         data = self._get_form_data()
         pdf_paths = [
             self.pr_pdf_path.get(),
+            self.po_pdf_path.get(),
             self.spec_pdf_path.get(),
             self.tax_pdf_path.get(),
             self.contract_pdf_path.get()
@@ -400,8 +387,6 @@ class VoucherPassApp:
 
         try:
             target_dir, files = excel_handler.archive_voucher_package(data, pdf_paths)
-            
-            # 폴더 열기 동시 지원
             res = messagebox.askyesno("자동 정리 보관 완료", f"다음 보관소 폴더가 자동 생성되고 서류가 정돈되었습니다!\n\n📂 위치: {target_dir}\n\n지금 해당 폴더를 탐색기로 열어보시겠습니까?")
             if res:
                 os.startfile(target_dir)
@@ -449,7 +434,7 @@ class VoucherPassApp:
 
     def parse_uploaded_pdf(self, pr_path=None):
         if not pr_path:
-            pr_path = self.pr_pdf_path.get()
+            pr_path = self.pr_pdf_path.get() or self.po_pdf_path.get()
 
         if not pr_path or not os.path.exists(pr_path):
             return
@@ -473,7 +458,7 @@ class VoucherPassApp:
 
             self.supplier_var.set(data.get('supplier', ''))
 
-            messagebox.showinfo("파싱 완료", f"PR PDF 데이터 분석 성공!\n\n- PR Title: {data.get('pr_title')}\n- 공급가액: {amt:,} 원\n\n전자 세금계산서 PDF를 올리시면 작성일자가 세금계산서 날짜로 자동 업데이트됩니다.")
+            messagebox.showinfo("파싱 완료", f"PR/발주서 PDF 데이터 분석 성공!\n\n- Title: {data.get('pr_title')}\n- 공급가액: {amt:,} 원")
         except Exception as e:
             messagebox.showerror("파싱 오류", f"PDF 데이터 자동 추출 실패:\n{e}")
 
@@ -488,15 +473,10 @@ class VoucherPassApp:
         if tax_date:
             self.date_var.set(tax_date)
         else:
-            # HTML 파일 드롭 시 팝업 없이 6068625399 자동 입력 + 엔터 자동 실행 + 인쇄 무음 연속 실행!
             if pdf_parser._is_html_file(tax_path):
                 self.auto_unlock_and_print_html_tax_invoice(tax_path)
 
     def auto_unlock_and_print_html_tax_invoice(self, html_path):
-        """
-        국세청 보안 메일 HTML 자동 암호 입력(6068625399) & 엔터 자동 실행 & 인쇄 PDF 저장
-        + 수동/자동 저장 완료 시 생성된 최신 PDF 파일 자동 수집/로드 & 작성일자 100% 자동 파싱!
-        """
         import threading, time
         def _worker():
             try:
@@ -504,7 +484,6 @@ class VoucherPassApp:
                 pyautogui.FAILSAFE = False
                 pyautogui.PAUSE = 0.1
 
-                # 1. 사전 PDF 파일 목록 파악 (바탕화면 및 다운로드 폴더)
                 desktop = os.path.join(os.path.expanduser('~'), 'Desktop')
                 downloads = os.path.join(os.path.expanduser('~'), 'Downloads')
                 
@@ -518,26 +497,20 @@ class VoucherPassApp:
                     return files
 
                 before_pdfs = _get_pdfs()
-
-                # 2. 클립보드 암호 대입 준비
                 pyperclip.copy("6068625399")
 
-                # 3. 브라우저로 HTML 자동 실행
                 os.startfile(html_path)
                 time.sleep(1.2)
 
-                # 4. 암호창에 6068625399 자동으로 붙여넣고 엔터 실행!
                 pyautogui.hotkey('ctrl', 'v')
                 time.sleep(0.3)
                 pyautogui.press('enter')
 
-                # 5. 해제된 세금계산서 양식 화면에서 인쇄(Ctrl+P) 자동 실행!
                 time.sleep(1.8)
                 pyautogui.hotkey('ctrl', 'p')
                 time.sleep(1.0)
                 pyautogui.press('enter')
 
-                # 6. 사용자가 저장을 완료할 때까지 생성된 신규 PDF 실시간 자동 감시 (최대 30초간 체크)
                 for _ in range(30):
                     time.sleep(1.0)
                     after_pdfs = _get_pdfs()
@@ -553,15 +526,10 @@ class VoucherPassApp:
         threading.Thread(target=_worker, daemon=True).start()
 
     def _on_new_tax_pdf_saved(self, pdf_path):
-        """
-        인쇄 저장 완료된 세금계산서 PDF 자동 수집/로드 & 작성일자 파싱 적용 (무음 자동 연동)
-        """
         if not pdf_path or not os.path.exists(pdf_path):
             return
 
         self.drop_tax.set_file(pdf_path)
-
-        # 작성일자 무음 자동 추출
         parsed_date = pdf_parser.parse_tax_invoice_date(pdf_path)
         if parsed_date:
             self.date_var.set(parsed_date)
@@ -619,6 +587,9 @@ class VoucherPassApp:
         }
 
     def print_pdf_documents_only(self):
+        """
+        업로드된 제출서류 5종 (① PR, ② 발주서 PO, ③ 거래명세서, ④ 세금계산서, ⑤ 업체 계약서) 통합 일괄 인쇄
+        """
         printer = self.selected_printer.get()
         printed_list = []
 
@@ -627,29 +598,31 @@ class VoucherPassApp:
                 printer_handler.print_pdf_file(self.pr_pdf_path.get(), printer_name=printer)
                 printed_list.append("① PR Print PDF (구매요청서)")
 
+            if self.po_pdf_path.get() and os.path.exists(self.po_pdf_path.get()):
+                printer_handler.print_pdf_file(self.po_pdf_path.get(), printer_name=printer)
+                printed_list.append("② 발주서 (PO) PDF")
+
             if self.spec_pdf_path.get() and os.path.exists(self.spec_pdf_path.get()):
                 printer_handler.print_pdf_file(self.spec_pdf_path.get(), printer_name=printer)
-                printed_list.append("② 거래명세서 PDF")
+                printed_list.append("③ 거래명세서 PDF")
 
-            # 암호화된 세금계산서 PDF 자동 해제 후 인쇄
             if self.tax_pdf_path.get() and os.path.exists(self.tax_pdf_path.get()):
                 dec_pdf = pdf_parser.decrypt_pdf_to_temp(self.tax_pdf_path.get())
                 printer_handler.print_pdf_file(dec_pdf, printer_name=printer)
-                printed_list.append("③ 전자 세금계산서 PDF (암호해제 인쇄)")
+                printed_list.append("④ 전자 세금계산서 PDF (암호해제 인쇄)")
 
             if self.contract_pdf_path.get() and os.path.exists(self.contract_pdf_path.get()):
                 page_str = self.contract_page.get().strip()
                 page_indices, label_str = self._parse_contract_pages(page_str)
-                
                 printer_handler.print_pdf_file(self.contract_pdf_path.get(), printer_name=printer, page_range=page_indices)
-                printed_list.append(f"④ 업체 계약서 PDF ({label_str} 페이지)")
+                printed_list.append(f"⑤ 업체 계약서 PDF ({label_str} 페이지)")
 
             if not printed_list:
                 messagebox.showwarning("인쇄할 PDF 없음", "인쇄할 PDF 서류가 하나도 업로드되지 않았습니다.\nPDF 파일을 드래그 앤 드롭 업로드해 주세요.")
                 return
 
             summary = "\n- ".join(printed_list)
-            messagebox.showinfo("PDF 서류 일괄 인쇄 완료", f"다음 업로드 PDF 서류들이 프린터 [{printer}] 로 출력 요청되었습니다:\n\n- {summary}")
+            messagebox.showinfo("제출 서류 5종 일괄 인쇄 완료", f"다음 업로드 PDF 서류들이 프린터 [{printer}] 로 출력 요청되었습니다:\n\n- {summary}")
 
         except Exception as e:
             messagebox.showerror("인쇄 오류", f"PDF 서류 일괄 인쇄 중 오류 발생:\n{e}")

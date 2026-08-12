@@ -111,9 +111,6 @@ def parse_tax_invoice_date(file_path):
     return ''
 
 def parse_pr_pdf(pdf_path):
-    """
-    PR Print (구매요청서) 및 발주서(PO/Purchase Order) PDF 데이터 파싱
-    """
     if not os.path.exists(pdf_path):
         raise FileNotFoundError(f"PDF 파일을 찾을 수 없습니다: {pdf_path}")
 
@@ -129,7 +126,6 @@ def parse_pr_pdf(pdf_path):
 
     full_text = extract_pdf_text_safely(pdf_path)
 
-    # 1. P/R No. 또는 발주번호 (PO No.) 추출
     pr_match = re.search(r'(?:P/R|PR|PO|발주)\s*No\.?\s*[:\s]*([A-Z0-9]+)', full_text, re.IGNORECASE)
     if not pr_match:
         pr_match = re.search(r'발주번호\s*[:\s]*([A-Z0-9]+)', full_text)
@@ -139,7 +135,6 @@ def parse_pr_pdf(pdf_path):
     if pr_match:
         extracted_data['pr_no'] = pr_match.group(1) if len(pr_match.groups()) > 0 else pr_match.group(0)
 
-    # 2. 날짜 추출 (DATE / 작성일자 / 발주일자)
     date_match = re.search(r'(?:DATE|작성일자|발주일자|발행일자)\s*[:\s]*(\d{4}[-.\s]\d{2}[-.\s]\d{2})', full_text, re.IGNORECASE)
     if not date_match:
         date_match = re.search(r'(\d{4}-\d{2}-\d{2})', full_text)
@@ -147,12 +142,10 @@ def parse_pr_pdf(pdf_path):
     if date_match:
         extracted_data['date'] = date_match.group(1).replace('.', '-').strip()
 
-    # 3. Subject / PR Title / 발명/공사명 추출
     subj_match = re.search(r'(?:SUBJECT|품명|공사명|건명|발주명)\s*[:\s]*(.+)', full_text, re.IGNORECASE)
     if subj_match:
         extracted_data['pr_title'] = subj_match.group(1).strip()
 
-    # 4. 금액 (공급가액 / Total Amount / 발주금액) 파싱
     pr_no_str = extracted_data['pr_no']
     candidates = []
     
@@ -182,7 +175,6 @@ def parse_pr_pdf(pdf_path):
         extracted_data['vat'] = int(extracted_data['amount'] * 0.1)
         extracted_data['total_amount'] = extracted_data['amount'] + extracted_data['vat']
 
-    # 5. 거래처명 (Supplier / Payee / 수신/공급자)
     sup_match = re.search(r'Company\s+([가-힣A-Za-z0-9㈜(주)]+)', full_text)
     if not sup_match:
         sup_match = re.search(r'SUPPLIERS?\s*RECOMMENDED[\s\S]*?1\s+([가-힣A-Za-z0-9㈜(주)]+)', full_text)
@@ -197,7 +189,6 @@ def parse_pr_pdf(pdf_path):
     return extracted_data
 
 def classify_pdf_type(file_path):
-    """PDF 또는 HTML 파일 내용/파일명으로 4개 카드 타입 분류 (PR / 발주서 통합)"""
     if not os.path.exists(file_path):
         return 'unknown'
 
@@ -205,7 +196,9 @@ def classify_pdf_type(file_path):
     if 'nts_etaxinvoice' in fname or 'etaxinvoice' in fname:
         return 'tax'
 
-    if '구매요청' in fname or 'pr' in fname or 'requisition' in fname or '발주' in fname or 'po' in fname or 'order' in fname:
+    if '발주' in fname or 'po' in fname or 'order' in fname:
+        return 'po'
+    if '구매요청' in fname or 'pr' in fname or 'requisition' in fname:
         return 'pr'
     if '명세서' in fname or '거래' in fname or 'spec' in fname:
         return 'spec'
@@ -220,7 +213,9 @@ def classify_pdf_type(file_path):
         txt = extract_pdf_text_safely(file_path)
 
     txt_upper = txt.upper()
-    if 'PURCHASE REQUISITION' in txt_upper or 'PURCHASE ORDER' in txt_upper or '구매요청서' in txt or '발주서' in txt or 'P/R NO' in txt_upper or 'P.O' in txt_upper:
+    if 'PURCHASE ORDER' in txt_upper or '발주서' in txt or 'P.O' in txt_upper:
+        return 'po'
+    if 'PURCHASE REQUISITION' in txt_upper or '구매요청서' in txt or 'P/R NO' in txt_upper:
         return 'pr'
     if '전자세금계산서' in txt or '세금계산서' in txt or 'TAX INVOICE' in txt_upper:
         return 'tax'
@@ -230,3 +225,36 @@ def classify_pdf_type(file_path):
         return 'contract'
 
     return 'pr'
+
+def decrypt_pdf_to_temp(pdf_path, passwords=DEFAULT_PASSWORDS):
+    if not HAS_PYPDF:
+        return pdf_path
+
+    try:
+        reader = PdfReader(pdf_path)
+        if not reader.is_encrypted:
+            return pdf_path
+
+        decrypted = False
+        for pwd in passwords:
+            try:
+                if reader.decrypt(pwd):
+                    decrypted = True
+                    break
+            except Exception:
+                continue
+
+        if not decrypted:
+            return pdf_path
+
+        writer = PdfWriter()
+        for page in reader.pages:
+            writer.add_page(page)
+
+        temp_pdf = os.path.join(tempfile.gettempdir(), f"decrypted_{os.path.basename(pdf_path)}")
+        with open(temp_pdf, 'wb') as f:
+            writer.write(f)
+
+        return temp_pdf
+    except Exception:
+        return pdf_path
