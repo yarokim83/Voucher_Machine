@@ -1,28 +1,7 @@
-﻿# Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.env
-venv/
-env/
-*.egg-info/
-
-# 개인 설정 / 민감 정보
-config_local.py
-secrets.py
-*.key
-*.pem
-
-# OS 생성 파일
-.DS_Store
-Thumbs.db
-desktop.ini
-
-# IDE
-.vscode/settings.json
-.idea/
-
-# 임시 파일
-*.tmp
-*.log
+﻿build/
+dist/*.exe
+*.pkg
+*.pyz
+*.spec
+installer_runner.py
+make_installer.py

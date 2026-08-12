@@ -169,6 +169,10 @@ class VoucherPassApp:
         self._load_printers()
         self._start_folder_watch_timer()
 
+        # 시작프로그램 자동 등록 및 시스템 트레이 초기화
+        self.register_startup_registry()
+        self._setup_system_tray()
+
         # PR Title Text - StringVar 양방향 동기화
         self.pr_title_var.trace_add("write", self._on_pr_title_var_changed)
 
@@ -188,9 +192,113 @@ class VoucherPassApp:
         if self.root.state() == "normal":
             self.root.withdraw()
         else:
+            self.popup_at_cursor()
+
+    def popup_at_cursor(self):
+        """
+        현재 마우스 커서 위치로 위젯을 뿅! 팝업
+        """
+        try:
+            mx = self.root.winfo_pointerx()
+            my = self.root.winfo_pointery()
+
+            sw = self.root.winfo_screenwidth()
+            sh = self.root.winfo_screenheight()
+
+            w, h = 390, 645
+            x = max(10, min(mx - 20, sw - w - 10))
+            y = max(10, min(my - 20, sh - h - 40))
+
+            self.root.geometry(f"{w}x{h}+{x}+{y}")
             self.root.deiconify()
             self.root.lift()
             self.root.focus_force()
+        except Exception:
+            self.root.deiconify()
+
+    def is_startup_registered(self):
+        """
+        시작프로그램 등록 여부 확인
+        """
+        try:
+            import winreg
+            key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_READ) as key:
+                winreg.QueryValueEx(key, "VoucherPass")
+                return True
+        except Exception:
+            return False
+
+    def register_startup_registry(self):
+        """
+        윈도우 시작 프로그램 레지스트리 자동 등록
+        """
+        try:
+            import winreg
+            exe_path = sys.executable if getattr(sys, 'frozen', False) else os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dist', 'VoucherPass.exe')
+            if not os.path.exists(exe_path):
+                exe_path = f'"{sys.executable}" "{os.path.abspath(sys.argv[0])}"'
+
+            key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_SET_VALUE) as key:
+                winreg.SetValueEx(key, "VoucherPass", 0, winreg.REG_SZ, f'"{exe_path}"')
+            self.set_live_status("🚀 윈도우 시작프로그램에 VoucherPass가 등록되었습니다!", type="success")
+        except Exception as e:
+            print(f"Startup registry error: {e}")
+
+    def unregister_startup_registry(self):
+        """
+        윈도우 시작 프로그램 레지스트리 해제
+        """
+        try:
+            import winreg
+            key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_SET_VALUE) as key:
+                winreg.DeleteValue(key, "VoucherPass")
+            self.set_live_status("🛑 윈도우 시작프로그램 등록이 해제되었습니다.", type="info")
+        except Exception as e:
+            print(f"Unregister startup error: {e}")
+
+    def _setup_system_tray(self):
+        """
+        윈도우 우측 하단 시스템 트레이 아이콘 등록 (동적 토글 지원)
+        """
+        def _tray_worker():
+            try:
+                import pystray
+                from PIL import Image
+
+                icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dist', 'VoucherPass.ico')
+                if os.path.exists(icon_path):
+                    image = Image.open(icon_path)
+                else:
+                    image = Image.new('RGB', (64, 64), color=(37, 99, 235))
+
+                def _on_toggle(icon, item):
+                    self.root.after(0, self.popup_at_cursor)
+
+                def _toggle_startup(icon, item):
+                    if self.is_startup_registered():
+                        self.unregister_startup_registry()
+                    else:
+                        self.register_startup_registry()
+
+                def _on_exit(icon, item):
+                    icon.stop()
+                    self.root.after(0, self.root.destroy)
+
+                menu = pystray.Menu(
+                    pystray.MenuItem("⚡ 위젯 열기/숨기기 (마우스 위치)", _on_toggle, default=True),
+                    pystray.MenuItem("🚀 시작프로그램 자동등록", _toggle_startup, checked=lambda item: self.is_startup_registered()),
+                    pystray.MenuItem("✕ 종료", _on_exit)
+                )
+
+                self.tray_icon = pystray.Icon("VoucherPass", image, "Voucher Pass", menu)
+                self.tray_icon.run()
+            except Exception as e:
+                print(f"System tray error: {e}")
+
+        threading.Thread(target=_tray_worker, daemon=True).start()
 
     def _click_title(self, event):
         self._offsetx = event.x
@@ -224,7 +332,7 @@ class VoucherPassApp:
         lbl_logo.bind("<Button-1>", self._click_title)
         lbl_logo.bind("<B1-Motion>", self._drag_title)
 
-        ver_b = tk.Label(hdr, text="v7.0.1", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=4, pady=1)
+        ver_b = tk.Label(hdr, text="v7.3.0", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=4, pady=1)
         ver_b.pack(side="left", padx=(4, 0))
 
         # 업로드 진행 상태 뱃지 ("1/5 완료")
@@ -459,8 +567,36 @@ class VoucherPassApp:
     def _load_printers(self):
         printers = printer_handler.get_installed_printers()
         self.printer_combo['values'] = printers
-        if printers:
+
+        # 저장된 마지막 프린터 설정 로드
+        cfg_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'printer_config.json')
+        last_printer = ''
+        if os.path.exists(cfg_file):
+            try:
+                import json
+                with open(cfg_file, 'r', encoding='utf-8') as f:
+                    cfg = json.load(f)
+                    last_printer = cfg.get('last_printer', '')
+            except Exception:
+                pass
+
+        if last_printer and last_printer in printers:
+            self.selected_printer.set(last_printer)
+        elif printers:
             self.selected_printer.set(printers[0])
+
+        self.selected_printer.trace_add("write", self._on_printer_selected)
+
+    def _on_printer_selected(self, *args):
+        p = self.selected_printer.get()
+        if p:
+            cfg_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'printer_config.json')
+            try:
+                import json
+                with open(cfg_file, 'w', encoding='utf-8') as f:
+                    json.dump({'last_printer': p}, f, ensure_ascii=False, indent=2)
+            except Exception:
+                pass
 
     def set_live_status(self, msg, type="info"):
         if not hasattr(self, 'lbl_live_status'):
