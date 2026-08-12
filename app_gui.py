@@ -187,6 +187,13 @@ class VoucherPassApp:
         self._offsetx = 0
         self._offsety = 0
 
+        self.pr_pdf_path = tk.StringVar()
+        self.po_pdf_path = tk.StringVar()
+        self.spec_pdf_path = tk.StringVar()
+        self.tax_pdf_path = tk.StringVar()
+        self.contract_pdf_path = tk.StringVar()
+        self.contract_page = tk.StringVar(value="1")
+
         self.template_path = tk.StringVar(value=r"C:\Users\baewoong.kim\Desktop\고려제강(2025).xlsx")
         self.selected_printer = tk.StringVar()
 
