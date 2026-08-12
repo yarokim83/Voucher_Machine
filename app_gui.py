@@ -206,7 +206,7 @@ class VoucherPassApp:
         lbl_logo.bind("<Button-1>", self._click_title)
         lbl_logo.bind("<B1-Motion>", self._drag_title)
 
-        ver_b = tk.Label(hdr, text="v6.1.1", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=5, pady=1)
+        ver_b = tk.Label(hdr, text="v6.1.2", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=5, pady=1)
         ver_b.pack(side="left", padx=(6, 0))
 
         btn_min = tk.Label(hdr, text=" ─ ", font=("Arial", 10, "bold"), bg="#2563EB", fg="#DBEAFE", cursor="hand2")
@@ -505,24 +505,20 @@ class VoucherPassApp:
                 before_pdfs = _get_pdfs()
                 pyperclip.copy("6068625399")
 
-                # Step 2-1: HTML 자동 열기
+                # Step 2-1: HTML 자동 열기 및 클립보드 암호 복사
+                pyperclip.copy("6068625399")
                 os.startfile(html_path)
-                time.sleep(1.8)
+                time.sleep(1.2)
 
-                # Step 2-2: 브라우저 포커스 클릭 후 비밀번호 6068625399 입력 및 저장
-                sw, sh = pyautogui.size()
-                pyautogui.click(sw // 2, sh // 2)
-                time.sleep(0.3)
-
+                # Step 2-2: 기존 원본 방식 - 바로 비밀번호 붙여넣기(Ctrl+V) 후 Enter
                 pyautogui.hotkey('ctrl', 'v')
                 time.sleep(0.3)
                 pyautogui.press('enter')
-                time.sleep(0.5)
-                pyautogui.press('enter')
 
-                time.sleep(2.0)
+                time.sleep(1.5)
+                # Step 2-3: 인쇄/PDF 저장(Ctrl+P) 후 Enter
                 pyautogui.hotkey('ctrl', 'p')
-                time.sleep(1.2)
+                time.sleep(1.0)
                 pyautogui.press('enter')
 
                 # Step 3: 지정 폴더에 새로 생성된 PDF 감지 후 작성일자 자동 추출 호출
