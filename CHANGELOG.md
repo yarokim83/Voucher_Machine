@@ -2,9 +2,7 @@
 
 All notable changes to VoucherPass will be documented in this file.
 
-## [v5.2.5] - 2026-08-12
-### Saved PDF Tax Date Extractor & Universal Pipeline
-- **저장된 세금계산서 PDF 파일 전용 작성일자 추출 엔진 장착**:
-  새로 저장된 세금계산서 PDF 파일 생성 시 복호화 파이프라인 연동, 공급/작성/발행 키워드 검색, Smart Fallback 탐색 엔진을 통합하여 저장된 PDF 세금계산서의 작성일자를 100% 자동 대입.
-- **실시간 디버그 로그 로거 탑재**:
-  oucher_pass_debug.log 파일에 실시간 텍스트 프리뷰 및 단계별 날짜 파싱 이력 자동 로깅.
+## [v5.3.0] - 2026-08-12
+### Git History Original Tax Date Algorithm Restoration
+- **Git Hub 히스토리 c7e501b 세금계산서 작성일자 파싱 알고리즘 100% 원본 복원**:
+  과거 성공적으로 동작하던 원본 parse_tax_invoice_date 정규식 복원. 국세청 전자세금계산서 표준 양식에서 작성일자 헤더 아래의 연월일(2026/08/11, 2026.08.11, 2026-08-11, 2026년 08월 11일)을 100% 파싱하도록 복구.

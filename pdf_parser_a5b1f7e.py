@@ -1,4 +1,4 @@
-import re
+﻿import re
 import os
 import tempfile
 import base64
@@ -74,14 +74,6 @@ def _read_html_text(html_path):
 def _is_html_file(file_path):
     return file_path.lower().endswith(('.html', '.htm'))
 
-def _log_debug(msg):
-    try:
-        log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'voucher_pass_debug.log')
-        with open(log_path, 'a', encoding='utf-8') as f:
-            f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {msg}\n")
-    except Exception:
-        pass
-
 def parse_tax_invoice_date(file_path):
     if not os.path.exists(file_path):
         return ''
@@ -89,45 +81,27 @@ def parse_tax_invoice_date(file_path):
     if _is_html_file(file_path):
         full_text = _read_html_text(file_path)
     else:
-        try:
-            dec_pdf = decrypt_pdf_to_temp(file_path)
-            if dec_pdf and os.path.exists(dec_pdf):
-                full_text = extract_pdf_text_safely(dec_pdf)
-            else:
-                full_text = extract_pdf_text_safely(file_path)
-        except Exception:
-            full_text = extract_pdf_text_safely(file_path)
+        full_text = extract_pdf_text_safely(file_path)
 
-    if not full_text or not full_text.strip():
-        return ''
-
-    # 1. 원본 c7e501b 알고리즘: 작성일자/발행일자 키워드 탐색 (줄바꿈 및 다양한 구분자 허용)
-    m = re.search(r'작성일자?\s*[:\s\n]*(\d{4})[년\-.\s/]+\s*(\d{1,2})[월\-.\s/]+\s*(\d{1,2})[일\s]?', full_text)
+    m = re.search(r'작성일자?\s*[:\s]*(\d{4})[년\-.\s/]\s*(\d{1,2})[월\-.\s/]\s*(\d{1,2})[일\s]?', full_text)
     if m and int(m.group(1)) >= 2020:
         y, month, d = m.group(1), int(m.group(2)), int(m.group(3))
-        if 1 <= month <= 12 and 1 <= d <= 31:
-            return f"{y}-{month:02d}-{d:02d}"
+        return f"{y}-{month:02d}-{d:02d}"
 
-    m_bal = re.search(r'발[급행]일자?\s*[:\s\n]*(\d{4})[년\-.\s/]+\s*(\d{1,2})[월\-.\s/]+\s*(\d{1,2})[일\s]?', full_text)
-    if m_bal and int(m.group(1)) >= 2020:
-        y, month, d = m_bal.group(1), int(m_bal.group(2)), int(m_bal.group(3))
-        if 1 <= month <= 12 and 1 <= d <= 31:
-            return f"{y}-{month:02d}-{d:02d}"
+    m = re.search(r'발[급행]일자?\s*[:\s]*(\d{4})[년\-.\s/]\s*(\d{1,2})[월\-.\s/]\s*(\d{1,2})[일\s]?', full_text)
+    if m and int(m.group(1)) >= 2020:
+        y, month, d = m.group(1), int(m.group(2)), int(m.group(3))
+        return f"{y}-{month:02d}-{d:02d}"
 
-    # 2. 원본 c7e501b 연월일 정규식 (예: 2026년 08월 11일, 2026/08/11, 2026.08.11, 2026-08-11)
-    matches = re.findall(r'(202[0-9])[년\-.\s/]+\s*(\d{1,2})[월\-.\s/]+\s*(\d{1,2})[일\s]?', full_text)
+    matches = re.findall(r'(202[0-9])[년\-.\s/]\s*(\d{1,2})[월\-.\s/]\s*(\d{1,2})[일\s]?', full_text)
     if matches:
-        for mat in matches:
-            y, month, d = mat[0], int(mat[1]), int(mat[2])
-            if 1 <= month <= 12 and 1 <= d <= 31:
-                return f"{y}-{month:02d}-{d:02d}"
+        y, month, d = matches[0][0], int(matches[0][1]), int(matches[0][2])
+        return f"{y}-{month:02d}-{d:02d}"
 
     matches_fmt = re.findall(r'(202[0-9])[-.\s/](\d{1,2})[-.\s/](\d{1,2})', full_text)
     if matches_fmt:
-        for mat in matches_fmt:
-            y, month, d = mat[0], int(mat[1]), int(mat[2])
-            if 1 <= month <= 12 and 1 <= d <= 31:
-                return f"{y}-{month:02d}-{d:02d}"
+        y, month, d = matches_fmt[0][0], int(matches_fmt[0][1]), int(matches_fmt[0][2])
+        return f"{y}-{month:02d}-{d:02d}"
 
     matches_digits = re.findall(r'(202[0-9])(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])', full_text)
     if matches_digits:
