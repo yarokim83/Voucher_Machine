@@ -1,13 +1,49 @@
-﻿import pdfplumber
+import pdfplumber
+from pypdf import PdfReader, PdfWriter
 import re
 import os
+import tempfile
+
+DEFAULT_PASSWORDS = ['6068625399', '']
+
+def open_pdf_safely(pdf_path, passwords=DEFAULT_PASSWORDS):
+    for pwd in passwords:
+        try:
+            pdf = pdfplumber.open(pdf_path, password=pwd)
+            return pdf, pwd
+        except Exception:
+            continue
+    return None, None
+
+def decrypt_pdf_to_temp(pdf_path, passwords=DEFAULT_PASSWORDS):
+    if not os.path.exists(pdf_path):
+        return pdf_path
+
+    for pwd in passwords:
+        try:
+            reader = PdfReader(pdf_path)
+            if reader.is_encrypted:
+                try:
+                    reader.decrypt(pwd)
+                except Exception:
+                    continue
+            
+            writer = PdfWriter()
+            for page in reader.pages:
+                writer.add_page(page)
+
+            temp_dir = tempfile.gettempdir()
+            temp_pdf = os.path.join(temp_dir, f'decrypted_{os.path.basename(pdf_path)}')
+            with open(temp_pdf, 'wb') as f_out:
+                writer.write(f_out)
+            return temp_pdf
+        except Exception:
+            continue
+    return pdf_path
 
 def parse_pr_pdf(pdf_path):
-    """
-    PR Print (구매요청서) PDF 데이터 파싱
-    """
     if not os.path.exists(pdf_path):
-        raise FileNotFoundError(f"PDF 파일을 찾을 수 없습니다: {pdf_path}")
+        raise FileNotFoundError(f'PDF 파일을 찾을 수 없습니다: {pdf_path}')
 
     extracted_data = {
         'pr_no': '',
@@ -19,19 +55,15 @@ def parse_pr_pdf(pdf_path):
         'supplier': ''
     }
 
-    full_text = ""
-    tables = []
+    full_text = ''
+    pdf, _ = open_pdf_safely(pdf_path)
+    if pdf:
+        with pdf:
+            for page in pdf.pages:
+                txt = page.extract_text()
+                if txt:
+                    full_text += txt + '\n'
 
-    with pdfplumber.open(pdf_path) as pdf:
-        for page in pdf.pages:
-            txt = page.extract_text()
-            if txt:
-                full_text += txt + "\n"
-            tbl = page.extract_tables()
-            if tbl:
-                tables.extend(tbl)
-
-    # 1. P/R No. 추출
     pr_match = re.search(r'P/R\s*No\.?\s*[:\s]*([A-Z0-9]+)', full_text, re.IGNORECASE)
     if not pr_match:
         pr_match = re.search(r'PR\s*No\.?\s*[:\s]*([A-Z0-9]+)', full_text, re.IGNORECASE)
@@ -41,7 +73,6 @@ def parse_pr_pdf(pdf_path):
     if pr_match:
         extracted_data['pr_no'] = pr_match.group(1) if len(pr_match.groups()) > 0 else pr_match.group(0)
 
-    # 2. 날짜 추출 (YYYY-MM-DD 또는 YYYY.MM.DD)
     date_match = re.search(r'DATE\s*[:\s]*(\d{4}[-.\s]\d{2}[-.\s]\d{2})', full_text, re.IGNORECASE)
     if not date_match:
         date_match = re.search(r'작성일자?\s*[:\s]*(\d{4}[-.\s]\d{2}[-.\s]\d{2})', full_text)
@@ -51,12 +82,10 @@ def parse_pr_pdf(pdf_path):
     if date_match:
         extracted_data['date'] = date_match.group(1).replace('.', '-').strip()
 
-    # 3. Subject / PR Title 추출
     subj_match = re.search(r'SUBJECT\s*[:\s]*(.+)', full_text, re.IGNORECASE)
     if subj_match:
         extracted_data['pr_title'] = subj_match.group(1).strip()
 
-    # 4. 금액 (공급가액 / Total Amount) 파싱
     pr_no_str = extracted_data['pr_no']
     candidates = []
     
@@ -86,7 +115,6 @@ def parse_pr_pdf(pdf_path):
         extracted_data['vat'] = int(extracted_data['amount'] * 0.1)
         extracted_data['total_amount'] = extracted_data['amount'] + extracted_data['vat']
 
-    # 5. 거래처명 (Supplier / Payee)
     sup_match = re.search(r'Company\s+([가-힣A-Za-z0-9㈜(주)]+)', full_text)
     if not sup_match:
         sup_match = re.search(r'SUPPLIERS?\s*RECOMMENDED[\s\S]*?1\s+([가-힣A-Za-z0-9㈜(주)]+)', full_text)
@@ -99,45 +127,72 @@ def parse_pr_pdf(pdf_path):
     return extracted_data
 
 def parse_tax_invoice_date(pdf_path):
-    """
-    전자 세금계산서 PDF에서 작성일자/발행일자 정밀 추출
-    """
     if not os.path.exists(pdf_path):
-        return ""
+        return ''
 
-    full_text = ""
-    with pdfplumber.open(pdf_path) as pdf:
-        for page in pdf.pages:
-            txt = page.extract_text()
-            if txt:
-                full_text += txt + "\n"
+    full_text = ''
+    pdf, _ = open_pdf_safely(pdf_path)
+    if pdf:
+        with pdf:
+            for page in pdf.pages:
+                txt = page.extract_text()
+                if txt:
+                    full_text += txt + '\n'
 
-    # 패턴 1: 작성일자 YYYY년 MM월 DD일 또는 YYYY-MM-DD
     m = re.search(r'작성일자?\s*[:\s]*(\d{4})[년\-.\s/]\s*(\d{1,2})[월\-.\s/]\s*(\d{1,2})[일\s]?', full_text)
     if m:
         y, month, d = m.group(1), int(m.group(2)), int(m.group(3))
-        return f"{y}-{month:02d}-{d:02d}"
+        return f'{y}-{month:02d}-{d:02d}'
 
-    # 패턴 2: 발행일자 YYYY-MM-DD
     m = re.search(r'발행일자?\s*[:\s]*(\d{4})[년\-.\s/]\s*(\d{1,2})[월\-.\s/]\s*(\d{1,2})[일\s]?', full_text)
     if m:
         y, month, d = m.group(1), int(m.group(2)), int(m.group(3))
-        return f"{y}-{month:02d}-{d:02d}"
+        return f'{y}-{month:02d}-{d:02d}'
 
-    # 패턴 3: 작성일자 8자리 숫자 (20260727)
     m = re.search(r'작성일자?\s*[:\s]*(\d{4})(\d{2})(\d{2})', full_text)
     if m:
-        return f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
+        return f'{m.group(1)}-{m.group(2)}-{m.group(3)}'
 
-    # 패턴 4: 일반 YYYY-MM-DD 날짜 추출
     m = re.search(r'(\d{4}[-.\s/]\d{2}[-.\s/]\d{2})', full_text)
     if m:
         cleaned = m.group(1).replace('.', '-').replace('/', '-').strip()
         parts = cleaned.split('-')
         if len(parts) == 3:
-            return f"{parts[0]}-{int(parts[1]):02d}-{int(parts[2]):02d}"
+            return f'{parts[0]}-{int(parts[1]):02d}-{int(parts[2]):02d}'
 
-    return ""
+    return ''
 
-if __name__ == '__main__':
-    print("pdf_parser loaded with tax invoice date extractor")
+def classify_pdf_type(pdf_path):
+    if not os.path.exists(pdf_path):
+        return 'unknown'
+
+    fname = os.path.basename(pdf_path).lower()
+    if '구매요청' in fname or 'pr' in fname or 'requisition' in fname:
+        return 'pr'
+    if '명세서' in fname or '거래' in fname or 'spec' in fname:
+        return 'spec'
+    if '세금' in fname or '계산서' in fname or 'tax' in fname:
+        return 'tax'
+    if '계약' in fname or 'contract' in fname or '협약' in fname:
+        return 'contract'
+
+    pdf, _ = open_pdf_safely(pdf_path)
+    if pdf:
+        with pdf:
+            txt = ''
+            for page in pdf.pages[:2]:
+                extracted = page.extract_text()
+                if extracted:
+                    txt += extracted + '\n'
+            
+            txt_upper = txt.upper()
+            if 'PURCHASE REQUISITION' in txt_upper or '구매요청서' in txt or 'P/R NO' in txt_upper:
+                return 'pr'
+            if '전자세금계산서' in txt or '세금계산서' in txt or 'TAX INVOICE' in txt_upper:
+                return 'tax'
+            if '거래명세서' in txt or '명세서' in txt:
+                return 'spec'
+            if '계약서' in txt or '협약서' in txt or 'CONTRACT' in txt_upper:
+                return 'contract'
+
+    return 'pr'

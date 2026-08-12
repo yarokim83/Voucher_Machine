@@ -2,6 +2,7 @@
 import sys
 import re
 import urllib.parse
+import subprocess
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from PIL import Image, ImageTk
@@ -16,11 +17,10 @@ except ImportError:
 import pdf_parser
 import excel_handler
 import printer_handler
+import outlook_handler
+import pdf_watcher
 
 class PastelGlassDropZone(tk.Frame):
-    """
-    VoucherPass 파스텔 원형 아이콘 글래스모피즘 Drop Zone
-    """
     def __init__(self, parent, title, icon, bg_circle_color, icon_color, file_var, on_file_selected=None, **kwargs):
         super().__init__(parent, bg="#FFFFFF", highlightbackground="#E2E8F0", highlightthickness=1, bd=0, **kwargs)
         self.file_var = file_var
@@ -120,13 +120,13 @@ class PastelGlassDropZone(tk.Frame):
 class VoucherPassApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("VoucherPass v1.9.0")
-        self.root.geometry("1180x800")
-        self.root.minsize(1120, 740)
+        self.root.title("VoucherPass v2.0.0 (Full Automation)")
+        self.root.geometry("1200x820")
+        self.root.minsize(1140, 760)
 
         self.pr_pdf_path = tk.StringVar()
         self.spec_pdf_path = tk.StringVar()   # 거래명세서
-        self.tax_pdf_path = tk.StringVar()    # 세금계산서
+        self.tax_pdf_path = tk.StringVar()    # 세금계산서 (암호 6068625399 자동대입)
         self.contract_pdf_path = tk.StringVar() # 계약서
         self.contract_page = tk.StringVar(value="1")
 
@@ -141,15 +141,16 @@ class VoucherPassApp:
         self.date_var = tk.StringVar()
         self.supplier_var = tk.StringVar()
 
+        self.auto_watch_enabled = tk.BooleanVar(value=True)
+        self.folder_watcher = pdf_watcher.DownloadFolderWatcher(self.handle_auto_detected_pdf)
+
         self._setup_app_icon()
         self._setup_style()
         self._build_layout()
         self._load_printers()
+        self._start_folder_watch_timer()
 
     def _setup_app_icon(self):
-        """
-        사용자 제공 VoucherPass 로고 이미지 적용
-        """
         base_dir = os.path.dirname(os.path.abspath(__file__))
         png_icon = os.path.join(base_dir, "assets", "app_icon.png")
         ico_icon = os.path.join(base_dir, "assets", "app_icon.ico")
@@ -182,7 +183,6 @@ class VoucherPassApp:
             dot = tk.Label(traffic_frame, text="●", font=("Arial", 10), bg="#FFFFFF", fg=color)
             dot.pack(side="left", padx=2)
 
-        # Header Logo Image
         base_dir = os.path.dirname(os.path.abspath(__file__))
         png_icon = os.path.join(base_dir, "assets", "app_icon.png")
         if os.path.exists(png_icon):
@@ -198,13 +198,18 @@ class VoucherPassApp:
         logo_txt = tk.Label(header, text="VoucherPass", font=("Malgun Gothic", 15, "bold"), bg="#FFFFFF", fg="#0F172A")
         logo_txt.pack(side="left")
 
-        ver_badge = tk.Label(header, text="v1.9.0", font=("Malgun Gothic", 8, "bold"), bg="#EFF6FF", fg="#2563EB", padx=6, pady=2)
+        ver_badge = tk.Label(header, text="v2.0 Full Auto", font=("Malgun Gothic", 8, "bold"), bg="#EFF6FF", fg="#2563EB", padx=6, pady=2)
         ver_badge.pack(side="left", padx=(8, 16))
 
-        sub_desc = tk.Label(header, text="⚙️ 세금계산서 작성일자 파싱 & 원클릭 데이터 복사 & 계약서 구간 인쇄", font=("Malgun Gothic", 9), bg="#FFFFFF", fg="#64748B")
-        sub_desc.pack(side="left")
+        # 획기적 1초 아웃룩 추출 버튼
+        btn_outlook = tk.Button(header, text="📧 아웃룩 첨부파일 1초 가져오기", font=("Malgun Gothic", 9, "bold"), bg="#2563EB", fg="white", activebackground="#1D4ED8", activeforeground="white", relief="flat", padx=12, pady=4, cursor="hand2", command=self.fetch_from_outlook)
+        btn_outlook.pack(side="left", padx=(0, 10))
 
-        btn_help = tk.Button(header, text="❓ 도움말", font=("Malgun Gothic", 8), bg="#F1F5F9", fg="#475569", relief="flat", padx=10, pady=3, command=lambda: messagebox.showinfo("도움말", "전자 세금계산서 PDF 업로드 시 작성일자가 자동 파싱됩니다."))
+        # 다운로드 감시 토글
+        chk_watch = tk.Checkbutton(header, text="📥 다운로드 실시간 자동 분류", variable=self.auto_watch_enabled, font=("Malgun Gothic", 9, "bold"), bg="#FFFFFF", fg="#059669", activebackground="#FFFFFF", cursor="hand2")
+        chk_watch.pack(side="left")
+
+        btn_help = tk.Button(header, text="❓ 도움말", font=("Malgun Gothic", 8), bg="#F1F5F9", fg="#475569", relief="flat", padx=10, pady=3, command=lambda: messagebox.showinfo("도움말", "1) 세금계산서 암호(6068625399)는 자동 해제 파싱됩니다.\n2) 아웃룩 메일 선택 후 [📧 가져오기] 버튼을 누르면 서류가 1초만에 들어옵니다.\n3) 다운로드 폴더 자동 감시가 켜져 있어 PDF 내려받기 시 카드에 자동 배치됩니다."))
         btn_help.pack(side="right", padx=2)
 
         body_container = tk.Frame(self.root, bg=self.bg_app)
@@ -215,8 +220,9 @@ class VoucherPassApp:
         sidebar.pack(side="left", fill="y")
 
         nav_items = [
-            ("☁️ PDF 업로드", True),
-            ("📋 데이터 복사", True),
+            ("☁️ 자동 PDF 수집", True),
+            ("📋 데이터 세로 복사", True),
+            ("📂 건별 자동 정리", True),
             ("🖨️ PDF 일괄 인쇄", True),
         ]
 
@@ -227,8 +233,8 @@ class VoucherPassApp:
         safe_card = tk.Frame(sidebar, bg="#FFFFFF", highlightbackground="#E2E8F0", highlightthickness=1, padx=12, pady=12)
         safe_card.pack(side="bottom", fill="x", pady=(0, 10))
 
-        tk.Label(safe_card, text="🛡️ 안전한 데이터 처리", font=("Malgun Gothic", 8, "bold"), bg="#FFFFFF", fg="#0F172A", anchor="w").pack(fill="x")
-        tk.Label(safe_card, text="모든 파일은 안전하게\n처리되며 저장되지 않습니다.", font=("Malgun Gothic", 8), bg="#FFFFFF", fg="#94A3B8", justify="left", anchor="w").pack(fill="x", pady=(4, 0))
+        tk.Label(safe_card, text="🛡️ 암호 자동 대입 해제", font=("Malgun Gothic", 8, "bold"), bg="#FFFFFF", fg="#0F172A", anchor="w").pack(fill="x")
+        tk.Label(safe_card, text="암호화된 세금계산서(6068625399)\n자동 해제 파싱 완료", font=("Malgun Gothic", 8), bg="#FFFFFF", fg="#94A3B8", justify="left", anchor="w").pack(fill="x", pady=(4, 0))
 
         # Main Panel
         main_panel = tk.Frame(body_container, bg=self.bg_app, padx=18, pady=14)
@@ -237,9 +243,9 @@ class VoucherPassApp:
         sec1_header = tk.Frame(main_panel, bg=self.bg_app)
         sec1_header.pack(fill="x", pady=(0, 8))
 
-        tk.Label(sec1_header, text="1. 제출 서류 PDF 업로드 (Drag & Drop Zone)", font=("Malgun Gothic", 11, "bold"), bg=self.bg_app, fg="#0F172A").pack(side="left")
+        tk.Label(sec1_header, text="1. 스마트 제출 서류 PDF 4종 (아웃룩/다운로드 자동 수집)", font=("Malgun Gothic", 11, "bold"), bg=self.bg_app, fg="#0F172A").pack(side="left")
 
-        btn_select_file = tk.Button(sec1_header, text="📁 파일 선택", font=("Malgun Gothic", 8), bg="#FFFFFF", fg="#334155", relief="flat", highlightbackground="#E2E8F0", highlightthickness=1, padx=10, pady=3, command=lambda: self.drop_pr._browse_file())
+        btn_select_file = tk.Button(sec1_header, text="📁 수동 파일 선택", font=("Malgun Gothic", 8), bg="#FFFFFF", fg="#334155", relief="flat", highlightbackground="#E2E8F0", highlightthickness=1, padx=10, pady=3, command=lambda: self.drop_pr._browse_file())
         btn_select_file.pack(side="right")
 
         grid_drop = tk.Frame(main_panel, bg=self.bg_app)
@@ -251,8 +257,8 @@ class VoucherPassApp:
         self.drop_spec = PastelGlassDropZone(grid_drop, "② 거래명세서 PDF", "📄", "#ECFDF5", "#059669", self.spec_pdf_path)
         self.drop_spec.grid(row=0, column=1, padx=6, pady=6, sticky="nsew")
 
-        # ③ 전자 세금계산서 PDF (드롭 시 작성일자 정밀 자동 파싱)
-        self.drop_tax = PastelGlassDropZone(grid_drop, "③ 전자 세금계산서 PDF", "🧾", "#F5F3FF", "#7C3AED", self.tax_pdf_path, on_file_selected=self.parse_tax_invoice_uploaded)
+        # ③ 전자 세금계산서 PDF (암호 6068625399 자동 대입 작성일자 우선 연동)
+        self.drop_tax = PastelGlassDropZone(grid_drop, "③ 전자 세금계산서 (암호 6068625399)", "🧾", "#F5F3FF", "#7C3AED", self.tax_pdf_path, on_file_selected=self.parse_tax_invoice_uploaded)
         self.drop_tax.grid(row=1, column=0, padx=6, pady=6, sticky="nsew")
 
         contract_container = tk.Frame(grid_drop, bg=self.bg_app)
@@ -273,9 +279,9 @@ class VoucherPassApp:
         grid_drop.rowconfigure(1, weight=1)
 
         # -----------------------------------------------------------
-        # Section 2: Extracted Data & COPY BUTTONS
+        # Section 2: Extracted Data & COPY BUTTONS & ARCHIVER
         # -----------------------------------------------------------
-        sec2_card = tk.LabelFrame(main_panel, text=" 📝 2. 추출 데이터 & 원클릭 복사 ", font=("Malgun Gothic", 10, "bold"), bg="#FFFFFF", fg="#1E3A8A", bd=1, relief="solid", padx=12, pady=10)
+        sec2_card = tk.LabelFrame(main_panel, text=" 📝 2. 추출 데이터 & 원클릭 세로 복사 ", font=("Malgun Gothic", 10, "bold"), bg="#FFFFFF", fg="#1E3A8A", bd=1, relief="solid", padx=12, pady=10)
         sec2_card.pack(fill="x", pady=(0, 10))
 
         lbl_s = {"font": ("Malgun Gothic", 8, "bold"), "bg": "#FFFFFF", "fg": "#334155", "anchor": "e"}
@@ -288,7 +294,6 @@ class VoucherPassApp:
         tk.Label(r0, text="P/R No:", **lbl_s).pack(side="left")
         tk.Entry(r0, textvariable=self.pr_no_var, width=16, **ent_s).pack(side="left", padx=(4, 12))
 
-        # 작성일자 (전자 세금계산서 작성일자 연동)
         tk.Label(r0, text="📅 작성일자(세금계산서):", **lbl_s).pack(side="left")
         tk.Entry(r0, textvariable=self.date_var, width=13, **ent_s).pack(side="left", padx=(4, 2))
         tk.Button(r0, text="📋 복사", command=lambda: self.copy_to_clipboard(self.date_var.get(), "작성일자"), **btn_copy_s).pack(side="left", padx=(0, 14))
@@ -337,8 +342,80 @@ class VoucherPassApp:
         act_b = tk.Frame(bottom_bar, bg="#FFFFFF")
         act_b.pack(side="right")
 
-        btn_print = tk.Button(act_b, text="🖨️ 업로드 PDF 서류 일괄 인쇄 (4종)", font=("Malgun Gothic", 10, "bold"), bg="#3B82F6", fg="white", activebackground="#2563EB", activeforeground="white", relief="flat", padx=22, pady=9, cursor="hand2", command=self.print_pdf_documents_only)
+        # 자동 보관 버튼
+        btn_archive = tk.Button(act_b, text="📂 건별 자동 폴더 생성 & 보관", font=("Malgun Gothic", 9, "bold"), bg="#059669", fg="white", activebackground="#047857", activeforeground="white", relief="flat", padx=14, pady=9, cursor="hand2", command=self.archive_voucher_files)
+        btn_archive.pack(side="left", padx=(0, 6))
+
+        btn_print = tk.Button(act_b, text="🖨️ 업로드 PDF 서류 일괄 인쇄 (4종)", font=("Malgun Gothic", 10, "bold"), bg="#3B82F6", fg="white", activebackground="#2563EB", activeforeground="white", relief="flat", padx=18, pady=9, cursor="hand2", command=self.print_pdf_documents_only)
         btn_print.pack(side="right")
+
+    def _start_folder_watch_timer(self):
+        """
+        다운로드 폴더 실시간 자동 감시 스케줄러 (2초마다 체크)
+        """
+        if self.auto_watch_enabled.get():
+            try:
+                self.folder_watcher.check_new_files()
+            except Exception:
+                pass
+        self.root.after(2000, self._start_folder_watch_timer)
+
+    def handle_auto_detected_pdf(self, pdf_path):
+        """
+        다운로드 폴더에서 새로 감지된 PDF 파일 스마트 자동 분류 및 드롭 연동
+        """
+        pdf_type = pdf_parser.classify_pdf_type(pdf_path)
+        if pdf_type == 'pr':
+            self.drop_pr.set_file(pdf_path)
+        elif pdf_type == 'spec':
+            self.drop_spec.set_file(pdf_path)
+        elif pdf_type == 'tax':
+            self.drop_tax.set_file(pdf_path)
+        elif pdf_type == 'contract':
+            self.drop_contract.set_file(pdf_path)
+
+    def fetch_from_outlook(self):
+        """
+        아웃룩(Outlook) 선택/최신 이메일에서 PDF 4종 1초 자동 수집
+        """
+        files = outlook_handler.fetch_outlook_attachments()
+        if not files:
+            messagebox.showwarning("아웃룩 추출", "아웃룩이 켜져 있지 않거나 선택된 메일에 PDF 첨부파일이 없습니다.")
+            return
+
+        count = 0
+        for f in files:
+            self.handle_auto_detected_pdf(f)
+            count += 1
+
+        messagebox.showinfo("아웃룩 추출 성공", f"아웃룩 메일에서 {count}개의 PDF 서류가 추출되어 자동 분류 배치되었습니다!")
+
+    def archive_voucher_files(self):
+        """
+        건별/업체별 (날짜_업체명_PR번호) 자동 폴더 생성 및 4종 PDF/엑셀 일괄 정리 보관
+        """
+        data = self._get_form_data()
+        pdf_paths = [
+            self.pr_pdf_path.get(),
+            self.spec_pdf_path.get(),
+            self.tax_pdf_path.get(),
+            self.contract_pdf_path.get()
+        ]
+
+        if not any(pdf_paths):
+            messagebox.showwarning("보관 실패", "정리할 PDF 서류가 없습니다.")
+            return
+
+        try:
+            target_dir, files = excel_handler.archive_voucher_package(data, pdf_paths)
+            
+            # 폴더 열기 동시 지원
+            res = messagebox.askyesno("자동 정리 보관 완료", f"다음 보관소 폴더가 자동 생성되고 서류가 정돈되었습니다!\n\n📂 위치: {target_dir}\n\n지금 해당 폴더를 탐색기로 열어보시겠습니까?")
+            if res:
+                os.startfile(target_dir)
+
+        except Exception as e:
+            messagebox.showerror("보관 오류", f"건별 폴더 정리 중 오류 발생:\n{e}")
 
     def copy_to_clipboard(self, text, label_name):
         if not text:
@@ -399,7 +476,6 @@ class VoucherPassApp:
             tot = data.get('total_amount', 0)
             self.total_amount_var.set(f"{tot:,}" if tot else "0")
             
-            # 세금계산서 날짜가 아직 없으면 PR 날짜 적용
             if not self.date_var.get() and data.get('date'):
                 self.date_var.set(data.get('date', ''))
 
@@ -410,9 +486,6 @@ class VoucherPassApp:
             messagebox.showerror("파싱 오류", f"PDF 데이터 자동 추출 실패:\n{e}")
 
     def parse_tax_invoice_uploaded(self, tax_path=None):
-        """
-        전자 세금계산서 PDF 업로드 시 작성일자 우선 파싱 및 연동
-        """
         if not tax_path:
             tax_path = self.tax_pdf_path.get()
 
@@ -422,7 +495,7 @@ class VoucherPassApp:
         tax_date = pdf_parser.parse_tax_invoice_date(tax_path)
         if tax_date:
             self.date_var.set(tax_date)
-            messagebox.showinfo("세금계산서 연동 완료", f"전자 세금계산서에서 [작성일자] 데이터가 연동되었습니다!\n\n- 연동된 작성일자: {tax_date}")
+            messagebox.showinfo("세금계산서 연동 완료", f"전자 세금계산서(암호 6068625399 해제)에서 [작성일자] 데이터가 성공적으로 연동되었습니다!\n\n- 연동된 작성일자: {tax_date}")
 
     def _recalc_amounts(self, event=None):
         raw = self.amount_var.get().replace(',', '').strip()
@@ -461,6 +534,21 @@ class VoucherPassApp:
 
         return sorted_pages, cleaned
 
+    def _get_form_data(self):
+        def _to_int(val_str):
+            cleaned = val_str.replace(',', '').strip()
+            return int(cleaned) if cleaned.isdigit() else 0
+
+        return {
+            'pr_no': self.pr_no_var.get().strip(),
+            'pr_title': self.pr_title_var.get().strip(),
+            'amount': _to_int(self.amount_var.get()),
+            'vat': _to_int(self.vat_var.get()),
+            'total_amount': _to_int(self.total_amount_var.get()),
+            'date': self.date_var.get().strip(),
+            'supplier': self.supplier_var.get().strip(),
+        }
+
     def print_pdf_documents_only(self):
         printer = self.selected_printer.get()
         printed_list = []
@@ -474,9 +562,11 @@ class VoucherPassApp:
                 printer_handler.print_pdf_file(self.spec_pdf_path.get(), printer_name=printer)
                 printed_list.append("② 거래명세서 PDF")
 
+            # 암호화된 세금계산서 PDF 자동 해제 후 인쇄
             if self.tax_pdf_path.get() and os.path.exists(self.tax_pdf_path.get()):
-                printer_handler.print_pdf_file(self.tax_pdf_path.get(), printer_name=printer)
-                printed_list.append("③ 전자 세금계산서 PDF")
+                dec_pdf = pdf_parser.decrypt_pdf_to_temp(self.tax_pdf_path.get())
+                printer_handler.print_pdf_file(dec_pdf, printer_name=printer)
+                printed_list.append("③ 전자 세금계산서 PDF (암호해제 인쇄)")
 
             if self.contract_pdf_path.get() and os.path.exists(self.contract_pdf_path.get()):
                 page_str = self.contract_page.get().strip()
