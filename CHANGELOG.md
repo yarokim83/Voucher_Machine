@@ -2,13 +2,15 @@
 
 All notable changes to VoucherPass will be documented in this file.
 
-## [v4.0.0] - 2026-08-12
-### Major Release: Apple Dark Glassmorphism & TikTok Dynamic UI/UX Transformation
-- **Apple macOS Sequoia / iOS 18 Dark Glassmorphism Aesthetics**:
-  전체 위젯 테마를 #0F172A(Midnight Slate Navy) 바탕에 반투명 #1E293B 아크릴 글래스 캡슐 카드(DarkGlassDropZone)로 대전환.
-- **TikTok Dynamic Neon Pills & Vibrant Glow Accent**:
-  세금계산서, 명세서, PR, 발주서, 계약서 5종 슬롯에 틱톡식 네온 라임/시안/퍼플 뱃지와 📋 Voucher 엑셀 양식 붙여넣기 클립보드 복사 메인 캡슐 버튼 결합.
-- **Apple Dynamic Spotlight Data Inspector HUD**:
-  추출 데이터 7종을 네온 다크 칩 패널로 변경하여 선명한 가독성 제공.
-- **430 x 620 Zero-Margin Compact Fit**:
-  하단 낭비 공간을 완전히 제거하여 위젯 전체가 스마트 피트되도록 조절.
+## [v4.1.0] - 2026-08-12
+### High-Legibility & Icon-Targeted UI Refinement
+- **상단 타이틀 & 버전 개편**:
+  ⚡ Voucher Pass | 4.1 로 명확히 변경.
+- **아이콘 타겟 대형화 & 드롭존 영역 최적화**:
+  드롭존 아이콘 크기를 대형(Font size 20, 링 테두리)으로 키우고 서류에 딱 맞는 타겟 아이콘(🧾, 📄, 🛒, 📦, 📝) 및 파일 드래그 앤 드롭 또는 클릭 간소화 텍스트 적용.
+- **'무음 대입' 텍스트 삭제**:
+  ① 전자 세금계산서 (6068625399) 로 깔끔히 정리.
+- **전체 폰트 가독성 증대 & 선명한 하이콘트라스트**:
+  추출 데이터 7종 HUD 보드 폰트를 굵게(old) 증대하고 선명한 화이트/네온 시안 컬러 조합으로 시인성 극대화.
+- **440 x 580 하단 여백 0% 완전 제거**:
+  위젯 창 크기를 내용물에 맞춰 스크린샷 하단의 낭비 여백 공간을 완전히 제거.
