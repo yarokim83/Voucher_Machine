@@ -341,14 +341,6 @@ class VoucherPassApp:
         self.printer_combo = ttk.Combobox(prt_bar, textvariable=self.selected_printer, font=("Malgun Gothic", 8), state="readonly")
         self.printer_combo.pack(side="left", fill="x", expand=True, padx=4)
 
-
-        # 자동 보관 버튼
-        btn_archive = tk.Button(act_b, text="📂 건별 자동 폴더 생성 & 보관", font=("Malgun Gothic", 9, "bold"), bg="#059669", fg="white", activebackground="#047857", activeforeground="white", relief="flat", padx=14, pady=9, cursor="hand2", command=self.archive_voucher_files)
-        btn_archive.pack(side="left", padx=(0, 6))
-
-        btn_print = tk.Button(act_b, text="🖨️ 업로드 PDF 서류 일괄 인쇄 (4종)", font=("Malgun Gothic", 10, "bold"), bg="#3B82F6", fg="white", activebackground="#2563EB", activeforeground="white", relief="flat", padx=18, pady=9, cursor="hand2", command=self.print_pdf_documents_only)
-        btn_print.pack(side="right")
-
     def _start_folder_watch_timer(self):
         """
         다운로드 폴더 실시간 자동 감시 스케줄러 (2초마다 체크)
