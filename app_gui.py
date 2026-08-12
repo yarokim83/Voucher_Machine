@@ -206,7 +206,7 @@ class VoucherPassApp:
         lbl_logo.bind("<Button-1>", self._click_title)
         lbl_logo.bind("<B1-Motion>", self._drag_title)
 
-        ver_b = tk.Label(hdr, text="v6.2.0", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=5, pady=1)
+        ver_b = tk.Label(hdr, text="v6.3.0", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=5, pady=1)
         ver_b.pack(side="left", padx=(6, 0))
 
         btn_min = tk.Label(hdr, text=" ─ ", font=("Arial", 10, "bold"), bg="#2563EB", fg="#DBEAFE", cursor="hand2")
@@ -488,61 +488,51 @@ class VoucherPassApp:
             try:
                 import pyautogui, pyperclip
                 pyautogui.FAILSAFE = False
-                pyautogui.PAUSE = 0.05
+                pyautogui.PAUSE = 0.03
 
                 desktop = os.path.join(os.path.expanduser('~'), 'Desktop')
                 downloads = os.path.join(os.path.expanduser('~'), 'Downloads')
-                
-                def _get_pdfs():
-                    files = set()
-                    for folder in [desktop, downloads]:
-                        if os.path.exists(folder):
-                            for f in os.listdir(folder):
-                                if f.lower().endswith('.pdf'):
-                                    files.add(os.path.join(folder, f))
-                    return files
+                start_timestamp = time.time() - 1.0  # 작업 시작 시각 기록
 
-                before_pdfs = _get_pdfs()
                 pyperclip.copy("6068625399")
 
                 # Step 2-1: 초고속 HTML 자동 열기
                 os.startfile(html_path)
-                time.sleep(0.6)
+                time.sleep(0.5)
 
                 # Step 2-2: 초고속 Ctrl+V 붙여넣기 및 Enter
                 pyautogui.hotkey('ctrl', 'v')
-                time.sleep(0.15)
+                time.sleep(0.1)
                 pyautogui.press('enter')
 
-                time.sleep(0.5)
+                time.sleep(0.4)
                 # Step 2-3: 초고속 Ctrl+P 인쇄저장 및 Enter
                 pyautogui.hotkey('ctrl', 'p')
-                time.sleep(0.4)
+                time.sleep(0.3)
                 pyautogui.press('enter')
 
-                # Step 3: 0.2초 단위 고주파 초고속 PDF 저장 감지 (최대 100회 = 20초)
+                # Step 3: mtime > start_timestamp 0.05초 실시간 가로채기 감지 (최대 100회 = 5초)
                 for _ in range(100):
-                    time.sleep(0.2)
-                    after_pdfs = _get_pdfs()
-                    diff = list(after_pdfs - before_pdfs)
-                    if diff:
-                        newest_pdf = max(diff, key=lambda x: os.path.getmtime(x))
-                        self.root.after(0, lambda p=newest_pdf: self._on_new_tax_pdf_saved(p))
+                    time.sleep(0.05)
+                    newest_candidate = None
+                    newest_mtime = start_timestamp
+
+                    for folder in [desktop, downloads]:
+                        if os.path.exists(folder):
+                            for f in os.listdir(folder):
+                                if f.lower().endswith('.pdf'):
+                                    fp = os.path.join(folder, f)
+                                    try:
+                                        mt = os.path.getmtime(fp)
+                                        if mt > newest_mtime:
+                                            newest_mtime = mt
+                                            newest_candidate = fp
+                                    except Exception:
+                                        pass
+
+                    if newest_candidate:
+                        self.root.after(0, lambda p=newest_candidate: self._on_new_tax_pdf_saved(p))
                         return
-
-                now = time.time()
-                recent_pdfs = []
-                for folder in [desktop, downloads]:
-                    if os.path.exists(folder):
-                        for f in os.listdir(folder):
-                            if f.lower().endswith('.pdf'):
-                                fp = os.path.join(folder, f)
-                                if now - os.path.getmtime(fp) < 120:
-                                    recent_pdfs.append(fp)
-
-                if recent_pdfs:
-                    newest = max(recent_pdfs, key=lambda x: os.path.getmtime(x))
-                    self.root.after(0, lambda p=newest: self._on_new_tax_pdf_saved(p))
 
             except Exception as e:
                 print(f"Auto unlock & save PDF error: {e}")
@@ -555,21 +545,20 @@ class VoucherPassApp:
 
         def _parse_job():
             import time
-            # 초고속 0.1초 단위 파일 생성 감지
-            for _ in range(15):
+            # 0.05초 단위 초고속 파일 안정화 대기
+            for _ in range(10):
                 try:
-                    if os.path.getsize(pdf_path) > 300:
+                    if os.path.getsize(pdf_path) > 100:
                         break
                 except Exception:
                     pass
-                time.sleep(0.1)
+                time.sleep(0.05)
 
-            time.sleep(0.15)
             self.drop_tax.set_file(pdf_path)
 
             tax_date = pdf_parser.parse_tax_invoice_date(pdf_path)
             if not tax_date:
-                time.sleep(0.2)
+                time.sleep(0.1)
                 tax_date = pdf_parser.parse_tax_invoice_date(pdf_path)
 
             if tax_date:
