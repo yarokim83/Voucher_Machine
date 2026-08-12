@@ -62,7 +62,7 @@ class CleanMinimalDropZone(tk.Frame):
         self.file_var.trace_add("write", self._update_ui_state)
 
     def _browse_file(self, event=None):
-        path = filedialog.askopenfilename(filetypes=[("PDF Files", "*.pdf"), ("All Files", "*.*")])
+        path = filedialog.askopenfilename(filetypes=[("PDF Files", "*.pdf"), ("HTML Files", "*.html;*.htm"), ("All Files", "*.*")])
         if path:
             self.set_file(path)
 
@@ -82,14 +82,14 @@ class CleanMinimalDropZone(tk.Frame):
             if p:
                 norm_p = os.path.abspath(os.path.normpath(p))
                 ext = norm_p.lower()
-                if ext.endswith('.pdf') and os.path.exists(norm_p):
+                if (ext.endswith('.pdf') or ext.endswith('.html') or ext.endswith('.htm')) and os.path.exists(norm_p):
                     valid_file = norm_p
                     break
 
         if valid_file:
             self.set_file(valid_file)
         else:
-            messagebox.showwarning("파일 형식 오류", "PDF 세금계산서 서류 파일을 드롭해 주세요.")
+            messagebox.showwarning("파일 형식 오류", "PDF 또는 HTML 세금계산서 서류 파일을 드롭해 주세요.")
 
     def _on_drag_enter(self, event=None):
         self.config(bg="#EFF6FF", highlightbackground="#2563EB", highlightthickness=2)
@@ -206,7 +206,7 @@ class VoucherPassApp:
         lbl_logo.bind("<Button-1>", self._click_title)
         lbl_logo.bind("<B1-Motion>", self._drag_title)
 
-        ver_b = tk.Label(hdr, text="v6.1.0", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=5, pady=1)
+        ver_b = tk.Label(hdr, text="v6.1.1", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=5, pady=1)
         ver_b.pack(side="left", padx=(6, 0))
 
         btn_min = tk.Label(hdr, text=" ─ ", font=("Arial", 10, "bold"), bg="#2563EB", fg="#DBEAFE", cursor="hand2")
