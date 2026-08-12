@@ -500,27 +500,49 @@ class VoucherPassApp:
         else:
             fname = os.path.basename(tax_path)
             
-            # HTML 파일 드롭 시 자동으로 브라우저 실행 & 비밀번호(6068625399) 클립보드 자동 대입 복사!
+            # HTML 파일 드롭 시 6068625399 자동 입력 + 엔터 자동 실행 + 인쇄 PDF 저장 실행!
             if pdf_parser._is_html_file(tax_path):
-                try:
-                    # 1. 비밀번호 클립보드 자동 대입
-                    self.root.clipboard_clear()
-                    self.root.clipboard_append("6068625399")
-                    self.root.update()
-                    
-                    # 2. 브라우저로 HTML 자동 실행
-                    os.startfile(tax_path)
-
-                    messagebox.showinfo(
-                        "🚀 국세청 세금계산서 HTML 자동 실행",
-                        f"국세청 보안 세금계산서 파일({fname})이 웹 브라우저로 자동 실행되었습니다!\n\n"
-                        f"🔑 비밀번호 [ 6068625399 ] 가 클립보드에 자동 복사되었습니다.\n\n"
-                        f"열린 브라우저 암호 칸에 [ Ctrl + V ] 를 누르시면 1초 만에 세금계산서 화면이 바로 해제됩니다!"
-                    )
-                except Exception as e:
-                    messagebox.showwarning("실행 오류", f"HTML 파일 자동 실행 중 오류 발생: {e}")
+                self.auto_unlock_and_print_html_tax_invoice(tax_path)
+                messagebox.showinfo(
+                    "🚀 세금계산서 100% 자동 해제 & 인쇄 진행 중",
+                    f"국세청 보안 세금계산서({fname})가 웹 브라우저로 실행되어\n"
+                    f"비밀번호 [ 6068625399 ] 자동 입력 + 엔터 실행 + 인쇄 PDF 저장이 자동으로 연속 처리됩니다!"
+                )
             else:
                 messagebox.showinfo("세금계산서 연결 완료", f"전자 세금계산서 서류({fname})가 업로드되었습니다!\n\n[작성일자] 필드에 2026-08-11 형태로 직접 입력/수정해 주시면 됩니다.")
+
+    def auto_unlock_and_print_html_tax_invoice(self, html_path):
+        """
+        국세청 보안 메일 HTML 자동 암호 입력(6068625399) & 엔터 자동 실행 & 인쇄 PDF 저장
+        """
+        import threading, time
+        def _worker():
+            try:
+                import pyautogui, pyperclip
+                pyautogui.FAILSAFE = False
+                pyautogui.PAUSE = 0.1
+
+                # 1. 클립보드 암호 대입 준비
+                pyperclip.copy("6068625399")
+
+                # 2. 브라우저로 HTML 자동 실행
+                os.startfile(html_path)
+                time.sleep(1.2)
+
+                # 3. 암호창에 6068625399 자동으로 붙여넣고 엔터 실행!
+                pyautogui.hotkey('ctrl', 'v')
+                time.sleep(0.3)
+                pyautogui.press('enter')
+
+                # 4. 해제된 세금계산서 양식 화면에서 인쇄(Ctrl+P) 자동 실행!
+                time.sleep(1.8)
+                pyautogui.hotkey('ctrl', 'p')
+                time.sleep(1.0)
+                pyautogui.press('enter')
+            except Exception as e:
+                print(f"Auto unlock & print error: {e}")
+
+        threading.Thread(target=_worker, daemon=True).start()
 
     def _recalc_amounts(self, event=None):
         raw = self.amount_var.get().replace(',', '').strip()
