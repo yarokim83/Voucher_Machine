@@ -207,7 +207,7 @@ class VoucherPassApp:
         lbl_logo.bind("<Button-1>", self._click_title)
         lbl_logo.bind("<B1-Motion>", self._drag_title)
 
-        ver_b = tk.Label(hdr, text="v5.4.0", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=5, pady=1)
+        ver_b = tk.Label(hdr, text="v5.5.0", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=5, pady=1)
         ver_b.pack(side="left", padx=(6, 0))
 
         btn_min = tk.Label(hdr, text=" ─ ", font=("Arial", 10, "bold"), bg="#2563EB", fg="#DBEAFE", cursor="hand2")
@@ -569,7 +569,7 @@ class VoucherPassApp:
         self.date_var.set(tax_date)
         self.root.update_idletasks()
         self.root.update()
-        messagebox.showinfo("세금계산서 날짜 추출 성공", f"🎉 새로 저장된 세금계산서 PDF에서 작성일자가 자동으로 추출되었습니다!\n\n📅 작성일자: {tax_date}")
+        messagebox.showinfo("작성일자 자동 추출 완료", f"🎉 HTML 세금계산서 PDF 저장 및 작성일자 자동 추출 성공!\n\n📅 작성일자: {tax_date}")
 
     def _recalc_amounts(self, event=None):
         raw = self.amount_var.get().replace(',', '').strip()
