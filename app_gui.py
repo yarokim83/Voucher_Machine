@@ -113,9 +113,80 @@ class PastelGlassDropZone(tk.Frame):
             self.config(bg="#F0FDF4", highlightbackground="#16A34A")
             self.inner.config(bg="#F0FDF4")
         else:
-            self.lbl_status.config(text="PDF 파일을 이곳으로 드래그 앤 드롭\n하거나 클릭하세요", fg="#94A3B8", font=("Malgun Gothic", 8))
+            self.lbl_status.config(text="PDF/HTML 파일을 이곳으로 드래그 앤 드롭\n하거나 클릭하세요", fg="#94A3B8", font=("Malgun Gothic", 8))
             self.config(bg="#FFFFFF", highlightbackground="#E2E8F0")
             self.inner.config(bg="#FFFFFF")
+
+
+class SmartFloatingWidget(tk.Toplevel):
+    """
+    Ctrl+Shift+V 스마트 플로팅 미니 위젯 (Always-on-Top / Drag & Drop 최적화)
+    """
+    def __init__(self, main_app):
+        super().__init__(main_app.root)
+        self.main_app = main_app
+        self.title("VoucherPass Widget")
+        self.geometry("360x490+1200+180")
+        self.overrideredirect(True)
+        self.attributes("-topmost", True)
+        self.configure(bg="#F8FAFC", highlightbackground="#2563EB", highlightthickness=2)
+
+        self._offsetx = 0
+        self._offsety = 0
+
+        hdr = tk.Frame(self, bg="#2563EB", padx=10, pady=6)
+        hdr.pack(fill="x")
+        hdr.bind("<Button-1>", self._click_title)
+        hdr.bind("<B1-Motion>", self._drag_title)
+
+        lbl_t = tk.Label(hdr, text="⚡ VoucherPass Smart Widget", font=("Malgun Gothic", 9, "bold"), bg="#2563EB", fg="white")
+        lbl_t.pack(side="left")
+        lbl_t.bind("<Button-1>", self._click_title)
+        lbl_t.bind("<B1-Motion>", self._drag_title)
+
+        btn_close = tk.Label(hdr, text="✕", font=("Arial", 10, "bold"), bg="#2563EB", fg="white", cursor="hand2")
+        btn_close.pack(side="right")
+        btn_close.bind("<Button-1>", lambda e: self.withdraw())
+
+        body = tk.Frame(self, bg="#F8FAFC", padx=10, pady=8)
+        body.pack(fill="both", expand=True)
+
+        tk.Label(body, text="Ctrl+Shift+V 서류 빠른 수집 위젯", font=("Malgun Gothic", 9, "bold"), bg="#F8FAFC", fg="#1E293B").pack(anchor="w", pady=(0, 6))
+
+        self.w_pr = PastelGlassDropZone(body, "① PR / 발주서 PDF", "🛒", "#EFF6FF", "#2563EB", self.main_app.pr_pdf_path, on_file_selected=self.main_app.parse_uploaded_pdf)
+        self.w_pr.pack(fill="x", pady=3)
+
+        self.w_spec = PastelGlassDropZone(body, "② 거래명세서 PDF", "📄", "#ECFDF5", "#059669", self.main_app.spec_pdf_path)
+        self.w_spec.pack(fill="x", pady=3)
+
+        self.w_tax = PastelGlassDropZone(body, "③ 전자 세금계산서", "🧾", "#F5F3FF", "#7C3AED", self.main_app.tax_pdf_path, on_file_selected=self.main_app.parse_tax_invoice_uploaded)
+        self.w_tax.pack(fill="x", pady=3)
+
+        self.w_contract = PastelGlassDropZone(body, "④ 업체 계약서 PDF", "📝", "#FFFBEB", "#D97706", self.main_app.contract_pdf_path)
+        self.w_contract.pack(fill="x", pady=3)
+
+        act_frame = tk.Frame(body, bg="#F8FAFC")
+        act_frame.pack(fill="x", pady=(8, 0))
+
+        btn_s_copy = tk.Button(act_frame, text="✨ 세로 복사", font=("Malgun Gothic", 8, "bold"), bg="#2563EB", fg="white", relief="flat", padx=6, pady=4, cursor="hand2", command=self.main_app.copy_all_3items)
+        btn_s_copy.pack(side="left", fill="x", expand=True, padx=2)
+
+        btn_s_arch = tk.Button(act_frame, text="📂 건별 보관", font=("Malgun Gothic", 8, "bold"), bg="#059669", fg="white", relief="flat", padx=6, pady=4, cursor="hand2", command=self.main_app.archive_voucher_files)
+        btn_s_arch.pack(side="left", fill="x", expand=True, padx=2)
+
+        btn_s_print = tk.Button(act_frame, text="🖨️ 일괄 인쇄", font=("Malgun Gothic", 8, "bold"), bg="#3B82F6", fg="white", relief="flat", padx=6, pady=4, cursor="hand2", command=self.main_app.print_pdf_documents_only)
+        btn_s_print.pack(side="left", fill="x", expand=True, padx=2)
+
+        self.withdraw()
+
+    def _click_title(self, event):
+        self._offsetx = event.x
+        self._offsety = event.y
+
+    def _drag_title(self, event):
+        x = self.winfo_pointerx() - self._offsetx
+        y = self.winfo_pointery() - self._offsety
+        self.geometry(f"+{x}+{y}")
 
 
 class VoucherPassApp:
@@ -150,6 +221,19 @@ class VoucherPassApp:
         self._build_layout()
         self._load_printers()
         self._start_folder_watch_timer()
+
+        self.widget_window = SmartFloatingWidget(self)
+
+        self.root.bind_all("<Control-Shift-V>", self.toggle_smart_widget)
+        self.root.bind_all("<Control-Shift-v>", self.toggle_smart_widget)
+
+    def toggle_smart_widget(self, event=None):
+        if self.widget_window.state() == "normal":
+            self.widget_window.withdraw()
+        else:
+            self.widget_window.deiconify()
+            self.widget_window.lift()
+            self.widget_window.focus_force()
 
     def _setup_app_icon(self):
         base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -199,28 +283,30 @@ class VoucherPassApp:
         logo_txt = tk.Label(header, text="VoucherPass", font=("Malgun Gothic", 15, "bold"), bg="#FFFFFF", fg="#0F172A")
         logo_txt.pack(side="left")
 
-        ver_badge = tk.Label(header, text="v2.0 Full Auto", font=("Malgun Gothic", 8, "bold"), bg="#EFF6FF", fg="#2563EB", padx=6, pady=2)
-        ver_badge.pack(side="left", padx=(8, 16))
+        ver_badge = tk.Label(header, text="v2.8.0 Widget Engine", font=("Malgun Gothic", 8, "bold"), bg="#EFF6FF", fg="#2563EB", padx=6, pady=2)
+        ver_badge.pack(side="left", padx=(8, 12))
 
-        # 획기적 1초 아웃룩 추출 버튼
-        btn_outlook = tk.Button(header, text="📧 아웃룩 첨부파일 1초 가져오기", font=("Malgun Gothic", 9, "bold"), bg="#2563EB", fg="white", activebackground="#1D4ED8", activeforeground="white", relief="flat", padx=12, pady=4, cursor="hand2", command=self.fetch_from_outlook)
+        # 스마트 위젯 버튼
+        btn_widget = tk.Button(header, text="⚡ 스마트 위젯 (Ctrl+Shift+V)", font=("Malgun Gothic", 9, "bold"), bg="#7C3AED", fg="white", activebackground="#6D28D9", activeforeground="white", relief="flat", padx=12, pady=4, cursor="hand2", command=self.toggle_smart_widget)
+        btn_widget.pack(side="left", padx=(0, 8))
+
+        btn_outlook = tk.Button(header, text="📧 아웃룩 1초 가져오기", font=("Malgun Gothic", 9, "bold"), bg="#2563EB", fg="white", activebackground="#1D4ED8", activeforeground="white", relief="flat", padx=12, pady=4, cursor="hand2", command=self.fetch_from_outlook)
         btn_outlook.pack(side="left", padx=(0, 10))
 
-        # 다운로드 감시 토글
-        chk_watch = tk.Checkbutton(header, text="📥 다운로드 실시간 자동 분류", variable=self.auto_watch_enabled, font=("Malgun Gothic", 9, "bold"), bg="#FFFFFF", fg="#059669", activebackground="#FFFFFF", cursor="hand2")
+        chk_watch = tk.Checkbutton(header, text="📥 다운로드 실시간 감시", variable=self.auto_watch_enabled, font=("Malgun Gothic", 9, "bold"), bg="#FFFFFF", fg="#059669", activebackground="#FFFFFF", cursor="hand2")
         chk_watch.pack(side="left")
 
-        btn_help = tk.Button(header, text="❓ 도움말", font=("Malgun Gothic", 8), bg="#F1F5F9", fg="#475569", relief="flat", padx=10, pady=3, command=lambda: messagebox.showinfo("도움말", "1) 세금계산서 암호(6068625399)는 자동 해제 파싱됩니다.\n2) 아웃룩 메일 선택 후 [📧 가져오기] 버튼을 누르면 서류가 1초만에 들어옵니다.\n3) 다운로드 폴더 자동 감시가 켜져 있어 PDF 내려받기 시 카드에 자동 배치됩니다."))
+        btn_help = tk.Button(header, text="❓ 도움말", font=("Malgun Gothic", 8), bg="#F1F5F9", fg="#475569", relief="flat", padx=10, pady=3, command=lambda: messagebox.showinfo("도움말", "1) Ctrl+Shift+V 를 누르면 스마트 위젯 창이 토글됩니다.\n2) 구매요청서 및 발주서(PO) PDF 지원이 포함되었습니다.\n3) 세금계산서 HTML/PDF 드롭 시 6068625399 대입+엔터+인쇄 PDF 저장이 100% 무음 자동 연동됩니다."))
         btn_help.pack(side="right", padx=2)
 
         body_container = tk.Frame(self.root, bg=self.bg_app)
         body_container.pack(fill="both", expand=True)
 
-        # Sidebar
         sidebar = tk.Frame(body_container, bg=self.sidebar_bg, width=210, padx=12, pady=16)
         sidebar.pack(side="left", fill="y")
 
         nav_items = [
+            ("⚡ 스마트 위젯 (Ctrl+Shift+V)", True),
             ("☁️ 자동 PDF 수집", True),
             ("📋 데이터 세로 복사", True),
             ("📂 건별 자동 정리", True),
@@ -228,23 +314,22 @@ class VoucherPassApp:
         ]
 
         for text, active in nav_items:
-            btn = tk.Button(sidebar, text=text, font=("Malgun Gothic", 9, "bold"), bg="#EFF6FF", fg="#2563EB", activebackground="#DBEAFE", activeforeground="#1E40AF", relief="flat", anchor="w", padx=14, pady=10, cursor="hand2")
+            btn = tk.Button(sidebar, text=text, font=("Malgun Gothic", 9, "bold"), bg="#EFF6FF", fg="#2563EB", activebackground="#DBEAFE", activeforeground="#1E40AF", relief="flat", anchor="w", padx=14, pady=10, cursor="hand2", command=self.toggle_smart_widget if "위젯" in text else None)
             btn.pack(fill="x", pady=4)
 
         safe_card = tk.Frame(sidebar, bg="#FFFFFF", highlightbackground="#E2E8F0", highlightthickness=1, padx=12, pady=12)
         safe_card.pack(side="bottom", fill="x", pady=(0, 10))
 
-        tk.Label(safe_card, text="🛡️ 암호 자동 대입 해제", font=("Malgun Gothic", 8, "bold"), bg="#FFFFFF", fg="#0F172A", anchor="w").pack(fill="x")
-        tk.Label(safe_card, text="암호화된 세금계산서(6068625399)\n자동 해제 파싱 완료", font=("Malgun Gothic", 8), bg="#FFFFFF", fg="#94A3B8", justify="left", anchor="w").pack(fill="x", pady=(4, 0))
+        tk.Label(safe_card, text="🛡️ 구매요청서/발주서(PO) 통합", font=("Malgun Gothic", 8, "bold"), bg="#FFFFFF", fg="#0F172A", anchor="w").pack(fill="x")
+        tk.Label(safe_card, text="PR Print 및 발주서(PO) PDF\n데이터 100% 자동 파싱 지원", font=("Malgun Gothic", 8), bg="#FFFFFF", fg="#94A3B8", justify="left", anchor="w").pack(fill="x", pady=(4, 0))
 
-        # Main Panel
         main_panel = tk.Frame(body_container, bg=self.bg_app, padx=18, pady=14)
         main_panel.pack(side="right", fill="both", expand=True)
 
         sec1_header = tk.Frame(main_panel, bg=self.bg_app)
         sec1_header.pack(fill="x", pady=(0, 8))
 
-        tk.Label(sec1_header, text="1. 스마트 제출 서류 PDF 4종 (아웃룩/다운로드 자동 수집)", font=("Malgun Gothic", 11, "bold"), bg=self.bg_app, fg="#0F172A").pack(side="left")
+        tk.Label(sec1_header, text="1. 제출 서류 PDF 4종 (구매요청서 / 발주서 PO 포함)", font=("Malgun Gothic", 11, "bold"), bg=self.bg_app, fg="#0F172A").pack(side="left")
 
         btn_select_file = tk.Button(sec1_header, text="📁 수동 파일 선택", font=("Malgun Gothic", 8), bg="#FFFFFF", fg="#334155", relief="flat", highlightbackground="#E2E8F0", highlightthickness=1, padx=10, pady=3, command=lambda: self.drop_pr._browse_file())
         btn_select_file.pack(side="right")
@@ -252,7 +337,7 @@ class VoucherPassApp:
         grid_drop = tk.Frame(main_panel, bg=self.bg_app)
         grid_drop.pack(fill="both", expand=True, pady=(0, 10))
 
-        self.drop_pr = PastelGlassDropZone(grid_drop, "① PR Print (구매요청서)", "🛒", "#EFF6FF", "#2563EB", self.pr_pdf_path, on_file_selected=self.parse_uploaded_pdf)
+        self.drop_pr = PastelGlassDropZone(grid_drop, "① PR Print (구매요청서) / 발주서 PDF", "🛒", "#EFF6FF", "#2563EB", self.pr_pdf_path, on_file_selected=self.parse_uploaded_pdf)
         self.drop_pr.grid(row=0, column=0, padx=6, pady=6, sticky="nsew")
 
         self.drop_spec = PastelGlassDropZone(grid_drop, "② 거래명세서 PDF", "📄", "#ECFDF5", "#059669", self.spec_pdf_path)

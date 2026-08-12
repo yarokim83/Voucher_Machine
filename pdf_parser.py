@@ -83,7 +83,6 @@ def parse_tax_invoice_date(file_path):
     else:
         full_text = extract_pdf_text_safely(file_path)
 
-    # 1. 202X년 작성일자/발급일자 우선 파싱 (예: 2026/08/11, 2026-08-11, 2026년 08월 11일)
     m = re.search(r'작성일자?\s*[:\s]*(\d{4})[년\-.\s/]\s*(\d{1,2})[월\-.\s/]\s*(\d{1,2})[일\s]?', full_text)
     if m and int(m.group(1)) >= 2020:
         y, month, d = m.group(1), int(m.group(2)), int(m.group(3))
@@ -94,19 +93,16 @@ def parse_tax_invoice_date(file_path):
         y, month, d = m.group(1), int(m.group(2)), int(m.group(3))
         return f"{y}-{month:02d}-{d:02d}"
 
-    # 2. 2020년 이상 연도의 YYYY년 MM월 DD일 파싱
     matches = re.findall(r'(202[0-9])[년\-.\s/]\s*(\d{1,2})[월\-.\s/]\s*(\d{1,2})[일\s]?', full_text)
     if matches:
         y, month, d = matches[0][0], int(matches[0][1]), int(matches[0][2])
         return f"{y}-{month:02d}-{d:02d}"
 
-    # 3. YYYY-MM-DD / YYYY.MM.DD / YYYY/MM/DD (2020년 이상)
     matches_fmt = re.findall(r'(202[0-9])[-.\s/](\d{1,2})[-.\s/](\d{1,2})', full_text)
     if matches_fmt:
         y, month, d = matches_fmt[0][0], int(matches_fmt[0][1]), int(matches_fmt[0][2])
         return f"{y}-{month:02d}-{d:02d}"
 
-    # 4. 8자리 숫자 (20260811)
     matches_digits = re.findall(r'(202[0-9])(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])', full_text)
     if matches_digits:
         y, month, d = matches_digits[0][0], int(matches_digits[0][1]), int(matches_digits[0][2])
@@ -115,6 +111,9 @@ def parse_tax_invoice_date(file_path):
     return ''
 
 def parse_pr_pdf(pdf_path):
+    """
+    PR Print (구매요청서) 및 발주서(PO/Purchase Order) PDF 데이터 파싱
+    """
     if not os.path.exists(pdf_path):
         raise FileNotFoundError(f"PDF 파일을 찾을 수 없습니다: {pdf_path}")
 
@@ -130,28 +129,30 @@ def parse_pr_pdf(pdf_path):
 
     full_text = extract_pdf_text_safely(pdf_path)
 
-    pr_match = re.search(r'P/R\s*No\.?\s*[:\s]*([A-Z0-9]+)', full_text, re.IGNORECASE)
+    # 1. P/R No. 또는 발주번호 (PO No.) 추출
+    pr_match = re.search(r'(?:P/R|PR|PO|발주)\s*No\.?\s*[:\s]*([A-Z0-9]+)', full_text, re.IGNORECASE)
     if not pr_match:
-        pr_match = re.search(r'PR\s*No\.?\s*[:\s]*([A-Z0-9]+)', full_text, re.IGNORECASE)
+        pr_match = re.search(r'발주번호\s*[:\s]*([A-Z0-9]+)', full_text)
     if not pr_match:
         pr_match = re.search(r'S202[0-9]{8}', full_text)
     
     if pr_match:
         extracted_data['pr_no'] = pr_match.group(1) if len(pr_match.groups()) > 0 else pr_match.group(0)
 
-    date_match = re.search(r'DATE\s*[:\s]*(\d{4}[-.\s]\d{2}[-.\s]\d{2})', full_text, re.IGNORECASE)
-    if not date_match:
-        date_match = re.search(r'작성일자?\s*[:\s]*(\d{4}[-.\s]\d{2}[-.\s]\d{2})', full_text)
+    # 2. 날짜 추출 (DATE / 작성일자 / 발주일자)
+    date_match = re.search(r'(?:DATE|작성일자|발주일자|발행일자)\s*[:\s]*(\d{4}[-.\s]\d{2}[-.\s]\d{2})', full_text, re.IGNORECASE)
     if not date_match:
         date_match = re.search(r'(\d{4}-\d{2}-\d{2})', full_text)
     
     if date_match:
         extracted_data['date'] = date_match.group(1).replace('.', '-').strip()
 
-    subj_match = re.search(r'SUBJECT\s*[:\s]*(.+)', full_text, re.IGNORECASE)
+    # 3. Subject / PR Title / 발명/공사명 추출
+    subj_match = re.search(r'(?:SUBJECT|품명|공사명|건명|발주명)\s*[:\s]*(.+)', full_text, re.IGNORECASE)
     if subj_match:
         extracted_data['pr_title'] = subj_match.group(1).strip()
 
+    # 4. 금액 (공급가액 / Total Amount / 발주금액) 파싱
     pr_no_str = extracted_data['pr_no']
     candidates = []
     
@@ -160,7 +161,7 @@ def parse_pr_pdf(pdf_path):
         if pr_no_str and pr_no_str in line:
             continue
         
-        amounts = re.findall(r'(?:KRW|₩|총금액|공급가액|총약정금액|Total)?\s*([1-9]\d{0,2}(?:,\d{3})+)', line)
+        amounts = re.findall(r'(?:KRW|₩|총금액|공급가액|총약정금액|발주금액|Total)?\s*([1-9]\d{0,2}(?:,\d{3})+)', line)
         for amt_str in amounts:
             clean_num = int(amt_str.replace(',', ''))
             if pr_no_str and str(clean_num) in pr_no_str:
@@ -168,7 +169,7 @@ def parse_pr_pdf(pdf_path):
             if len(str(clean_num)) >= 10:
                 continue
             if 1000 <= clean_num <= 1000000000:
-                is_priority = any(k in line for k in ['KRW', '총약정금액', 'Total', '공급가액', '합계'])
+                is_priority = any(k in line for k in ['KRW', '총약정금액', '발주금액', 'Total', '공급가액', '합계'])
                 candidates.append((clean_num, is_priority))
 
     priority_candidates = [c[0] for c in candidates if c[1]]
@@ -181,9 +182,12 @@ def parse_pr_pdf(pdf_path):
         extracted_data['vat'] = int(extracted_data['amount'] * 0.1)
         extracted_data['total_amount'] = extracted_data['amount'] + extracted_data['vat']
 
+    # 5. 거래처명 (Supplier / Payee / 수신/공급자)
     sup_match = re.search(r'Company\s+([가-힣A-Za-z0-9㈜(주)]+)', full_text)
     if not sup_match:
         sup_match = re.search(r'SUPPLIERS?\s*RECOMMENDED[\s\S]*?1\s+([가-힣A-Za-z0-9㈜(주)]+)', full_text)
+    if not sup_match:
+        sup_match = re.search(r'공급자\s*[:\s]*([가-힣A-Za-z0-9㈜(주)]+)', full_text)
     if not sup_match:
         sup_match = re.search(r'금강엔지니어링', full_text)
     
@@ -193,6 +197,7 @@ def parse_pr_pdf(pdf_path):
     return extracted_data
 
 def classify_pdf_type(file_path):
+    """PDF 또는 HTML 파일 내용/파일명으로 4개 카드 타입 분류 (PR / 발주서 통합)"""
     if not os.path.exists(file_path):
         return 'unknown'
 
@@ -200,7 +205,7 @@ def classify_pdf_type(file_path):
     if 'nts_etaxinvoice' in fname or 'etaxinvoice' in fname:
         return 'tax'
 
-    if '구매요청' in fname or 'pr' in fname or 'requisition' in fname:
+    if '구매요청' in fname or 'pr' in fname or 'requisition' in fname or '발주' in fname or 'po' in fname or 'order' in fname:
         return 'pr'
     if '명세서' in fname or '거래' in fname or 'spec' in fname:
         return 'spec'
@@ -215,7 +220,7 @@ def classify_pdf_type(file_path):
         txt = extract_pdf_text_safely(file_path)
 
     txt_upper = txt.upper()
-    if 'PURCHASE REQUISITION' in txt_upper or '구매요청서' in txt or 'P/R NO' in txt_upper:
+    if 'PURCHASE REQUISITION' in txt_upper or 'PURCHASE ORDER' in txt_upper or '구매요청서' in txt or '발주서' in txt or 'P/R NO' in txt_upper or 'P.O' in txt_upper:
         return 'pr'
     if '전자세금계산서' in txt or '세금계산서' in txt or 'TAX INVOICE' in txt_upper:
         return 'tax'
