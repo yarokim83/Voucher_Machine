@@ -141,6 +141,13 @@ class VoucherPassApp:
         self.root.attributes("-topmost", True)
         self.root.configure(bg="#F8FAFC", highlightbackground="#2563EB", highlightthickness=2)
 
+        icon_path = self._get_icon_file('VoucherPass.ico')
+        if icon_path and os.path.exists(icon_path):
+            try:
+                self.root.iconbitmap(icon_path)
+            except Exception:
+                pass
+
         self._offsetx = 0
         self._offsety = 0
 
@@ -261,6 +268,30 @@ class VoucherPassApp:
         except Exception as e:
             print(f"Unregister startup error: {e}")
 
+    def _get_icon_file(self, filename):
+        base_dir = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+        candidates = [
+            os.path.join(base_dir, 'dist', filename),
+            os.path.join(base_dir, filename),
+            os.path.join(os.path.dirname(sys.executable), 'dist', filename),
+            os.path.join(os.path.dirname(sys.executable), filename),
+            os.path.join(os.getcwd(), 'dist', filename),
+            os.path.join(os.getcwd(), filename),
+        ]
+        for c in candidates:
+            if c and os.path.exists(c):
+                return c
+        return None
+
+    def _get_config_path(self):
+        appdata = os.getenv('APPDATA')
+        if appdata:
+            config_dir = os.path.join(appdata, 'VoucherPass')
+            os.makedirs(config_dir, exist_ok=True)
+            return os.path.join(config_dir, 'printer_config.json')
+        base_dir = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+        return os.path.join(base_dir, 'printer_config.json')
+
     def _setup_system_tray(self):
         """
         윈도우 우측 하단 시스템 트레이 아이콘 등록 (동적 토글 지원)
@@ -270,8 +301,8 @@ class VoucherPassApp:
                 import pystray
                 from PIL import Image
 
-                icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dist', 'VoucherPass.ico')
-                if os.path.exists(icon_path):
+                icon_path = self._get_icon_file('VoucherPass.ico') or self._get_icon_file('app_icon.png')
+                if icon_path and os.path.exists(icon_path):
                     image = Image.open(icon_path)
                 else:
                     image = Image.new('RGB', (64, 64), color=(37, 99, 235))
@@ -679,7 +710,7 @@ shortcut.Save
         self.printer_combo['values'] = printers
 
         # 저장된 마지막 프린터 설정 로드
-        cfg_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'printer_config.json')
+        cfg_file = self._get_config_path()
         last_printer = ''
         if os.path.exists(cfg_file):
             try:
@@ -700,7 +731,7 @@ shortcut.Save
     def _on_printer_selected(self, *args):
         p = self.selected_printer.get()
         if p:
-            cfg_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'printer_config.json')
+            cfg_file = self._get_config_path()
             try:
                 import json
                 with open(cfg_file, 'w', encoding='utf-8') as f:
