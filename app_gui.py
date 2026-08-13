@@ -169,9 +169,11 @@ class VoucherPassApp:
         self._load_printers()
         self._start_folder_watch_timer()
 
-        # 시작프로그램 자동 등록 및 시스템 트레이 초기화
+        # 시작프로그램 자동 등록, 바로가기 생성 및 시스템 트레이/핫키 초기화
         self.register_startup_registry()
+        self.create_desktop_shortcut()
         self._setup_system_tray()
+        self._setup_global_hotkey()
 
         # PR Title Text - StringVar 양방향 동기화
         self.pr_title_var.trace_add("write", self._on_pr_title_var_changed)
@@ -288,8 +290,9 @@ class VoucherPassApp:
                     self.root.after(0, self.root.destroy)
 
                 menu = pystray.Menu(
-                    pystray.MenuItem("⚡ 위젯 열기/숨기기 (마우스 위치)", _on_toggle, default=True),
+                    pystray.MenuItem("⚡ 위젯 열기/숨기기 (Ctrl+Shift+V / 마우스 위치)", _on_toggle, default=True),
                     pystray.MenuItem("🚀 시작프로그램 자동등록", _toggle_startup, checked=lambda item: self.is_startup_registered()),
+                    pystray.MenuItem("🖥️ 바탕화면 바로가기 아이콘 생성", lambda icon, item: self.create_desktop_shortcut()),
                     pystray.MenuItem("✕ 종료", _on_exit)
                 )
 
@@ -299,6 +302,91 @@ class VoucherPassApp:
                 print(f"System tray error: {e}")
 
         threading.Thread(target=_tray_worker, daemon=True).start()
+
+    def _setup_global_hotkey(self):
+        """
+        전역 단축키 (Ctrl+Shift+V) 감지 훅
+        """
+        def _hotkey_worker():
+            try:
+                from pynput import keyboard
+
+                def _on_trigger():
+                    self.root.after(0, self.popup_at_cursor)
+
+                with keyboard.GlobalHotKeys({
+                    '<ctrl>+<shift>+v': _on_trigger,
+                    '<ctrl>+<alt>+v': _on_trigger
+                }) as h:
+                    h.join()
+            except Exception as e:
+                print(f"Global hotkey error: {e}")
+
+        threading.Thread(target=_hotkey_worker, daemon=True).start()
+
+    def save_sliced_contract_pdf(self):
+        """
+        업체 계약서 지정 페이지(예: 12-13 -> 2페이지)만 별도 PDF 추출 저장
+        """
+        contract_pdf = self.contract_pdf_path.get()
+        if not contract_pdf or not os.path.exists(contract_pdf):
+            self.set_live_status("⚠️ 추출할 업체 계약서 PDF 파일이 올려지지 않았습니다.", type="error")
+            return
+
+        page_str = self.contract_page.get().strip()
+        page_indices, label_str = self._parse_contract_pages(page_str)
+
+        try:
+            from pypdf import PdfReader, PdfWriter
+            reader = PdfReader(contract_pdf)
+            writer = PdfWriter()
+            total_pages = len(reader.pages)
+
+            valid_pages = [p for p in page_indices if 0 <= p < total_pages]
+            if not valid_pages:
+                self.set_live_status(f"⚠️ 유효하지 않은 페이지 범위입니다. (총 {total_pages}페이지)", type="error")
+                return
+
+            for p in valid_pages:
+                writer.add_page(reader.pages[p])
+
+            desktop = os.path.join(os.path.expanduser('~'), 'Desktop')
+            out_name = f"계약서_{label_str}p.pdf"
+            out_path = os.path.join(desktop, out_name)
+
+            with open(out_path, 'wb') as f_out:
+                writer.write(f_out)
+
+            self.set_live_status(f"🎉 업체 계약서 [{label_str}p] ({len(valid_pages)}페이지) 추출 저장 완료! 📂 {out_name}", type="success")
+        except Exception as e:
+            self.set_live_status(f"⚠️ 계약서 페이지 추출 오류: {e}", type="error")
+
+    def create_desktop_shortcut(self):
+        """
+        Windows 정식 바로가기 (.lnk) 생성
+        """
+        try:
+            exe_path = sys.executable if getattr(sys, 'frozen', False) else os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dist', 'VoucherPass.exe')
+            desktop = os.path.join(os.path.expanduser('~'), 'Desktop')
+            lnk_path = os.path.join(desktop, 'VoucherPass.lnk')
+
+            vbs_script = f'''
+Set WshShell = WScript.CreateObject("WScript.Shell")
+Set shortcut = WshShell.CreateShortcut("{lnk_path}")
+shortcut.TargetPath = "{exe_path}"
+shortcut.WorkingDirectory = "{os.path.dirname(exe_path)}"
+shortcut.Description = "VoucherPass Tax & PR Extractor"
+shortcut.WindowStyle = 1
+shortcut.Save
+'''
+            vbs_file = os.path.join(os.environ.get('TEMP', '.'), 'create_lnk.vbs')
+            with open(vbs_file, 'w', encoding='utf-8') as f:
+                f.write(vbs_script)
+
+            subprocess.run(['cscript', '//Nologo', vbs_file], check=True)
+            self.set_live_status("🖥️ 바탕화면에 VoucherPass.lnk 바로가기가 생성되었습니다!", type="success")
+        except Exception as e:
+            print(f"Shortcut creation error: {e}")
 
     def _click_title(self, event):
         self._offsetx = event.x
@@ -311,9 +399,13 @@ class VoucherPassApp:
 
     def _update_progress_summary(self):
         """
-        업로드 진행 상태 실시간 집계 (예: 1/5 완료)
+        업로드 진행 상태 실시간 집계 & 막대바(Progress Bar) 채우기
         """
         count = sum(1 for var in [self.tax_pdf_path, self.spec_pdf_path, self.pr_pdf_path, self.po_pdf_path, self.contract_pdf_path] if var.get() and os.path.exists(var.get()))
+        pct = count * 20
+        if hasattr(self, 'progress_bar'):
+            self.progress_bar['value'] = pct
+
         if hasattr(self, 'lbl_progress'):
             if count == 5:
                 self.lbl_progress.config(text="진행 상태: 5/5 완료 🎉", fg="#15803D", bg="#DCFCE7")
@@ -321,7 +413,7 @@ class VoucherPassApp:
                 self.lbl_progress.config(text=f"진행 상태: {count}/5 완료", fg="#1D4ED8", bg="#DBEAFE")
 
     def _build_widget_layout(self):
-        # 1. Header Bar (HPNT Style Blue Header & Progress Badge)
+        # 1. Header Bar (HPNT Style Blue Header & Progress Badge & Progressbar)
         hdr = tk.Frame(self.root, bg="#2563EB", padx=8, pady=5)
         hdr.pack(fill="x")
         hdr.bind("<Button-1>", self._click_title)
@@ -332,12 +424,19 @@ class VoucherPassApp:
         lbl_logo.bind("<Button-1>", self._click_title)
         lbl_logo.bind("<B1-Motion>", self._drag_title)
 
-        ver_b = tk.Label(hdr, text="v7.3.0", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=4, pady=1)
+        ver_b = tk.Label(hdr, text="v8.0.0", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=4, pady=1)
         ver_b.pack(side="left", padx=(4, 0))
 
-        # 업로드 진행 상태 뱃지 ("1/5 완료")
-        self.lbl_progress = tk.Label(hdr, text="진행 상태: 0/5 완료", font=("Malgun Gothic", 8, "bold"), bg="#DBEAFE", fg="#1D4ED8", padx=6, pady=1)
-        self.lbl_progress.pack(side="left", padx=(8, 0))
+        # 업로드 진행 상태 뱃지 ("1/5 완료") 및 초록색 프로그레스 막대바
+        self.lbl_progress = tk.Label(hdr, text="진행 상태: 0/5 완료", font=("Malgun Gothic", 8, "bold"), bg="#DBEAFE", fg="#1D4ED8", padx=4, pady=1)
+        self.lbl_progress.pack(side="left", padx=(4, 2))
+
+        # 프로그레스 막대바 채우기 요소
+        style = ttk.Style()
+        style.theme_use('default')
+        style.configure("Green.Horizontal.TProgressbar", foreground='#16A34A', background='#22C55E', thickness=10)
+        self.progress_bar = ttk.Progressbar(hdr, style="Green.Horizontal.TProgressbar", orient="horizontal", length=65, mode="determinate")
+        self.progress_bar.pack(side="left", padx=(0, 2))
 
         btn_min = tk.Label(hdr, text=" ─ ", font=("Arial", 10, "bold"), bg="#2563EB", fg="#DBEAFE", cursor="hand2")
         btn_min.pack(side="right", padx=(3, 0))
@@ -364,8 +463,19 @@ class VoucherPassApp:
         self.drop_po = CleanMinimalDropZone(main_box, "④ 발주서 (PO) PDF", "📦", "#0284C7", self.po_pdf_path, on_file_selected=self.parse_uploaded_pdf, on_state_changed=self._update_progress_summary)
         self.drop_po.pack(fill="x", pady=1)
 
-        self.drop_contract = CleanMinimalDropZone(main_box, "⑤ 업체 계약서 PDF", "📝", "#D97706", self.contract_pdf_path, on_state_changed=self._update_progress_summary)
-        self.drop_contract.pack(fill="x", pady=1)
+        f_contract_f = tk.Frame(main_box, bg="#F8FAFC")
+        f_contract_f.pack(fill="x", pady=1)
+
+        self.drop_contract = CleanMinimalDropZone(f_contract_f, "⑤ 업체 계약서 PDF", "📝", "#D97706", self.contract_pdf_path, on_state_changed=self._update_progress_summary)
+        self.drop_contract.pack(side="left", fill="x", expand=True)
+
+        # 계약서 전용 페이지 지정 (예: 12-13)
+        pg_sub = tk.Frame(f_contract_f, bg="#FFFBEB", highlightbackground="#FCD34D", highlightthickness=1, padx=3, pady=2)
+        pg_sub.pack(side="right", padx=(2, 0))
+        tk.Label(pg_sub, text="📄 페이지:", font=("Malgun Gothic", 7, "bold"), bg="#FFFBEB", fg="#92400E").pack(side="top")
+        self.e_contract_page = tk.Entry(pg_sub, textvariable=self.contract_page, font=("Malgun Gothic", 8, "bold"), bg="#FFFFFF", fg="#B45309", width=6, justify="center", relief="solid", bd=1)
+        self.e_contract_page.pack(side="top", pady=1)
+        tk.Button(pg_sub, text="💾 추출저장", font=("Malgun Gothic", 7, "bold"), bg="#F59E0B", fg="white", relief="flat", padx=2, pady=1, cursor="hand2", command=self.save_sliced_contract_pdf).pack(side="top")
 
         # 4. 데이터 입력 영역 (2열 4행 그리드 + 상단 라벨 카드 컨테이너)
         hud = tk.LabelFrame(main_box, text=" 📝 추출 데이터 7종 ", font=("Malgun Gothic", 9, "bold"), bg="#FFFFFF", fg="#0F172A", bd=1, relief="solid", padx=4, pady=2)
@@ -859,37 +969,52 @@ class VoucherPassApp:
 
         try:
             if self.tax_pdf_path.get() and os.path.exists(self.tax_pdf_path.get()):
-                dec_pdf = pdf_parser.decrypt_pdf_to_temp(self.tax_pdf_path.get())
-                printer_handler.print_pdf_file(dec_pdf, printer_name=printer)
-                printed_list.append("① 전자 세금계산서 PDF (암호해제 인쇄)")
+                try:
+                    dec_pdf = pdf_parser.decrypt_pdf_to_temp(self.tax_pdf_path.get())
+                    printer_handler.print_pdf_file(dec_pdf, printer_name=printer)
+                    printed_list.append("① 전자 세금계산서 PDF (암호해제 인쇄)")
+                except Exception as e1:
+                    print(f"Tax print error: {e1}")
 
             if self.spec_pdf_path.get() and os.path.exists(self.spec_pdf_path.get()):
-                printer_handler.print_pdf_file(self.spec_pdf_path.get(), printer_name=printer)
-                printed_list.append("② 거래명세서 PDF")
+                try:
+                    printer_handler.print_pdf_file(self.spec_pdf_path.get(), printer_name=printer)
+                    printed_list.append("② 거래명세서 PDF")
+                except Exception as e2:
+                    print(f"Spec print error: {e2}")
 
             if self.pr_pdf_path.get() and os.path.exists(self.pr_pdf_path.get()):
-                printer_handler.print_pdf_file(self.pr_pdf_path.get(), printer_name=printer)
-                printed_list.append("③ PR Print PDF (구매요청서)")
+                try:
+                    printer_handler.print_pdf_file(self.pr_pdf_path.get(), printer_name=printer)
+                    printed_list.append("③ PR Print PDF (구매요청서)")
+                except Exception as e3:
+                    print(f"PR print error: {e3}")
 
             if self.po_pdf_path.get() and os.path.exists(self.po_pdf_path.get()):
-                printer_handler.print_pdf_file(self.po_pdf_path.get(), printer_name=printer)
-                printed_list.append("④ 발주서 (PO) PDF")
+                try:
+                    printer_handler.print_pdf_file(self.po_pdf_path.get(), printer_name=printer)
+                    printed_list.append("④ 발주서 (PO) PDF")
+                except Exception as e4:
+                    print(f"PO print error: {e4}")
 
             if self.contract_pdf_path.get() and os.path.exists(self.contract_pdf_path.get()):
-                page_str = self.contract_page.get().strip()
-                page_indices, label_str = self._parse_contract_pages(page_str)
-                printer_handler.print_pdf_file(self.contract_pdf_path.get(), printer_name=printer, page_range=page_indices)
-                printed_list.append(f"⑤ 업체 계약서 PDF ({label_str} 페이지)")
+                try:
+                    page_str = self.contract_page.get().strip()
+                    page_indices, label_str = self._parse_contract_pages(page_str)
+                    printer_handler.print_pdf_file(self.contract_pdf_path.get(), printer_name=printer, page_range=page_indices)
+                    printed_list.append(f"⑤ 업체 계약서 PDF ({label_str} 페이지)")
+                except Exception as e5:
+                    print(f"Contract print error: {e5}")
 
             if not printed_list:
-                messagebox.showwarning("인쇄할 PDF 없음", "인쇄할 PDF 서류가 하나도 업로드되지 않았습니다.\nPDF 파일을 업로드해 주세요.")
+                self.set_live_status("⚠️ 인쇄할 PDF 서류가 업로드되지 않았거나 인쇄에 실패했습니다.", type="error")
                 return
 
-            summary = "\n- ".join(printed_list)
-            messagebox.showinfo("제출 서류 5종 일괄 인쇄 완료", f"다음 업로드 PDF 서류들이 프린터 [{printer}] 로 출력 요청되었습니다:\n\n- {summary}")
+            summary = ", ".join(printed_list)
+            self.set_live_status(f"🖨️ 서류 일괄 인쇄 요청 완료: [{summary}] (프린터: {printer})", type="success")
 
         except Exception as e:
-            messagebox.showerror("인쇄 오류", f"PDF 서류 일괄 인쇄 중 오류 발생:\n{e}")
+            self.set_live_status(f"⚠️ 인쇄 오류: {e}", type="error")
 
 def main():
     if HAS_DND:

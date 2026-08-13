@@ -1,4 +1,5 @@
-﻿import os
+import os
+import sys
 import subprocess
 import tempfile
 from pypdf import PdfReader, PdfWriter
@@ -20,8 +21,8 @@ def get_installed_printers():
 
 def print_pdf_file(pdf_path, printer_name=None, page_range=None):
     """
-    SumatraPDF Vector Native Print Engine (-print-settings "fit") 사용 100% 선명 벡터 출력
-    page_range: list of int (0-indexed page indices to print, e.g. [11, 12] for pages 12-13)
+    SumatraPDF & Windows ShellExecute Native Print Engine (100% 안전 출력)
+    page_range: list of int (0-indexed page indices, e.g. [11, 12] for pages 12-13)
     """
     if not os.path.exists(pdf_path):
         raise FileNotFoundError(f"인쇄할 PDF 파일을 찾을 수 없습니다: {pdf_path}")
@@ -48,12 +49,27 @@ def print_pdf_file(pdf_path, printer_name=None, page_range=None):
         except Exception as e:
             print(f"Page slicing error: {e}, falling back to full print")
 
-    base_dir = os.path.dirname(os.path.abspath(__file__))
+    base_dir = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
     sumatra_exe = os.path.join(base_dir, "bin", "SumatraPDF.exe")
+    if not os.path.exists(sumatra_exe):
+        sumatra_exe = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bin", "SumatraPDF.exe")
+
+    # 기본 프린터 정제
+    if not printer_name or printer_name == "기본 프린터":
+        try:
+            import win32print
+            printer_name = win32print.GetDefaultPrinter()
+        except Exception:
+            printer_name = None
 
     # 1. SumatraPDF Engine
     if os.path.exists(sumatra_exe):
-        cmd = [sumatra_exe, "-print-to", printer_name if printer_name else "default", "-print-settings", "fit", target_pdf]
+        cmd = [sumatra_exe]
+        if printer_name:
+            cmd.extend(["-print-to", printer_name])
+        else:
+            cmd.append("-print-dialog")
+        cmd.extend(["-print-settings", "fit", target_pdf])
         try:
             res = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
             if res.returncode == 0:
@@ -61,17 +77,23 @@ def print_pdf_file(pdf_path, printer_name=None, page_range=None):
         except Exception as e:
             print(f"SumatraPDF print failed: {e}")
 
-    # 2. Windows ShellExecute Fallback
+    # 2. Windows ShellExecute / os.startfile Fallback
     if os.name == 'nt':
         try:
             import win32api
             import win32print
             if not printer_name:
                 printer_name = win32print.GetDefaultPrinter()
+
             win32api.ShellExecute(0, "printto", target_pdf, f'"{printer_name}"', ".", 0)
             return True
         except Exception as e:
             print(f"ShellExecute print failed: {e}")
+            try:
+                os.startfile(target_pdf, "print")
+                return True
+            except Exception as e2:
+                print(f"os.startfile print failed: {e2}")
 
     return False
 
