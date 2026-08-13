@@ -49,10 +49,22 @@ def print_pdf_file(pdf_path, printer_name=None, page_range=None):
         except Exception as e:
             print(f"Page slicing error: {e}, falling back to full print")
 
-    base_dir = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
-    sumatra_exe = os.path.join(base_dir, "bin", "SumatraPDF.exe")
-    if not os.path.exists(sumatra_exe):
-        sumatra_exe = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bin", "SumatraPDF.exe")
+    # SumatraPDF.exe 다각 탐색
+    candidate_paths = [
+        os.path.join(getattr(sys, '_MEIPASS', ''), "bin", "SumatraPDF.exe"),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "bin", "SumatraPDF.exe"),
+        os.path.join(os.path.dirname(sys.executable), "bin", "SumatraPDF.exe"),
+        os.path.join(os.path.dirname(sys.executable), "SumatraPDF.exe"),
+        os.path.join(os.getcwd(), "bin", "SumatraPDF.exe"),
+        r"C:\Program Files\SumatraPDF\SumatraPDF.exe",
+        r"C:\Program Files (x86)\SumatraPDF\SumatraPDF.exe",
+    ]
+    
+    sumatra_exe = None
+    for cp in candidate_paths:
+        if cp and os.path.exists(cp):
+            sumatra_exe = cp
+            break
 
     # 기본 프린터 정제
     if not printer_name or printer_name == "기본 프린터":
@@ -63,17 +75,19 @@ def print_pdf_file(pdf_path, printer_name=None, page_range=None):
             printer_name = None
 
     # 1. SumatraPDF Engine
-    if os.path.exists(sumatra_exe):
+    if sumatra_exe and os.path.exists(sumatra_exe):
         cmd = [sumatra_exe]
         if printer_name:
             cmd.extend(["-print-to", printer_name])
         else:
-            cmd.append("-print-dialog")
+            cmd.append("-print-default")
         cmd.extend(["-print-settings", "fit", target_pdf])
         try:
             res = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
             if res.returncode == 0:
                 return True
+            else:
+                print(f"SumatraPDF exited with code {res.returncode}: {res.stderr}")
         except Exception as e:
             print(f"SumatraPDF print failed: {e}")
 

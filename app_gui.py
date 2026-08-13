@@ -966,52 +966,81 @@ shortcut.Save
     def print_pdf_documents_only(self):
         printer = self.selected_printer.get()
         printed_list = []
+        failed_list = []
 
         try:
             if self.tax_pdf_path.get() and os.path.exists(self.tax_pdf_path.get()):
                 try:
                     dec_pdf = pdf_parser.decrypt_pdf_to_temp(self.tax_pdf_path.get())
-                    printer_handler.print_pdf_file(dec_pdf, printer_name=printer)
-                    printed_list.append("① 전자 세금계산서 PDF (암호해제 인쇄)")
+                    ok = printer_handler.print_pdf_file(dec_pdf, printer_name=printer)
+                    if ok:
+                        printed_list.append("① 전자 세금계산서 PDF")
+                    else:
+                        failed_list.append("① 전자 세금계산서 PDF")
                 except Exception as e1:
                     print(f"Tax print error: {e1}")
+                    failed_list.append("① 전자 세금계산서 PDF")
 
             if self.spec_pdf_path.get() and os.path.exists(self.spec_pdf_path.get()):
                 try:
-                    printer_handler.print_pdf_file(self.spec_pdf_path.get(), printer_name=printer)
-                    printed_list.append("② 거래명세서 PDF")
+                    ok = printer_handler.print_pdf_file(self.spec_pdf_path.get(), printer_name=printer)
+                    if ok:
+                        printed_list.append("② 거래명세서 PDF")
+                    else:
+                        failed_list.append("② 거래명세서 PDF")
                 except Exception as e2:
                     print(f"Spec print error: {e2}")
+                    failed_list.append("② 거래명세서 PDF")
 
             if self.pr_pdf_path.get() and os.path.exists(self.pr_pdf_path.get()):
                 try:
-                    printer_handler.print_pdf_file(self.pr_pdf_path.get(), printer_name=printer)
-                    printed_list.append("③ PR Print PDF (구매요청서)")
+                    ok = printer_handler.print_pdf_file(self.pr_pdf_path.get(), printer_name=printer)
+                    if ok:
+                        printed_list.append("③ PR Print PDF (구매요청서)")
+                    else:
+                        failed_list.append("③ PR Print PDF (구매요청서)")
                 except Exception as e3:
                     print(f"PR print error: {e3}")
+                    failed_list.append("③ PR Print PDF (구매요청서)")
 
             if self.po_pdf_path.get() and os.path.exists(self.po_pdf_path.get()):
                 try:
-                    printer_handler.print_pdf_file(self.po_pdf_path.get(), printer_name=printer)
-                    printed_list.append("④ 발주서 (PO) PDF")
+                    ok = printer_handler.print_pdf_file(self.po_pdf_path.get(), printer_name=printer)
+                    if ok:
+                        printed_list.append("④ 발주서 (PO) PDF")
+                    else:
+                        failed_list.append("④ 발주서 (PO) PDF")
                 except Exception as e4:
                     print(f"PO print error: {e4}")
+                    failed_list.append("④ 발주서 (PO) PDF")
 
             if self.contract_pdf_path.get() and os.path.exists(self.contract_pdf_path.get()):
                 try:
                     page_str = self.contract_page.get().strip()
                     page_indices, label_str = self._parse_contract_pages(page_str)
-                    printer_handler.print_pdf_file(self.contract_pdf_path.get(), printer_name=printer, page_range=page_indices)
-                    printed_list.append(f"⑤ 업체 계약서 PDF ({label_str} 페이지)")
+                    ok = printer_handler.print_pdf_file(self.contract_pdf_path.get(), printer_name=printer, page_range=page_indices)
+                    if ok:
+                        printed_list.append(f"⑤ 업체 계약서 PDF ({label_str} 페이지)")
+                    else:
+                        failed_list.append(f"⑤ 업체 계약서 PDF ({label_str} 페이지)")
                 except Exception as e5:
                     print(f"Contract print error: {e5}")
+                    failed_list.append(f"⑤ 업체 계약서 PDF ({label_str} 페이지)")
 
-            if not printed_list:
-                self.set_live_status("⚠️ 인쇄할 PDF 서류가 업로드되지 않았거나 인쇄에 실패했습니다.", type="error")
+            if not printed_list and not failed_list:
+                self.set_live_status("⚠️ 인쇄할 PDF 서류가 업로드되지 않았습니다.", type="error")
                 return
 
-            summary = ", ".join(printed_list)
-            self.set_live_status(f"🖨️ 서류 일괄 인쇄 요청 완료: [{summary}] (프린터: {printer})", type="success")
+            if printed_list:
+                summary = ", ".join(printed_list)
+                if failed_list:
+                    fail_summary = ", ".join(failed_list)
+                    self.set_live_status(f"⚠️ 일부 인쇄 성공 [{summary}], 실패 [{fail_summary}] (프린터: {printer})", type="error")
+                else:
+                    self.set_live_status(f"🖨️ 서류 일괄 인쇄 요청 완료: [{summary}] (프린터: {printer})", type="success")
+            else:
+                fail_summary = ", ".join(failed_list)
+                self.set_live_status(f"⚠️ 인쇄 실패: [{fail_summary}] (프린터: {printer})", type="error")
 
         except Exception as e:
             self.set_live_status(f"⚠️ 인쇄 오류: {e}", type="error")
