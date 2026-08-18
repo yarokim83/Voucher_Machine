@@ -455,7 +455,7 @@ shortcut.Save
         lbl_logo.bind("<Button-1>", self._click_title)
         lbl_logo.bind("<B1-Motion>", self._drag_title)
 
-        ver_b = tk.Label(hdr, text="v8.1.1", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=4, pady=1)
+        ver_b = tk.Label(hdr, text="v8.1.2", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=4, pady=1)
         ver_b.pack(side="left", padx=(4, 0))
 
         # 업로드 진행 상태 뱃지 ("1/5 완료") 및 초록색 프로그레스 막대바
@@ -840,7 +840,7 @@ shortcut.Save
             try:
                 import pyautogui, pyperclip
                 pyautogui.FAILSAFE = False
-                pyautogui.PAUSE = 0.03
+                pyautogui.PAUSE = 0.05
 
                 desktop = os.path.join(os.path.expanduser('~'), 'Desktop')
                 downloads = os.path.join(os.path.expanduser('~'), 'Downloads')
@@ -849,26 +849,37 @@ shortcut.Save
                 search_folders = [desktop, downloads, documents, tempdir]
 
                 start_timestamp = time.time() - 1.0  # 작업 시작 시각 기록
-                pdf_parser._log_debug(f"auto_unlock_and_save_pdf worker started for: {html_path}")
+                pdf_parser._log_debug(f"[auto_unlock] Started for: {html_path}")
 
+                # 클립보드에 비밀번호 준비
                 pyperclip.copy("6068625399")
 
-                # Step 2-1: 초고속 HTML 자동 열기
+                # Step 1: 웹브라우저로 HTML 열기
+                pdf_parser._log_debug("[auto_unlock Step 1] Opening HTML file in browser...")
                 os.startfile(html_path)
-                time.sleep(0.5)
 
-                # Step 2-2: 초고속 Ctrl+V 붙여넣기 및 Enter
+                # 브라우저 창 렌더링 및 포커스 획득 대기 (1.2초)
+                time.sleep(1.2)
+
+                # Step 2: 포커스 클릭/탭 획득 및 비밀번호 붙여넣기
+                pdf_parser._log_debug("[auto_unlock Step 2] Pasting password (Ctrl+V) & Submit...")
+                pyautogui.hotkey('ctrl', 'a')
+                time.sleep(0.1)
                 pyautogui.hotkey('ctrl', 'v')
                 time.sleep(0.1)
                 pyautogui.press('enter')
 
-                time.sleep(0.4)
-                # Step 2-3: 초고속 Ctrl+P 인쇄저장 및 Enter
+                # 암호 해제 본문 로딩 대기 (1.0초)
+                time.sleep(1.0)
+
+                # Step 3: 인쇄 대화상자 호출 (Ctrl+P) 및 저장 실행
+                pdf_parser._log_debug("[auto_unlock Step 3] Sending print command (Ctrl+P) -> Enter...")
                 pyautogui.hotkey('ctrl', 'p')
-                time.sleep(0.3)
+                time.sleep(0.8)
                 pyautogui.press('enter')
 
-                # Step 3: mtime > start_timestamp 0.05초 실시간 가로채기 감지 (최대 200회 = 10초)
+                # Step 4: mtime > start_timestamp 실시간 감지 (최대 200회 = 10초)
+                pdf_parser._log_debug("[auto_unlock Step 4] Monitoring folders for newly saved PDF...")
                 for _ in range(200):
                     time.sleep(0.05)
                     newest_candidate = None
@@ -888,14 +899,14 @@ shortcut.Save
                                         pass
 
                     if newest_candidate:
-                        pdf_parser._log_debug(f"Detected newly saved PDF from HTML unlock: {newest_candidate}")
+                        pdf_parser._log_debug(f"[auto_unlock SUCCESS] Detected newly saved PDF: {newest_candidate}")
                         self.root.after(0, lambda p=newest_candidate: self._on_new_tax_pdf_saved(p))
                         return
 
-                pdf_parser._log_debug("Timeout waiting for newly saved PDF from HTML unlock.")
+                pdf_parser._log_debug("[auto_unlock TIMEOUT] Timeout waiting for newly saved PDF.")
 
             except Exception as e:
-                pdf_parser._log_debug(f"Auto unlock & save PDF error: {e}")
+                pdf_parser._log_debug(f"[auto_unlock ERROR] Exception: {e}")
                 print(f"Auto unlock & save PDF error: {e}")
 
         threading.Thread(target=_worker, daemon=True).start()
