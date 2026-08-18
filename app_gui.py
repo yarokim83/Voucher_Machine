@@ -455,7 +455,7 @@ shortcut.Save
         lbl_logo.bind("<Button-1>", self._click_title)
         lbl_logo.bind("<B1-Motion>", self._drag_title)
 
-        ver_b = tk.Label(hdr, text="v8.0.0", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=4, pady=1)
+        ver_b = tk.Label(hdr, text="v8.1.0", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=4, pady=1)
         ver_b.pack(side="left", padx=(4, 0))
 
         # 업로드 진행 상태 뱃지 ("1/5 완료") 및 초록색 프로그레스 막대바
@@ -799,10 +799,21 @@ shortcut.Save
             pdf_parser._log_debug(f"parse_tax_invoice_uploaded: File missing or invalid: {tax_path}")
             return
 
-        # Step 1 & 2: HTML 세금계산서일 경우 무음 자동 해제 및 PDF 변환 저장 파이프라인 가동
+        # Step 1 & 2: HTML 세금계산서일 경우 HTML 텍스트에서 즉시 작성일자 1차 파싱 + 자동 해제 & PDF 저장 파이프라인 가동
         if pdf_parser._is_html_file(tax_path):
-            pdf_parser._log_debug("Detected HTML file. Triggering auto_unlock_and_save_pdf...")
-            self.set_live_status("⚡ 국세청 HTML 암호 해제 & PDF 저장 파이프라인 가동 중...", type="info")
+            pdf_parser._log_debug("Detected HTML file. Attempting immediate HTML text date parsing...")
+            try:
+                html_date = pdf_parser.parse_tax_invoice_date(tax_path)
+                pdf_parser._log_debug(f"Immediate HTML date parsing result: {html_date}")
+                if html_date:
+                    self.date_var.set(html_date)
+                    if hasattr(self, 'e_date'):
+                        self._shake_widget(self.e_date, highlight_bg="#FEF08A")
+                    self.set_live_status(f"🎉 HTML 작성일자 [{html_date}] 즉시 획득 성공! ✨", type="success")
+            except Exception as e_html:
+                pdf_parser._log_debug(f"Immediate HTML date parsing exception: {e_html}")
+
+            pdf_parser._log_debug("Triggering auto_unlock_and_save_pdf for PDF conversion...")
             self.auto_unlock_and_save_pdf(tax_path)
             return
 
@@ -824,7 +835,7 @@ shortcut.Save
             self.set_live_status(f"⚠️ 파싱 오류: {e}", type="error")
 
     def auto_unlock_and_save_pdf(self, html_path):
-        import threading, time
+        import threading, time, tempfile
         def _worker():
             try:
                 import pyautogui, pyperclip
@@ -833,6 +844,10 @@ shortcut.Save
 
                 desktop = os.path.join(os.path.expanduser('~'), 'Desktop')
                 downloads = os.path.join(os.path.expanduser('~'), 'Downloads')
+                documents = os.path.join(os.path.expanduser('~'), 'Documents')
+                tempdir = tempfile.gettempdir()
+                search_folders = [desktop, downloads, documents, tempdir]
+
                 start_timestamp = time.time() - 1.0  # 작업 시작 시각 기록
                 pdf_parser._log_debug(f"auto_unlock_and_save_pdf worker started for: {html_path}")
 
@@ -853,13 +868,13 @@ shortcut.Save
                 time.sleep(0.3)
                 pyautogui.press('enter')
 
-                # Step 3: mtime > start_timestamp 0.05초 실시간 가로채기 감지 (최대 100회 = 5초)
-                for _ in range(100):
+                # Step 3: mtime > start_timestamp 0.05초 실시간 가로채기 감지 (최대 200회 = 10초)
+                for _ in range(200):
                     time.sleep(0.05)
                     newest_candidate = None
                     newest_mtime = start_timestamp
 
-                    for folder in [desktop, downloads]:
+                    for folder in search_folders:
                         if os.path.exists(folder):
                             for f in os.listdir(folder):
                                 if f.lower().endswith('.pdf'):
