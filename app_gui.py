@@ -455,7 +455,7 @@ shortcut.Save
         lbl_logo.bind("<Button-1>", self._click_title)
         lbl_logo.bind("<B1-Motion>", self._drag_title)
 
-        ver_b = tk.Label(hdr, text="v8.3.5", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=4, pady=1)
+        ver_b = tk.Label(hdr, text="v8.3.6", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=4, pady=1)
         ver_b.pack(side="left", padx=(4, 0))
 
         # 업로드 진행 상태 뱃지 ("1/5 완료") 및 초록색 프로그레스 막대바
@@ -882,39 +882,30 @@ shortcut.Save
                 pdf_parser._log_debug("[auto_unlock 3단계] 세금계산서 본문 렌더링 대기...")
                 time.sleep(1.8)
 
-                # Step 4: 계산서 인쇄 미리보기 화면 호출 (Ctrl+P)
-                pdf_parser._log_debug("[auto_unlock 4단계] 인쇄 미리보기 호출 (Ctrl+P)...")
-                pyautogui.hotkey('ctrl', 'p')
+                # Step 4: Windows 시스템 인쇄 대화상자 호출 (Ctrl+Shift+P)
+                # Edge 자체 인쇄 미리보기 대신 시스템 대화상자를 사용하면
+                # Step 1에서 설정한 기본 프린터 'Microsoft Print to PDF'가 자동 선택됨
+                pdf_parser._log_debug("[auto_unlock 4단계] Windows 시스템 인쇄 대화상자 호출 (Ctrl+Shift+P)...")
+                pyautogui.hotkey('ctrl', 'shift', 'p')
                 time.sleep(2.0)
 
-                # Step 5: 미리보기 옵션에서 대상을 'PDF로 저장'으로 변경
-                pdf_parser._log_debug("[auto_unlock 5단계] 미리보기 옵션에서 대상을 'PDF로 저장'으로 변경...")
-                pyautogui.press('tab')
-                time.sleep(0.3)
+                # Step 5: 시스템 인쇄 대화상자에서 [인쇄] 클릭 (Enter)
+                # Microsoft Print to PDF가 기본 프린터이므로 바로 Enter → '다른 이름으로 저장' 대화상자 열림
+                pdf_parser._log_debug("[auto_unlock 5단계] 시스템 인쇄 대화상자 [인쇄] 확인 (Enter)...")
                 pyautogui.press('enter')
-                time.sleep(0.4)
-                pyautogui.press('down')
-                time.sleep(0.2)
-                pyautogui.press('enter')
-                time.sleep(0.8)
+                time.sleep(1.5)
 
-                # 저장할 고유 PDF 파일 경로 준비 (임시 폴더)
+                # Step 6: 윈도우 [다른 이름으로 저장] 창에 파일 경로 붙여넣기 & 저장 확정
+                # Step 5의 Enter → '다른 이름으로 저장' 대화상자가 바로 열림
                 expected_pdf_path = os.path.join(tempdir, f"NTS_eTaxInvoice_{int(time.time())}.pdf")
                 pyperclip.copy(expected_pdf_path)
-
-                # Step 6: [저장] 버튼 클릭 (Enter)
-                pdf_parser._log_debug("[auto_unlock 6단계] 저장 버튼 클릭 (Enter)...")
-                pyautogui.press('enter')
-                time.sleep(1.2)
-
-                # Step 7: 윈도우 [다른 이름으로 저장] 창에 파일 경로 붙여넣기 & 저장 확정
-                pdf_parser._log_debug(f"[auto_unlock 7단계] 윈도우 파일저장 경로 입력 ({expected_pdf_path}) & 확정...")
+                pdf_parser._log_debug(f"[auto_unlock 6단계] 윈도우 파일저장 경로 입력 ({expected_pdf_path}) & 확정...")
                 pyautogui.hotkey('ctrl', 'v')
                 time.sleep(0.3)
                 pyautogui.press('enter')
 
-                # Step 8: 생성된 PDF 파일 감지 (최대 100회 = 5초)
-                pdf_parser._log_debug(f"[auto_unlock 8단계] {expected_pdf_path} 파일 생성 대기 중...")
+                # Step 7: 생성된 PDF 파일 감지 (최대 100회 = 5초)
+                pdf_parser._log_debug(f"[auto_unlock 7단계] {expected_pdf_path} 파일 생성 대기 중...")
                 for _ in range(100):
                     time.sleep(0.05)
                     if os.path.exists(expected_pdf_path) and os.path.getsize(expected_pdf_path) > 0:
