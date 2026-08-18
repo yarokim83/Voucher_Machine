@@ -2,10 +2,10 @@
 
 All notable changes to VoucherPass will be documented in this file.
 
+## [v8.2.1] - 2026-08-18
+### Patch Release: Force Printer Destination Switch to 'Save as PDF' via Shift+Tab
+- **종이 기본 프린터 우회 및 'PDF로 저장' 강제 전환 키퀀스 보강**:
+  기본 선택된 프린터가 종이/실물 프린터인 경우를 대비하여 Shift+Tab 2회 ➔ pdf 타이핑 ➔ Enter 키퀀스를 통해 대상을 무조건 **'PDF로 저장 (Save as PDF)'** 으로 강제 전환하는 로직 보강.
+
 ## [v8.2.0] - 2026-08-18
 ### Minor Feature Release: Explicit PDF Destination Printer Selection Step
-- **인쇄 대화상자내 'PDF로 저장' 프린터 전환 단계(Step 3-1) 신설**:
-  Ctrl+P 호출 후 종이 프린터가 선택되어 있는 경우를 방지하기 위해 Tab ➔ Enter 대상 프린터 변경 키 입력을 포함하는 명시적 [PDF로 저장] 선택 단계를 추가하여 인쇄가 종이로 잘못 넘어가거나 대기하는 현상을 완벽 해결.
-
-## [v8.1.3] - 2026-08-18
-### Patch Release: Add Dual-Enter Key Sequence for Save-As Dialog Confirmation

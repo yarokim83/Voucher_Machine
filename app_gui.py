@@ -455,7 +455,7 @@ shortcut.Save
         lbl_logo.bind("<Button-1>", self._click_title)
         lbl_logo.bind("<B1-Motion>", self._drag_title)
 
-        ver_b = tk.Label(hdr, text="v8.2.0", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=4, pady=1)
+        ver_b = tk.Label(hdr, text="v8.2.1", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=4, pady=1)
         ver_b.pack(side="left", padx=(4, 0))
 
         # 업로드 진행 상태 뱃지 ("1/5 완료") 및 초록색 프로그레스 막대바
@@ -869,22 +869,26 @@ shortcut.Save
                 time.sleep(0.1)
                 pyautogui.press('enter')
 
-                # Step 3: 인쇄 대화상자 호출 (Ctrl+P) -> PDF 저장 대상 선택 -> 1차 저장(Enter) -> 파일저장확정(Enter)
+                # Step 3: 인쇄 대화상자 호출 (Ctrl+P) -> [PDF로 저장] 강제 전환 -> 1차 저장(Enter) -> 파일저장확정(Enter)
                 pdf_parser._log_debug("[auto_unlock Step 3] Sending print command (Ctrl+P)...")
                 pyautogui.hotkey('ctrl', 'p')
-                time.sleep(1.2)
+                time.sleep(1.5)
 
-                # Step 3-1: 대상 프린터를 'PDF로 저장 / Microsoft Print to PDF'로 변경/확정하는 단계
-                pdf_parser._log_debug("[auto_unlock Step 3-1] Selecting PDF destination printer...")
-                pyautogui.press('tab')
+                # Step 3-1: 종이 프린터 대신 'PDF로 저장(Save as PDF)'으로 강제 전환 키퀀스
+                pdf_parser._log_debug("[auto_unlock Step 3-1] Switching printer destination to 'Save as PDF'...")
+                pyautogui.hotkey('shift', 'tab')
+                time.sleep(0.1)
+                pyautogui.hotkey('shift', 'tab')
                 time.sleep(0.2)
+                pyautogui.write('pdf', interval=0.05)
+                time.sleep(0.3)
                 pyautogui.press('enter')
-                time.sleep(0.4)
+                time.sleep(0.5)
 
                 # Step 3-2: 인쇄창 [저장] 버튼 실행 (Enter)
                 pdf_parser._log_debug("[auto_unlock Step 3-2] Pressing Enter (Click Save Button)...")
                 pyautogui.press('enter')
-                time.sleep(0.8)
+                time.sleep(1.0)
 
                 # Step 3-3: 윈도우 [다른 이름으로 저장] 파일 생성 확정 (Enter)
                 pdf_parser._log_debug("[auto_unlock Step 3-3] Pressing Enter (Confirm Save As File)...")
