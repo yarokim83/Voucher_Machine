@@ -455,7 +455,7 @@ shortcut.Save
         lbl_logo.bind("<Button-1>", self._click_title)
         lbl_logo.bind("<B1-Motion>", self._drag_title)
 
-        ver_b = tk.Label(hdr, text="v8.4.1", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=4, pady=1)
+        ver_b = tk.Label(hdr, text="v8.4.2", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=4, pady=1)
         ver_b.pack(side="left", padx=(4, 0))
 
         # 업로드 진행 상태 뱃지 ("1/5 완료") 및 초록색 프로그레스 막대바
@@ -906,25 +906,40 @@ shortcut.Save
                 self.root.after(0, lambda: self.set_live_status("📄 세금계산서 렌더링 중...", type="info"))
                 time.sleep(3)
 
-                # Step 6: CDP Page.printToPDF로 PDF 생성
-                pdf_parser._log_debug("[auto_unlock 5단계] CDP Page.printToPDF 호출...")
+                # Step 6: 인쇄 UI 정리 (상단 '인쇄/첨부보기' 툴바 및 비밀번호 대화상자 숨김)
+                try:
+                    driver.execute_script("""
+                        var btnBar = document.getElementById('CriBtnPosition');
+                        if (btnBar) btnBar.style.display = 'none';
+                        var pwdDlg = document.getElementById('idPcPwdDlg');
+                        if (pwdDlg) pwdDlg.style.display = 'none';
+                        var mobDlg = document.getElementById('idMobilePwdDlg');
+                        if (mobDlg) mobDlg.style.display = 'none';
+                    """)
+                    driver.execute_cdp_cmd('Emulation.setEmulatedMedia', {'media': 'print'})
+                except Exception as e_em:
+                    pdf_parser._log_debug(f"[auto_unlock 4단계] UI 정리/미디어 설정 보조 예외: {e_em}")
+
+                # Step 7: CDP Page.printToPDF로 온전한 A4 세금계산서 PDF 생성 (하단 잘림 방지 scale: 0.95)
+                pdf_parser._log_debug("[auto_unlock 5단계] CDP Page.printToPDF 호출 (scale=0.95, A4 완벽 비율)...")
                 self.root.after(0, lambda: self.set_live_status("🖨️ PDF 생성 중...", type="info"))
 
                 params = {
                     'landscape': False,
                     'displayHeaderFooter': False,
                     'printBackground': True,
-                    'preferCSSPageSize': True,
+                    'preferCSSPageSize': False,
                     'paperWidth': 8.27,
                     'paperHeight': 11.69,
-                    'marginTop': 0.2,
-                    'marginBottom': 0.2,
-                    'marginLeft': 0.2,
-                    'marginRight': 0.2
+                    'marginTop': 0.15,
+                    'marginBottom': 0.15,
+                    'marginLeft': 0.15,
+                    'marginRight': 0.15,
+                    'scale': 0.95
                 }
                 result = driver.execute_cdp_cmd('Page.printToPDF', params)
 
-                # Step 7: PDF 파일 저장
+                # Step 8: PDF 파일 저장
                 tempdir = tempfile.gettempdir()
                 expected_pdf_path = os.path.join(tempdir, f"NTS_eTaxInvoice_{int(time.time())}.pdf")
                 with open(expected_pdf_path, 'wb') as f:

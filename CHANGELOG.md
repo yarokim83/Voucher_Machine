@@ -2,6 +2,11 @@
 
 All notable changes to VoucherPass will be documented in this file.
 
+## [v8.4.2] - 2026-08-18
+### Patch Release: 세금계산서 PDF 하단 잘림 방지 및 A4 최적화
+- **PDF 변환 시 세금계산서 전체 레이아웃 100% 온전하게 보존**:
+  상단 '인쇄/첨부보기' 툴바 및 비밀번호 창 숨김 처리, `@media print` 에뮬레이션, `scale: 0.95` 적용으로 하단 합계금액 표 및 국세청 안내 문구까지 A4 1페이지에 완벽하게 렌더링되도록 수정.
+
 ## [v8.4.1] - 2026-08-18
 ### Patch Release: PyInstaller Selenium 전체 모듈 번들 포함
 - **PyInstaller 빌드 시 `--collect-all selenium` 적용**:
