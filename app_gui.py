@@ -455,7 +455,7 @@ shortcut.Save
         lbl_logo.bind("<Button-1>", self._click_title)
         lbl_logo.bind("<B1-Motion>", self._drag_title)
 
-        ver_b = tk.Label(hdr, text="v8.3.4", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=4, pady=1)
+        ver_b = tk.Label(hdr, text="v8.3.5", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=4, pady=1)
         ver_b.pack(side="left", padx=(4, 0))
 
         # 업로드 진행 상태 뱃지 ("1/5 완료") 및 초록색 프로그레스 막대바
@@ -861,7 +861,7 @@ shortcut.Save
                 start_timestamp = time.time() - 1.0  # 작업 시작 시각 기록
                 pdf_parser._log_debug(f"[auto_unlock] Started for: {html_path}")
 
-                # 클립보드에 비밀번호 복사
+                # 클립보드에 오직 비밀번호만 확실하게 복사
                 pyperclip.copy("6068625399")
 
                 # GUI 창을 아래로 내려 브라우저 포커스 간섭 차단
@@ -872,12 +872,10 @@ shortcut.Save
                 os.startfile(html_path)
                 time.sleep(1.5)
 
-                # Step 2: 비밀번호 입력 및 제출 (입력 상자에 직접 타이핑 & 붙여넣기)
-                pdf_parser._log_debug("[auto_unlock 2단계] 비밀번호(6068625399) 입력 및 제출...")
-                pyautogui.write("6068625399", interval=0.02)
-                time.sleep(0.1)
+                # Step 2: 비밀번호(6068625399) 단일 붙여넣기 및 제출
+                pdf_parser._log_debug("[auto_unlock 2단계] 비밀번호(6068625399) 붙여넣기 & 제출...")
                 pyautogui.hotkey('ctrl', 'v')
-                time.sleep(0.1)
+                time.sleep(0.2)
                 pyautogui.press('enter')
 
                 # Step 3: 세금계산서 본문 렌더링 대기 (1.8초)
