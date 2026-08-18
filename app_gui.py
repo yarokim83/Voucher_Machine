@@ -455,7 +455,7 @@ shortcut.Save
         lbl_logo.bind("<Button-1>", self._click_title)
         lbl_logo.bind("<B1-Motion>", self._drag_title)
 
-        ver_b = tk.Label(hdr, text="v8.1.2", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=4, pady=1)
+        ver_b = tk.Label(hdr, text="v8.1.3", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=4, pady=1)
         ver_b.pack(side="left", padx=(4, 0))
 
         # 업로드 진행 상태 뱃지 ("1/5 완료") 및 초록색 프로그레스 막대바
@@ -872,10 +872,14 @@ shortcut.Save
                 # 암호 해제 본문 로딩 대기 (1.0초)
                 time.sleep(1.0)
 
-                # Step 3: 인쇄 대화상자 호출 (Ctrl+P) 및 저장 실행
-                pdf_parser._log_debug("[auto_unlock Step 3] Sending print command (Ctrl+P) -> Enter...")
+                # Step 3: 인쇄 대화상자 호출 (Ctrl+P) -> 1차 저장(Enter) -> 파일저장확정(Enter)
+                pdf_parser._log_debug("[auto_unlock Step 3] Sending print command (Ctrl+P)...")
                 pyautogui.hotkey('ctrl', 'p')
-                time.sleep(0.8)
+                time.sleep(1.0)
+                pdf_parser._log_debug("[auto_unlock Step 3-1] Pressing Enter (Click Save)...")
+                pyautogui.press('enter')
+                time.sleep(0.7)
+                pdf_parser._log_debug("[auto_unlock Step 3-2] Pressing Enter (Confirm Save As File)...")
                 pyautogui.press('enter')
 
                 # Step 4: mtime > start_timestamp 실시간 감지 (최대 200회 = 10초)
