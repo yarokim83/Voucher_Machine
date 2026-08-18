@@ -455,7 +455,7 @@ shortcut.Save
         lbl_logo.bind("<Button-1>", self._click_title)
         lbl_logo.bind("<B1-Motion>", self._drag_title)
 
-        ver_b = tk.Label(hdr, text="v8.3.0", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=4, pady=1)
+        ver_b = tk.Label(hdr, text="v8.3.1", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=4, pady=1)
         ver_b.pack(side="left", padx=(4, 0))
 
         # 업로드 진행 상태 뱃지 ("1/5 완료") 및 초록색 프로그레스 막대바
@@ -864,37 +864,40 @@ shortcut.Save
                 # 클립보드에 비밀번호 복사
                 pyperclip.copy("6068625399")
 
-                # Step 1: 웹브라우저로 HTML 열기
-                pdf_parser._log_debug("[auto_unlock Step 1] Opening HTML file in browser...")
+                # Step 1: 웹브라우저로 HTML 세금계산서 열기
+                pdf_parser._log_debug("[auto_unlock 1단계] HTML 세금계산서 브라우저 열기...")
                 os.startfile(html_path)
+                time.sleep(1.5)
 
-                # 브라우저 창 렌더링 및 포커스 획득 대기 (1.2초)
-                time.sleep(1.2)
-
-                # Step 2: 포커스 클릭 및 비밀번호 붙여넣기 & 제출
-                pdf_parser._log_debug("[auto_unlock Step 2] Pasting password (Ctrl+V) & Submit...")
+                # Step 2: 비밀번호 입력 및 제출
+                pdf_parser._log_debug("[auto_unlock 2단계] 비밀번호 입력 및 제출 (Ctrl+V -> Enter)...")
                 pyautogui.hotkey('ctrl', 'a')
                 time.sleep(0.1)
                 pyautogui.hotkey('ctrl', 'v')
                 time.sleep(0.1)
                 pyautogui.press('enter')
-
-                # 암호 해제 본문 렌더링 대기 (1.2초)
-                time.sleep(1.2)
-
-                # Step 3: 인쇄 대화상자 호출 (Ctrl+P)
-                # 기본 프린터가 Microsoft Print to PDF이므로 대상이 PDF 저장으로 자동 선택됨!
-                pdf_parser._log_debug("[auto_unlock Step 3] Sending print command (Ctrl+P)...")
-                pyautogui.hotkey('ctrl', 'p')
                 time.sleep(1.5)
 
-                # Step 3-1: [저장] 버튼 클릭 (Enter)
-                pdf_parser._log_debug("[auto_unlock Step 3-1] Pressing Enter (Click Save Button)...")
+                # Step 3: 계산서 인쇄 미리보기 호출 (Ctrl+P)
+                pdf_parser._log_debug("[auto_unlock 3단계] 계산서 인쇄 미리보기 화면 호출 (Ctrl+P)...")
+                pyautogui.hotkey('ctrl', 'p')
+                time.sleep(1.8)
+
+                # Step 4: 미리보기 인쇄 옵션에서 대상을 PDF로 변경
+                pdf_parser._log_debug("[auto_unlock 4단계] 미리보기 옵션에서 대상을 'PDF로 저장'으로 변경...")
+                pyautogui.press('tab')
+                time.sleep(0.3)
+                pyautogui.press('enter')
+                time.sleep(0.4)
+                pyautogui.press('down')
+                time.sleep(0.2)
+                pyautogui.press('enter')
+                time.sleep(0.8)
+
+                # Step 5: 인쇄(저장) 버튼 클릭 및 파일 저장 확정
+                pdf_parser._log_debug("[auto_unlock 5단계] 인쇄(저장) 버튼 클릭 및 파일 저장 확정...")
                 pyautogui.press('enter')
                 time.sleep(1.2)
-
-                # Step 3-2: 윈도우 [다른 이름으로 저장] 파일 생성 확정 (Enter)
-                pdf_parser._log_debug("[auto_unlock Step 3-2] Pressing Enter (Confirm Save As File)...")
                 pyautogui.press('enter')
 
                 # Step 4: mtime > start_timestamp 실시간 감지 (최대 200회 = 10초)
