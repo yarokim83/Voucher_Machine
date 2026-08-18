@@ -2,7 +2,13 @@
 
 All notable changes to VoucherPass will be documented in this file.
 
-## [v8.3.6] - 2026-08-18
+## [v8.4.0] - 2026-08-18
+### Feature Release: Selenium Headless PDF 변환 (브라우저/해상도 독립)
+- **pyautogui 키보드 조작 완전 제거, Selenium headless Edge + CDP `Page.printToPDF` 로 전환**:
+  브라우저 종류(Edge/Chrome/Whale), 화면 해상도, 프린터 설정에 완전히 독립적으로 동작.
+  화면에 브라우저 창이 열리지 않으며, 백그라운드에서 비밀번호 입력 → JS 복호화 → PDF 직접 생성.
+
+
 ### Patch Release: Windows 시스템 인쇄 대화상자로 PDF 프린터 자동 선택
 - **Edge 인쇄 미리보기 대신 Windows 시스템 인쇄 대화상자 사용 (Ctrl+Shift+P)**:
   Edge 자체 인쇄 미리보기에서 Tab 키로 대상 드롭다운을 탐색하는 방식이 불안정하여, Windows 시스템 인쇄 대화상자를 직접 호출하여 사전에 설정한 기본 프린터 'Microsoft Print to PDF'가 자동 선택되도록 변경.

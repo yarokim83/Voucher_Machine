@@ -455,7 +455,7 @@ shortcut.Save
         lbl_logo.bind("<Button-1>", self._click_title)
         lbl_logo.bind("<B1-Motion>", self._drag_title)
 
-        ver_b = tk.Label(hdr, text="v8.3.6", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=4, pady=1)
+        ver_b = tk.Label(hdr, text="v8.4.0", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=4, pady=1)
         ver_b.pack(side="left", padx=(4, 0))
 
         # 업로드 진행 상태 뱃지 ("1/5 완료") 및 초록색 프로그레스 막대바
@@ -835,124 +835,123 @@ shortcut.Save
             self.set_live_status(f"⚠️ 파싱 오류: {e}", type="error")
 
     def auto_unlock_and_save_pdf(self, html_path):
+        """Selenium headless Edge + CDP Page.printToPDF 방식으로
+        NTS 세금계산서 HTML을 비밀번호 복호화 후 PDF로 변환.
+        브라우저 종류/해상도/프린터 설정에 완전 독립적."""
         import threading, time, tempfile
+
         def _worker():
-            original_default_printer = None
+            driver = None
             try:
-                import pyautogui, pyperclip, win32print
-                pyautogui.FAILSAFE = False
-                pyautogui.PAUSE = 0.05
+                from selenium import webdriver
+                from selenium.webdriver.edge.options import Options
+                from selenium.webdriver.common.by import By
+                import base64
 
-                # 1. 원래 기본 프린터 백업 및 Microsoft Print to PDF로 임시 전환
-                try:
-                    original_default_printer = win32print.GetDefaultPrinter()
-                    pdf_parser._log_debug(f"[auto_unlock] Original default printer: {original_default_printer}")
-                    win32print.SetDefaultPrinter("Microsoft Print to PDF")
-                    pdf_parser._log_debug("[auto_unlock] Temporarily set default printer to 'Microsoft Print to PDF'")
-                except Exception as e_pr:
-                    pdf_parser._log_debug(f"[auto_unlock] Failed to set default printer: {e_pr}")
+                pdf_parser._log_debug(f"[auto_unlock] Selenium headless 시작: {html_path}")
+                self.root.after(0, lambda: self.set_live_status("🔐 세금계산서 복호화 중...", type="info"))
 
-                desktop = os.path.join(os.path.expanduser('~'), 'Desktop')
-                downloads = os.path.join(os.path.expanduser('~'), 'Downloads')
-                documents = os.path.join(os.path.expanduser('~'), 'Documents')
+                # Step 1: headless Edge 브라우저 실행
+                options = Options()
+                options.add_argument('--headless=new')
+                options.add_argument('--disable-gpu')
+                options.add_argument('--no-sandbox')
+                driver = webdriver.Edge(options=options)
+
+                # Step 2: HTML 파일 열기
+                file_uri = 'file:///' + html_path.replace('\\', '/').replace(' ', '%20')
+                pdf_parser._log_debug(f"[auto_unlock 1단계] HTML 열기: {file_uri}")
+                driver.get(file_uri)
+                time.sleep(2)
+
+                # Step 3: 비밀번호 입력
+                pdf_parser._log_debug("[auto_unlock 2단계] 비밀번호(6068625399) 입력...")
+                pwd_input = None
+                inputs = driver.find_elements(By.CSS_SELECTOR, 'input[type=password], input[type=text]')
+                for inp in inputs:
+                    if inp.is_displayed() and inp.get_attribute('type') in ('password', 'text'):
+                        pwd_input = inp
+                        break
+
+                if not pwd_input:
+                    pdf_parser._log_debug("[auto_unlock ERROR] 비밀번호 입력란을 찾지 못했습니다.")
+                    self.root.after(0, lambda: self.set_live_status("⚠️ 비밀번호 입력란 미발견", type="error"))
+                    return
+
+                pwd_input.clear()
+                pwd_input.send_keys('6068625399')
+
+                # Step 4: 확인 버튼 클릭
+                pdf_parser._log_debug("[auto_unlock 3단계] 확인 버튼 클릭...")
+                buttons = driver.find_elements(By.CSS_SELECTOR, 'button, input[type=button], input[type=submit], a[onclick]')
+                clicked = False
+                for btn in buttons:
+                    if btn.is_displayed():
+                        onclick = btn.get_attribute('onclick') or ''
+                        text = btn.text or ''
+                        if 'Cri' in onclick or 'InputPwd' in onclick or '확인' in text:
+                            btn.click()
+                            clicked = True
+                            pdf_parser._log_debug(f"[auto_unlock 3단계] 클릭됨: text='{text}', onclick='{onclick[:50]}'")
+                            break
+                if not clicked:
+                    for btn in buttons:
+                        if btn.is_displayed():
+                            btn.click()
+                            clicked = True
+                            break
+
+                # Step 5: 세금계산서 렌더링 대기
+                pdf_parser._log_debug("[auto_unlock 4단계] 세금계산서 본문 렌더링 대기...")
+                self.root.after(0, lambda: self.set_live_status("📄 세금계산서 렌더링 중...", type="info"))
+                time.sleep(3)
+
+                # Step 6: CDP Page.printToPDF로 PDF 생성
+                pdf_parser._log_debug("[auto_unlock 5단계] CDP Page.printToPDF 호출...")
+                self.root.after(0, lambda: self.set_live_status("🖨️ PDF 생성 중...", type="info"))
+
+                params = {
+                    'landscape': False,
+                    'displayHeaderFooter': False,
+                    'printBackground': True,
+                    'preferCSSPageSize': True,
+                    'paperWidth': 8.27,
+                    'paperHeight': 11.69,
+                    'marginTop': 0.2,
+                    'marginBottom': 0.2,
+                    'marginLeft': 0.2,
+                    'marginRight': 0.2
+                }
+                result = driver.execute_cdp_cmd('Page.printToPDF', params)
+
+                # Step 7: PDF 파일 저장
                 tempdir = tempfile.gettempdir()
-                search_folders = [desktop, downloads, documents, tempdir]
-
-                start_timestamp = time.time() - 1.0  # 작업 시작 시각 기록
-                pdf_parser._log_debug(f"[auto_unlock] Started for: {html_path}")
-
-                # 클립보드에 오직 비밀번호만 확실하게 복사
-                pyperclip.copy("6068625399")
-
-                # GUI 창을 아래로 내려 브라우저 포커스 간섭 차단
-                self.root.after(0, lambda: self.root.lower())
-
-                # Step 1: 웹브라우저로 HTML 열기
-                pdf_parser._log_debug("[auto_unlock 1단계] HTML 세금계산서 브라우저 열기...")
-                os.startfile(html_path)
-                time.sleep(1.5)
-
-                # Step 2: 비밀번호(6068625399) 단일 붙여넣기 및 제출
-                pdf_parser._log_debug("[auto_unlock 2단계] 비밀번호(6068625399) 붙여넣기 & 제출...")
-                pyautogui.hotkey('ctrl', 'v')
-                time.sleep(0.2)
-                pyautogui.press('enter')
-
-                # Step 3: 세금계산서 본문 렌더링 대기 (1.8초)
-                pdf_parser._log_debug("[auto_unlock 3단계] 세금계산서 본문 렌더링 대기...")
-                time.sleep(1.8)
-
-                # Step 4: Windows 시스템 인쇄 대화상자 호출 (Ctrl+Shift+P)
-                # Edge 자체 인쇄 미리보기 대신 시스템 대화상자를 사용하면
-                # Step 1에서 설정한 기본 프린터 'Microsoft Print to PDF'가 자동 선택됨
-                pdf_parser._log_debug("[auto_unlock 4단계] Windows 시스템 인쇄 대화상자 호출 (Ctrl+Shift+P)...")
-                pyautogui.hotkey('ctrl', 'shift', 'p')
-                time.sleep(2.0)
-
-                # Step 5: 시스템 인쇄 대화상자에서 [인쇄] 클릭 (Enter)
-                # Microsoft Print to PDF가 기본 프린터이므로 바로 Enter → '다른 이름으로 저장' 대화상자 열림
-                pdf_parser._log_debug("[auto_unlock 5단계] 시스템 인쇄 대화상자 [인쇄] 확인 (Enter)...")
-                pyautogui.press('enter')
-                time.sleep(1.5)
-
-                # Step 6: 윈도우 [다른 이름으로 저장] 창에 파일 경로 붙여넣기 & 저장 확정
-                # Step 5의 Enter → '다른 이름으로 저장' 대화상자가 바로 열림
                 expected_pdf_path = os.path.join(tempdir, f"NTS_eTaxInvoice_{int(time.time())}.pdf")
-                pyperclip.copy(expected_pdf_path)
-                pdf_parser._log_debug(f"[auto_unlock 6단계] 윈도우 파일저장 경로 입력 ({expected_pdf_path}) & 확정...")
-                pyautogui.hotkey('ctrl', 'v')
-                time.sleep(0.3)
-                pyautogui.press('enter')
+                with open(expected_pdf_path, 'wb') as f:
+                    f.write(base64.b64decode(result['data']))
 
-                # Step 7: 생성된 PDF 파일 감지 (최대 100회 = 5초)
-                pdf_parser._log_debug(f"[auto_unlock 7단계] {expected_pdf_path} 파일 생성 대기 중...")
-                for _ in range(100):
-                    time.sleep(0.05)
-                    if os.path.exists(expected_pdf_path) and os.path.getsize(expected_pdf_path) > 0:
-                        pdf_parser._log_debug(f"[auto_unlock SUCCESS] Successfully saved and detected: {expected_pdf_path}")
-                        self.root.after(0, lambda: self.root.lift())
-                        self.root.after(0, lambda p=expected_pdf_path: self._on_new_tax_pdf_saved(p))
-                        return
+                pdf_size = os.path.getsize(expected_pdf_path)
+                pdf_parser._log_debug(f"[auto_unlock SUCCESS] PDF 저장 완료: {expected_pdf_path} ({pdf_size} bytes)")
 
-                    # 혹시 다운로드/바탕화면 등에 다른 이름으로 저장되었는지도 보조 검색
-                    newest_candidate = None
-                    newest_mtime = start_timestamp
-                    for folder in search_folders:
-                        if os.path.exists(folder):
-                            for f in os.listdir(folder):
-                                if f.lower().endswith('.pdf'):
-                                    fp = os.path.join(folder, f)
-                                    try:
-                                        mt = os.path.getmtime(fp)
-                                        if mt > newest_mtime:
-                                            newest_mtime = mt
-                                            newest_candidate = fp
-                                    except Exception:
-                                        pass
-
-                    if newest_candidate:
-                        pdf_parser._log_debug(f"[auto_unlock SUCCESS] Detected auxiliary saved PDF: {newest_candidate}")
-                        self.root.after(0, lambda: self.root.lift())
-                        self.root.after(0, lambda p=newest_candidate: self._on_new_tax_pdf_saved(p))
-                        return
-
-                pdf_parser._log_debug("[auto_unlock TIMEOUT] Timeout waiting for newly saved PDF.")
-                self.root.after(0, lambda: self.root.lift())
+                if pdf_size > 0:
+                    self.root.after(0, lambda: self.root.lift())
+                    self.root.after(0, lambda p=expected_pdf_path: self._on_new_tax_pdf_saved(p))
+                else:
+                    pdf_parser._log_debug("[auto_unlock ERROR] PDF 파일 크기가 0입니다.")
+                    self.root.after(0, lambda: self.set_live_status("⚠️ PDF 생성 실패 (0 bytes)", type="error"))
 
             except Exception as e:
                 pdf_parser._log_debug(f"[auto_unlock ERROR] Exception: {e}")
                 print(f"Auto unlock & save PDF error: {e}")
                 self.root.after(0, lambda: self.root.lift())
+                self.root.after(0, lambda: self.set_live_status(f"⚠️ PDF 변환 오류: {e}", type="error"))
 
             finally:
-                # 작업 종료 후 원래 기본 프린터로 복원
-                if original_default_printer:
+                if driver:
                     try:
-                        import win32print
-                        win32print.SetDefaultPrinter(original_default_printer)
-                        pdf_parser._log_debug(f"[auto_unlock] Restored original default printer to: {original_default_printer}")
-                    except Exception as e_rst:
-                        pdf_parser._log_debug(f"[auto_unlock] Failed to restore default printer: {e_rst}")
+                        driver.quit()
+                    except Exception:
+                        pass
 
         threading.Thread(target=_worker, daemon=True).start()
 
