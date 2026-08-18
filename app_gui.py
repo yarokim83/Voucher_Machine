@@ -455,7 +455,7 @@ shortcut.Save
         lbl_logo.bind("<Button-1>", self._click_title)
         lbl_logo.bind("<B1-Motion>", self._drag_title)
 
-        ver_b = tk.Label(hdr, text="v8.3.3", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=4, pady=1)
+        ver_b = tk.Label(hdr, text="v8.3.4", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=4, pady=1)
         ver_b.pack(side="left", padx=(4, 0))
 
         # 업로드 진행 상태 뱃지 ("1/5 완료") 및 초록색 프로그레스 막대바
@@ -900,19 +900,34 @@ shortcut.Save
                 pyautogui.press('enter')
                 time.sleep(0.8)
 
-                # Step 6: [저장] 버튼 클릭 및 파일 저장 확정
-                pdf_parser._log_debug("[auto_unlock 6단계] 저장 버튼 클릭 및 윈도우 파일저장 확정...")
+                # 저장할 고유 PDF 파일 경로 준비 (임시 폴더)
+                expected_pdf_path = os.path.join(tempdir, f"NTS_eTaxInvoice_{int(time.time())}.pdf")
+                pyperclip.copy(expected_pdf_path)
+
+                # Step 6: [저장] 버튼 클릭 (Enter)
+                pdf_parser._log_debug("[auto_unlock 6단계] 저장 버튼 클릭 (Enter)...")
                 pyautogui.press('enter')
                 time.sleep(1.2)
+
+                # Step 7: 윈도우 [다른 이름으로 저장] 창에 파일 경로 붙여넣기 & 저장 확정
+                pdf_parser._log_debug(f"[auto_unlock 7단계] 윈도우 파일저장 경로 입력 ({expected_pdf_path}) & 확정...")
+                pyautogui.hotkey('ctrl', 'v')
+                time.sleep(0.3)
                 pyautogui.press('enter')
 
-                # Step 6: mtime > start_timestamp 실시간 감지 (최대 200회 = 10초)
-                pdf_parser._log_debug("[auto_unlock 6단계] PDF 파일 실시간 저장 감지 중...")
-                for _ in range(200):
+                # Step 8: 생성된 PDF 파일 감지 (최대 100회 = 5초)
+                pdf_parser._log_debug(f"[auto_unlock 8단계] {expected_pdf_path} 파일 생성 대기 중...")
+                for _ in range(100):
                     time.sleep(0.05)
+                    if os.path.exists(expected_pdf_path) and os.path.getsize(expected_pdf_path) > 0:
+                        pdf_parser._log_debug(f"[auto_unlock SUCCESS] Successfully saved and detected: {expected_pdf_path}")
+                        self.root.after(0, lambda: self.root.lift())
+                        self.root.after(0, lambda p=expected_pdf_path: self._on_new_tax_pdf_saved(p))
+                        return
+
+                    # 혹시 다운로드/바탕화면 등에 다른 이름으로 저장되었는지도 보조 검색
                     newest_candidate = None
                     newest_mtime = start_timestamp
-
                     for folder in search_folders:
                         if os.path.exists(folder):
                             for f in os.listdir(folder):
@@ -927,14 +942,12 @@ shortcut.Save
                                         pass
 
                     if newest_candidate:
-                        pdf_parser._log_debug(f"[auto_unlock SUCCESS] Detected newly saved PDF: {newest_candidate}")
-                        # GUI 창 다시 최상위 복원
+                        pdf_parser._log_debug(f"[auto_unlock SUCCESS] Detected auxiliary saved PDF: {newest_candidate}")
                         self.root.after(0, lambda: self.root.lift())
                         self.root.after(0, lambda p=newest_candidate: self._on_new_tax_pdf_saved(p))
                         return
 
                 pdf_parser._log_debug("[auto_unlock TIMEOUT] Timeout waiting for newly saved PDF.")
-                # 타임아웃 시에도 GUI 창 복원
                 self.root.after(0, lambda: self.root.lift())
 
             except Exception as e:
