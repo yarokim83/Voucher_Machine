@@ -190,7 +190,12 @@ def parse_tax_invoice_date(file_path):
                 _log_debug(f"SUCCESS [Step 2 Keyword '발행일자/공급일자']: {res}")
                 return res
 
-    # 3. 문서 전체 20XX년/월/일 탐색
+    # HTML 세금계산서 원본의 경우 암호문 내부 보안안내 날짜(예: Active X 안내 2017년) 오작동 방지
+    if _is_html_file(file_path):
+        _log_debug("HTML file without explicit 작성일자/발행일자 keywords. Skipping generic whole-document date match to avoid security notice date misparsing.")
+        return ''
+
+    # 3. PDF 문서 전체 20XX년/월/일 탐색
     matches = re.findall(r'(20[1-3][0-9])[\s/.\-년]+\s*(\d{1,2})[\s/.\-월]+\s*(\d{1,2})[일\s]?', full_text)
     _log_debug(f"Step 3-A re.findall(년월일) matches: {matches}")
     if matches:
