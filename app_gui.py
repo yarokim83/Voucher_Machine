@@ -455,7 +455,7 @@ shortcut.Save
         lbl_logo.bind("<Button-1>", self._click_title)
         lbl_logo.bind("<B1-Motion>", self._drag_title)
 
-        ver_b = tk.Label(hdr, text="v8.3.1", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=4, pady=1)
+        ver_b = tk.Label(hdr, text="v8.3.2", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=4, pady=1)
         ver_b.pack(side="left", padx=(4, 0))
 
         # 업로드 진행 상태 뱃지 ("1/5 완료") 및 초록색 프로그레스 막대바
@@ -864,10 +864,18 @@ shortcut.Save
                 # 클립보드에 비밀번호 복사
                 pyperclip.copy("6068625399")
 
-                # Step 1: 웹브라우저로 HTML 세금계산서 열기
+                # GUI 창을 아래로 내려 브라우저 포커스 간섭 차단
+                self.root.after(0, lambda: self.root.lower())
+
+                # Step 1: 웹브라우저로 HTML 열기
                 pdf_parser._log_debug("[auto_unlock 1단계] HTML 세금계산서 브라우저 열기...")
                 os.startfile(html_path)
-                time.sleep(1.5)
+                time.sleep(1.2)
+
+                # 화면 중앙 클릭으로 브라우저 창 강제 활성화(포커스 획득)
+                sw, sh = pyautogui.size()
+                pyautogui.click(sw // 2, sh // 2)
+                time.sleep(0.3)
 
                 # Step 2: 비밀번호 입력 및 제출
                 pdf_parser._log_debug("[auto_unlock 2단계] 비밀번호 입력 및 제출 (Ctrl+V -> Enter)...")
@@ -878,30 +886,27 @@ shortcut.Save
                 pyautogui.press('enter')
                 time.sleep(1.5)
 
-                # Step 3: 계산서 인쇄 미리보기 호출 (Ctrl+P)
-                pdf_parser._log_debug("[auto_unlock 3단계] 계산서 인쇄 미리보기 화면 호출 (Ctrl+P)...")
-                pyautogui.hotkey('ctrl', 'p')
-                time.sleep(1.8)
-
-                # Step 4: 미리보기 인쇄 옵션에서 대상을 PDF로 변경
-                pdf_parser._log_debug("[auto_unlock 4단계] 미리보기 옵션에서 대상을 'PDF로 저장'으로 변경...")
-                pyautogui.press('tab')
+                # 세금계산서 본문 로딩 후 브라우저 중앙 재클릭 (포커스 보장)
+                pyautogui.click(sw // 2, sh // 2)
                 time.sleep(0.3)
-                pyautogui.press('enter')
-                time.sleep(0.4)
-                pyautogui.press('down')
-                time.sleep(0.2)
-                pyautogui.press('enter')
-                time.sleep(0.8)
 
-                # Step 5: 인쇄(저장) 버튼 클릭 및 파일 저장 확정
-                pdf_parser._log_debug("[auto_unlock 5단계] 인쇄(저장) 버튼 클릭 및 파일 저장 확정...")
+                # Step 3: 계산서 인쇄 미리보기 화면 호출 (Ctrl+P)
+                pdf_parser._log_debug("[auto_unlock 3단계] 인쇄 미리보기 호출 (Ctrl+P)...")
+                pyautogui.hotkey('ctrl', 'p')
+                time.sleep(2.0)
+
+                # Step 4: [저장/인쇄] 버튼 클릭 (Enter)
+                # 기본 프린터가 Microsoft Print to PDF이므로 대상이 'PDF로 저장'으로 자동 선택됨!
+                pdf_parser._log_debug("[auto_unlock 4단계] 저장 버튼 클릭 (Enter)...")
                 pyautogui.press('enter')
                 time.sleep(1.2)
+
+                # Step 5: 윈도우 [다른 이름으로 저장] 파일명 저장 확정 (Enter)
+                pdf_parser._log_debug("[auto_unlock 5단계] 윈도우 파일저장 확정 (Enter)...")
                 pyautogui.press('enter')
 
-                # Step 4: mtime > start_timestamp 실시간 감지 (최대 200회 = 10초)
-                pdf_parser._log_debug("[auto_unlock Step 4] Monitoring folders for newly saved PDF...")
+                # Step 6: mtime > start_timestamp 실시간 감지 (최대 200회 = 10초)
+                pdf_parser._log_debug("[auto_unlock 6단계] PDF 파일 실시간 저장 감지 중...")
                 for _ in range(200):
                     time.sleep(0.05)
                     newest_candidate = None
@@ -922,14 +927,19 @@ shortcut.Save
 
                     if newest_candidate:
                         pdf_parser._log_debug(f"[auto_unlock SUCCESS] Detected newly saved PDF: {newest_candidate}")
+                        # GUI 창 다시 최상위 복원
+                        self.root.after(0, lambda: self.root.lift())
                         self.root.after(0, lambda p=newest_candidate: self._on_new_tax_pdf_saved(p))
                         return
 
                 pdf_parser._log_debug("[auto_unlock TIMEOUT] Timeout waiting for newly saved PDF.")
+                # 타임아웃 시에도 GUI 창 복원
+                self.root.after(0, lambda: self.root.lift())
 
             except Exception as e:
                 pdf_parser._log_debug(f"[auto_unlock ERROR] Exception: {e}")
                 print(f"Auto unlock & save PDF error: {e}")
+                self.root.after(0, lambda: self.root.lift())
 
             finally:
                 # 작업 종료 후 원래 기본 프린터로 복원
