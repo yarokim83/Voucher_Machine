@@ -793,11 +793,15 @@ shortcut.Save
         if not tax_path:
             tax_path = self.tax_pdf_path.get()
 
+        pdf_parser._log_debug(f"parse_tax_invoice_uploaded called with: {tax_path}")
+
         if not tax_path or not os.path.exists(tax_path):
+            pdf_parser._log_debug(f"parse_tax_invoice_uploaded: File missing or invalid: {tax_path}")
             return
 
         # Step 1 & 2: HTML 세금계산서일 경우 무음 자동 해제 및 PDF 변환 저장 파이프라인 가동
         if pdf_parser._is_html_file(tax_path):
+            pdf_parser._log_debug("Detected HTML file. Triggering auto_unlock_and_save_pdf...")
             self.set_live_status("⚡ 국세청 HTML 암호 해제 & PDF 저장 파이프라인 가동 중...", type="info")
             self.auto_unlock_and_save_pdf(tax_path)
             return
@@ -805,14 +809,18 @@ shortcut.Save
         # Step 3: PDF 파일에서 작성일자 파싱
         try:
             tax_date = pdf_parser.parse_tax_invoice_date(tax_path)
+            pdf_parser._log_debug(f"parse_tax_invoice_date result for PDF: {tax_date}")
             if tax_date:
                 self.date_var.set(tax_date)
+                if hasattr(self, 'e_date'):
+                    self._shake_widget(self.e_date, highlight_bg="#FEF08A")
                 self.root.update_idletasks()
                 self.root.update()
                 self.set_live_status(f"🎉 작성일자 [{tax_date}] 자동 획득 성공! ✨", type="success")
             else:
                 self.set_live_status("⚠️ 세금계산서 작성일자를 찾지 못했습니다. 수동 입력해 주세요.", type="error")
         except Exception as e:
+            pdf_parser._log_debug(f"parse_tax_invoice_uploaded exception: {e}")
             self.set_live_status(f"⚠️ 파싱 오류: {e}", type="error")
 
     def auto_unlock_and_save_pdf(self, html_path):
@@ -826,6 +834,7 @@ shortcut.Save
                 desktop = os.path.join(os.path.expanduser('~'), 'Desktop')
                 downloads = os.path.join(os.path.expanduser('~'), 'Downloads')
                 start_timestamp = time.time() - 1.0  # 작업 시작 시각 기록
+                pdf_parser._log_debug(f"auto_unlock_and_save_pdf worker started for: {html_path}")
 
                 pyperclip.copy("6068625399")
 
@@ -864,20 +873,26 @@ shortcut.Save
                                         pass
 
                     if newest_candidate:
+                        pdf_parser._log_debug(f"Detected newly saved PDF from HTML unlock: {newest_candidate}")
                         self.root.after(0, lambda p=newest_candidate: self._on_new_tax_pdf_saved(p))
                         return
 
+                pdf_parser._log_debug("Timeout waiting for newly saved PDF from HTML unlock.")
+
             except Exception as e:
+                pdf_parser._log_debug(f"Auto unlock & save PDF error: {e}")
                 print(f"Auto unlock & save PDF error: {e}")
 
         threading.Thread(target=_worker, daemon=True).start()
 
     def _on_new_tax_pdf_saved(self, pdf_path):
         if not pdf_path or not os.path.exists(pdf_path):
+            pdf_parser._log_debug(f"_on_new_tax_pdf_saved: Invalid path: {pdf_path}")
             return
 
         def _parse_job():
             import time
+            pdf_parser._log_debug(f"_on_new_tax_pdf_saved parse job started for: {pdf_path}")
             # 0.05초 단위 초고속 파일 안정화 대기
             for _ in range(10):
                 try:
@@ -892,14 +907,22 @@ shortcut.Save
             tax_date = pdf_parser.parse_tax_invoice_date(pdf_path)
             if not tax_date:
                 time.sleep(0.1)
+                pdf_parser._log_debug("Retrying parse_tax_invoice_date second attempt...")
                 tax_date = pdf_parser.parse_tax_invoice_date(pdf_path)
 
+            pdf_parser._log_debug(f"_on_new_tax_pdf_saved final tax_date: {tax_date}")
             if tax_date:
                 self.root.after(0, lambda d=tax_date: self._apply_tax_date(d))
             else:
-                self.root.after(0, lambda: messagebox.showwarning("작성일자 미추출", f"저장된 PDF 세금계산서 [{os.path.basename(pdf_path)}] 에서 작성일자를 발견하지 못했습니다."))
+                self.root.after(0, lambda: messagebox.showwarning("작성일자 미추출", f"저장된 PDF 세금계산서 [{os.path.basename(pdf_path)}] 에서 작성일자를 발견하지 못했습니다.\n\n(자세한 원인은 voucher_pass_debug.log 파일을 참고하세요)"))
 
         threading.Thread(target=_parse_job, daemon=True).start()
+
+    def _apply_tax_date(self, tax_date):
+        self.date_var.set(tax_date)
+        if hasattr(self, 'e_date'):
+            self._shake_widget(self.e_date, highlight_bg="#FEF08A")
+        self.set_live_status(f"🎉 작성일자 [{tax_date}] 자동 획득 성공! ✨", type="success")
 
     def _shake_widget(self, widget, highlight_bg="#FEF08A"):
         """

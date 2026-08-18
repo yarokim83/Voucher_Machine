@@ -2,6 +2,7 @@ import re
 import os
 import tempfile
 import base64
+import time
 
 try:
     import pdfplumber
@@ -75,27 +76,44 @@ def _is_html_file(file_path):
     return file_path.lower().endswith(('.html', '.htm'))
 
 def _log_debug(msg):
-    try:
-        log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'voucher_pass_debug.log')
-        with open(log_path, 'a', encoding='utf-8') as f:
-            f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {msg}\n")
-    except Exception:
-        pass
+    log_locations = [
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), 'voucher_pass_debug.log'),
+        os.path.join(os.path.expanduser('~'), 'Desktop', 'voucher_pass_debug.log'),
+        os.path.join(os.getenv('APPDATA', '.'), 'VoucherPass', 'voucher_pass_debug.log'),
+    ]
+    formatted = f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {msg}\n"
+    print(f"[DEBUG] {msg}")
+    for log_path in log_locations:
+        try:
+            os.makedirs(os.path.dirname(log_path), exist_ok=True)
+            with open(log_path, 'a', encoding='utf-8') as f:
+                f.write(formatted)
+        except Exception:
+            pass
 
 def parse_tax_invoice_date(file_path):
+    _log_debug(f"=== [parse_tax_invoice_date START] File: {file_path} ===")
     if not os.path.exists(file_path):
+        _log_debug(f"ERROR: File does not exist: {file_path}")
         return ''
 
+    _log_debug(f"File size: {os.path.getsize(file_path)} bytes")
+
     if _is_html_file(file_path):
+        _log_debug("File type: HTML")
         full_text = _read_html_text(file_path)
     else:
+        _log_debug("File type: PDF")
         try:
             dec_pdf = decrypt_pdf_to_temp(file_path)
             target_p = dec_pdf if (dec_pdf and os.path.exists(dec_pdf)) else file_path
-        except Exception:
+            _log_debug(f"Decrypted PDF path: {target_p}")
+        except Exception as e:
+            _log_debug(f"Decrypt exception: {e}")
             target_p = file_path
 
         full_text = extract_pdf_text_safely(target_p)
+        _log_debug(f"Safely extracted PDF text length: {len(full_text)}")
 
         # 표(Table) 셀 텍스트도 추가 평탄화 수집
         if HAS_PDFPLUMBER:
@@ -103,69 +121,116 @@ def parse_tax_invoice_date(file_path):
                 for pwd in DEFAULT_PASSWORDS:
                     try:
                         with pdfplumber.open(target_p, password=pwd) as pdf:
-                            for page in pdf.pages:
+                            _log_debug(f"pdfplumber opened PDF. Pages count: {len(pdf.pages)}")
+                            for idx, page in enumerate(pdf.pages):
                                 tables = page.extract_tables()
+                                _log_debug(f"Page {idx+1} tables found: {len(tables)}")
                                 for tbl in tables:
                                     for row in tbl:
                                         if row:
                                             row_str = " ".join([str(cell) for cell in row if cell is not None])
                                             full_text += "\n" + row_str
-                    except Exception:
+                    except Exception as pe:
+                        _log_debug(f"pdfplumber page table extract exception with pwd '{pwd}': {pe}")
                         continue
-            except Exception:
-                pass
+            except Exception as pe_outer:
+                _log_debug(f"pdfplumber outer exception: {pe_outer}")
 
     if not full_text or not full_text.strip():
+        _log_debug("ERROR: full_text is empty after extraction!")
         return ''
 
-    # 1. 스크린샷 국세청 세금계산서 전용: '작성일자' 키워드 뒤/아래 100자 문맥 잘라내어 202X 날짜 수집
+    _log_debug(f"Total full_text length: {len(full_text)}")
+    _log_debug(f"Full text snippet (first 300 chars):\n{full_text[:300]}")
+
+    # 1. '작성일자' / '작 성 일 자' 키워드 뒤/아래 150자 문맥 잘라내어 날짜 수집
     kw_pos = full_text.find("작성일자")
+    if kw_pos == -1:
+        # 공백 들어간 형태 검색
+        m_kw = re.search(r'작\s*성\s*일\s*자', full_text)
+        if m_kw:
+            kw_pos = m_kw.start()
+
     if kw_pos != -1:
-        sub_text = full_text[kw_pos:kw_pos + 120]
-        m = re.search(r'(202[0-9]|203[0-9])[\s/.\-년]+(\d{1,2})[\s/.\-월]+(\d{1,2})', sub_text)
+        sub_text = full_text[kw_pos:kw_pos + 150]
+        _log_debug(f"Found '작성일자' at pos {kw_pos}. Subtext: {repr(sub_text)}")
+
+        m = re.search(r'(20[1-3][0-9])[\s/.\-년]+\s*(\d{1,2})[\s/.\-월]+\s*(\d{1,2})', sub_text)
         if m:
             y, month, d = m.group(1), int(m.group(2)), int(m.group(3))
             if 1 <= month <= 12 and 1 <= d <= 31:
-                return f"{y}-{month:02d}-{d:02d}"
+                res = f"{y}-{month:02d}-{d:02d}"
+                _log_debug(f"SUCCESS [Step 1-A Keyword '작성일자']: {res}")
+                return res
 
-        m_dig = re.search(r'(202[0-9]|203[0-9])(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])', sub_text)
+        m_dig = re.search(r'(20[1-3][0-9])(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])', sub_text)
         if m_dig:
             y, month, d = m_dig.group(1), int(m_dig.group(2)), int(m_dig.group(3))
-            return f"{y}-{month:02d}-{d:02d}"
+            res = f"{y}-{month:02d}-{d:02d}"
+            _log_debug(f"SUCCESS [Step 1-B Keyword '작성일자' digits]: {res}")
+            return res
 
-    # 2. '발행일자' / '공급일자' 키워드 뒤/아래 문맥 탐색
+    # 2. '발행일자' / '공급일자' 키워드 탐색
     kw_pos_bal = full_text.find("발행일자")
     if kw_pos_bal == -1:
         kw_pos_bal = full_text.find("공급일자")
+    if kw_pos_bal == -1:
+        m_kw_bal = re.search(r'(?:발\s*행\s*일\s*자|공\s*급\s*일\s*자)', full_text)
+        if m_kw_bal:
+            kw_pos_bal = m_kw_bal.start()
 
     if kw_pos_bal != -1:
-        sub_text = full_text[kw_pos_bal:kw_pos_bal + 120]
-        m = re.search(r'(202[0-9]|203[0-9])[\s/.\-년]+(\d{1,2})[\s/.\-월]+(\d{1,2})', sub_text)
+        sub_text = full_text[kw_pos_bal:kw_pos_bal + 150]
+        _log_debug(f"Found '발행일자/공급일자' at pos {kw_pos_bal}. Subtext: {repr(sub_text)}")
+        m = re.search(r'(20[1-3][0-9])[\s/.\-년]+\s*(\d{1,2})[\s/.\-월]+\s*(\d{1,2})', sub_text)
         if m:
             y, month, d = m.group(1), int(m.group(2)), int(m.group(3))
             if 1 <= month <= 12 and 1 <= d <= 31:
-                return f"{y}-{month:02d}-{d:02d}"
+                res = f"{y}-{month:02d}-{d:02d}"
+                _log_debug(f"SUCCESS [Step 2 Keyword '발행일자/공급일자']: {res}")
+                return res
 
-    # 3. 문서 전체 202X년/월/일 탐색 (예: 2026/08/11, 2026.08.11, 2026-08-11, 2026년 08월 11일)
-    matches = re.findall(r'(202[0-9]|203[0-9])[\s/.\-년]+\s*(\d{1,2})[\s/.\-월]+\s*(\d{1,2})[일\s]?', full_text)
+    # 3. 문서 전체 20XX년/월/일 탐색
+    matches = re.findall(r'(20[1-3][0-9])[\s/.\-년]+\s*(\d{1,2})[\s/.\-월]+\s*(\d{1,2})[일\s]?', full_text)
+    _log_debug(f"Step 3-A re.findall(년월일) matches: {matches}")
     if matches:
         for mat in matches:
             y, month, d = mat[0], int(mat[1]), int(mat[2])
             if 1 <= month <= 12 and 1 <= d <= 31:
-                return f"{y}-{month:02d}-{d:02d}"
+                res = f"{y}-{month:02d}-{d:02d}"
+                _log_debug(f"SUCCESS [Step 3-A Fulltext 년월일]: {res}")
+                return res
 
-    matches_fmt = re.findall(r'(202[0-9]|203[0-9])[-.\s/](\d{1,2})[-.\s/](\d{1,2})', full_text)
+    matches_fmt = re.findall(r'(20[1-3][0-9])[-.\s/](\d{1,2})[-.\s/](\d{1,2})', full_text)
+    _log_debug(f"Step 3-B re.findall(YYYY-MM-DD) matches: {matches_fmt}")
     if matches_fmt:
         for mat in matches_fmt:
             y, month, d = mat[0], int(mat[1]), int(mat[2])
             if 1 <= month <= 12 and 1 <= d <= 31:
-                return f"{y}-{month:02d}-{d:02d}"
+                res = f"{y}-{month:02d}-{d:02d}"
+                _log_debug(f"SUCCESS [Step 3-B Fulltext YYYY-MM-DD]: {res}")
+                return res
 
-    matches_digits = re.findall(r'(202[0-9]|203[0-9])(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])', full_text)
+    matches_digits = re.findall(r'(20[1-3][0-9])(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])', full_text)
+    _log_debug(f"Step 3-C re.findall(8-digit YYYYMMDD) matches: {matches_digits}")
     if matches_digits:
         y, month, d = matches_digits[0][0], int(matches_digits[0][1]), int(matches_digits[0][2])
-        return f"{y}-{month:02d}-{d:02d}"
+        res = f"{y}-{month:02d}-{d:02d}"
+        _log_debug(f"SUCCESS [Step 3-C Fulltext YYYYMMDD]: {res}")
+        return res
 
+    # 4. 2자리 연도 패턴 탐색 (예: 26-08-11, 26.08.11, 26년 08월 11일)
+    matches_short = re.findall(r'(?:^|[^\d])([2-3][0-9])[-.\s/년]+\s*(0[1-9]|1[0-2])[-.\s/월]+\s*(0[1-9]|[12][0-9]|3[01])', full_text)
+    _log_debug(f"Step 4 Short year matches: {matches_short}")
+    if matches_short:
+        for mat in matches_short:
+            y_short, month, d = mat[0], int(mat[1]), int(mat[2])
+            if 1 <= month <= 12 and 1 <= d <= 31:
+                res = f"20{y_short}-{month:02d}-{d:02d}"
+                _log_debug(f"SUCCESS [Step 4 Short year YY-MM-DD]: {res}")
+                return res
+
+    _log_debug("FAILED: Could not parse any date from full_text")
     return ''
 
 def parse_pr_pdf(pdf_path):
