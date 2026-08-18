@@ -2,6 +2,11 @@
 
 All notable changes to VoucherPass will be documented in this file.
 
+## [v8.4.1] - 2026-08-18
+### Patch Release: PyInstaller Selenium 전체 모듈 번들 포함
+- **PyInstaller 빌드 시 `--collect-all selenium` 적용**:
+  `No module named 'selenium.webdriver.edge.webdriver'` 번들 누락 오류를 완벽히 해결하여 headless PDF 변환이 정상 실행되도록 수정.
+
 ## [v8.4.0] - 2026-08-18
 ### Feature Release: Selenium Headless PDF 변환 (브라우저/해상도 독립)
 - **pyautogui 키보드 조작 완전 제거, Selenium headless Edge + CDP `Page.printToPDF` 로 전환**:
