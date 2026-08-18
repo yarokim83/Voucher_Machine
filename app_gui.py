@@ -455,7 +455,7 @@ shortcut.Save
         lbl_logo.bind("<Button-1>", self._click_title)
         lbl_logo.bind("<B1-Motion>", self._drag_title)
 
-        ver_b = tk.Label(hdr, text="v8.2.3", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=4, pady=1)
+        ver_b = tk.Label(hdr, text="v8.3.0", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=4, pady=1)
         ver_b.pack(side="left", padx=(4, 0))
 
         # 업로드 진행 상태 뱃지 ("1/5 완료") 및 초록색 프로그레스 막대바
@@ -837,10 +837,20 @@ shortcut.Save
     def auto_unlock_and_save_pdf(self, html_path):
         import threading, time, tempfile
         def _worker():
+            original_default_printer = None
             try:
-                import pyautogui, pyperclip
+                import pyautogui, pyperclip, win32print
                 pyautogui.FAILSAFE = False
                 pyautogui.PAUSE = 0.05
+
+                # 1. 원래 기본 프린터 백업 및 Microsoft Print to PDF로 임시 전환
+                try:
+                    original_default_printer = win32print.GetDefaultPrinter()
+                    pdf_parser._log_debug(f"[auto_unlock] Original default printer: {original_default_printer}")
+                    win32print.SetDefaultPrinter("Microsoft Print to PDF")
+                    pdf_parser._log_debug("[auto_unlock] Temporarily set default printer to 'Microsoft Print to PDF'")
+                except Exception as e_pr:
+                    pdf_parser._log_debug(f"[auto_unlock] Failed to set default printer: {e_pr}")
 
                 desktop = os.path.join(os.path.expanduser('~'), 'Desktop')
                 downloads = os.path.join(os.path.expanduser('~'), 'Downloads')
@@ -851,7 +861,7 @@ shortcut.Save
                 start_timestamp = time.time() - 1.0  # 작업 시작 시각 기록
                 pdf_parser._log_debug(f"[auto_unlock] Started for: {html_path}")
 
-                # 클립보드에 비밀번호 준비
+                # 클립보드에 비밀번호 복사
                 pyperclip.copy("6068625399")
 
                 # Step 1: 웹브라우저로 HTML 열기
@@ -861,7 +871,7 @@ shortcut.Save
                 # 브라우저 창 렌더링 및 포커스 획득 대기 (1.2초)
                 time.sleep(1.2)
 
-                # Step 2: 포커스 클릭/탭 획득 및 비밀번호 붙여넣기
+                # Step 2: 포커스 클릭 및 비밀번호 붙여넣기 & 제출
                 pdf_parser._log_debug("[auto_unlock Step 2] Pasting password (Ctrl+V) & Submit...")
                 pyautogui.hotkey('ctrl', 'a')
                 time.sleep(0.1)
@@ -869,36 +879,22 @@ shortcut.Save
                 time.sleep(0.1)
                 pyautogui.press('enter')
 
-                # Step 3: 브라우저 인쇄 대화상자 호출 (Ctrl+P 차단 우회: Alt+F -> P)
-                pdf_parser._log_debug("[auto_unlock Step 3] Triggering Print dialog via Alt+F -> P...")
-                pyautogui.hotkey('alt', 'f')
-                time.sleep(0.3)
-                pyautogui.press('p')
+                # 암호 해제 본문 렌더링 대기 (1.2초)
+                time.sleep(1.2)
+
+                # Step 3: 인쇄 대화상자 호출 (Ctrl+P)
+                # 기본 프린터가 Microsoft Print to PDF이므로 대상이 PDF 저장으로 자동 선택됨!
+                pdf_parser._log_debug("[auto_unlock Step 3] Sending print command (Ctrl+P)...")
+                pyautogui.hotkey('ctrl', 'p')
                 time.sleep(1.5)
 
-                # Step 3-1: Edge/Chrome 인쇄 창의 [대상] 드롭다운에서 'PDF로 저장' 선택
-                pdf_parser._log_debug("[auto_unlock Step 3-1] Opening Destination dropdown & selecting 'Save as PDF'...")
-                # Tab 키로 [대상] 드롭다운 포커스
-                pyautogui.press('tab')
-                time.sleep(0.2)
-                # Enter로 드롭다운 열기
-                pyautogui.press('enter')
-                time.sleep(0.3)
-                # Down 방향키 및 'pdf' 키입력으로 'PDF로 저장' 선택
-                pyautogui.press('down')
-                time.sleep(0.1)
-                pyautogui.write('pdf', interval=0.05)
-                time.sleep(0.2)
-                pyautogui.press('enter')
-                time.sleep(0.5)
-
-                # Step 3-2: 변경된 [저장] 버튼 클릭 (Enter)
-                pdf_parser._log_debug("[auto_unlock Step 3-2] Pressing Enter (Click Save Button)...")
+                # Step 3-1: [저장] 버튼 클릭 (Enter)
+                pdf_parser._log_debug("[auto_unlock Step 3-1] Pressing Enter (Click Save Button)...")
                 pyautogui.press('enter')
                 time.sleep(1.2)
 
-                # Step 3-3: 윈도우 [다른 이름으로 저장] 대화상자 저장 확정 (Enter)
-                pdf_parser._log_debug("[auto_unlock Step 3-3] Pressing Enter (Confirm Save As File)...")
+                # Step 3-2: 윈도우 [다른 이름으로 저장] 파일 생성 확정 (Enter)
+                pdf_parser._log_debug("[auto_unlock Step 3-2] Pressing Enter (Confirm Save As File)...")
                 pyautogui.press('enter')
 
                 # Step 4: mtime > start_timestamp 실시간 감지 (최대 200회 = 10초)
@@ -931,6 +927,16 @@ shortcut.Save
             except Exception as e:
                 pdf_parser._log_debug(f"[auto_unlock ERROR] Exception: {e}")
                 print(f"Auto unlock & save PDF error: {e}")
+
+            finally:
+                # 작업 종료 후 원래 기본 프린터로 복원
+                if original_default_printer:
+                    try:
+                        import win32print
+                        win32print.SetDefaultPrinter(original_default_printer)
+                        pdf_parser._log_debug(f"[auto_unlock] Restored original default printer to: {original_default_printer}")
+                    except Exception as e_rst:
+                        pdf_parser._log_debug(f"[auto_unlock] Failed to restore default printer: {e_rst}")
 
         threading.Thread(target=_worker, daemon=True).start()
 
