@@ -2,6 +2,11 @@
 
 All notable changes to VoucherPass will be documented in this file.
 
+## [v8.4.3] - 2026-08-18
+### Patch Release: 국세청 세금계산서 iframe 스크롤바 원천 제거 및 높이 자동 확장
+- **우측 스크롤바 및 하단부 잘림 현상 완벽 해결**:
+  국세청 HTML 내부의 세금계산서 본문 `iframe(CriMsgPosition)`의 고정 높이 제약을 해제하고 내부 전체 문서 높이에 맞춰 자동 확장(`overflow: hidden`) 처리하여, 우측 스크롤바가 찍히거나 하단 합계금액이 잘리는 현상을 100% 원천 해결.
+
 ## [v8.4.2] - 2026-08-18
 ### Patch Release: 세금계산서 PDF 하단 잘림 방지 및 A4 최적화
 - **PDF 변환 시 세금계산서 전체 레이아웃 100% 온전하게 보존**:

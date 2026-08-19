@@ -455,7 +455,7 @@ shortcut.Save
         lbl_logo.bind("<Button-1>", self._click_title)
         lbl_logo.bind("<B1-Motion>", self._drag_title)
 
-        ver_b = tk.Label(hdr, text="v8.4.2", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=4, pady=1)
+        ver_b = tk.Label(hdr, text="v8.4.3", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=4, pady=1)
         ver_b.pack(side="left", padx=(4, 0))
 
         # 업로드 진행 상태 뱃지 ("1/5 완료") 및 초록색 프로그레스 막대바
@@ -851,11 +851,12 @@ shortcut.Save
                 pdf_parser._log_debug(f"[auto_unlock] Selenium headless 시작: {html_path}")
                 self.root.after(0, lambda: self.set_live_status("🔐 세금계산서 복호화 중...", type="info"))
 
-                # Step 1: headless Edge 브라우저 실행
+                # Step 1: headless Edge 브라우저 실행 (A4 세로 비율에 맞게 충분한 윈도우 크기 지정)
                 options = Options()
                 options.add_argument('--headless=new')
                 options.add_argument('--disable-gpu')
                 options.add_argument('--no-sandbox')
+                options.add_argument('--window-size=1200,1600')
                 driver = webdriver.Edge(options=options)
 
                 # Step 2: HTML 파일 열기
@@ -906,15 +907,29 @@ shortcut.Save
                 self.root.after(0, lambda: self.set_live_status("📄 세금계산서 렌더링 중...", type="info"))
                 time.sleep(3)
 
-                # Step 6: 인쇄 UI 정리 (상단 '인쇄/첨부보기' 툴바 및 비밀번호 대화상자 숨김)
+                # Step 6: 인쇄 UI 정리 (상단 '인쇄/첨부보기' 툴바 및 비밀번호 대화상자 숨김, iframe 높이 자동 확장 및 스크롤바 제거)
                 try:
                     driver.execute_script("""
+                        // 상단 버튼바 및 팝업 대화상자 숨김
                         var btnBar = document.getElementById('CriBtnPosition');
                         if (btnBar) btnBar.style.display = 'none';
                         var pwdDlg = document.getElementById('idPcPwdDlg');
                         if (pwdDlg) pwdDlg.style.display = 'none';
                         var mobDlg = document.getElementById('idMobilePwdDlg');
                         if (mobDlg) mobDlg.style.display = 'none';
+                        
+                        // 세금계산서 본문 iframe(CriMsgPosition) 높이를 내부 문서 전체 높이로 확장하고 스크롤바 제거
+                        var ifr = document.getElementById('CriMsgPosition');
+                        if (ifr) {
+                            var ifrDoc = ifr.contentDocument || ifr.contentWindow.document;
+                            if (ifrDoc && ifrDoc.body) {
+                                var fullHeight = ifrDoc.body.scrollHeight || ifrDoc.documentElement.scrollHeight;
+                                ifr.style.height = (fullHeight + 30) + 'px';
+                                ifr.height = (fullHeight + 30) + 'px';
+                                ifr.style.overflow = 'hidden';
+                                ifrDoc.body.style.overflow = 'hidden';
+                            }
+                        }
                     """)
                     driver.execute_cdp_cmd('Emulation.setEmulatedMedia', {'media': 'print'})
                 except Exception as e_em:
