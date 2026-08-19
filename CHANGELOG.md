@@ -2,6 +2,11 @@
 
 All notable changes to VoucherPass will be documented in this file.
 
+## [v8.4.4] - 2026-08-19
+### Patch Release: 바탕화면 테스트 파일 및 로그 생성 방지
+- **바탕화면 클린업 및 로그 경로 최적화**:
+  개발/테스트 과정에서 남은 바탕화면 테스트 PDF 파일 정리 완료. 디버그 로그 파일 위치를 `%APPDATA%\VoucherPass\`로 일원화하여 바탕화면에 임시/로그 파일이 일절 생성되지 않도록 개선.
+
 ## [v8.4.3] - 2026-08-18
 ### Patch Release: 국세청 세금계산서 iframe 스크롤바 원천 제거 및 높이 자동 확장
 - **우측 스크롤바 및 하단부 잘림 현상 완벽 해결**:

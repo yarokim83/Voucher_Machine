@@ -78,7 +78,6 @@ def _is_html_file(file_path):
 def _log_debug(msg):
     log_locations = [
         os.path.join(os.path.dirname(os.path.abspath(__file__)), 'voucher_pass_debug.log'),
-        os.path.join(os.path.expanduser('~'), 'Desktop', 'voucher_pass_debug.log'),
         os.path.join(os.getenv('APPDATA', '.'), 'VoucherPass', 'voucher_pass_debug.log'),
     ]
     formatted = f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {msg}\n"
