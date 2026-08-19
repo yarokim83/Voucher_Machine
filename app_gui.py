@@ -169,6 +169,10 @@ class VoucherPassApp:
         self.date_var = tk.StringVar()
         self.supplier_var = tk.StringVar()
 
+        # PR 및 세금계산서 공급가액 불일치 검증용 상태 변수
+        self.pr_supply_amount = 0
+        self.tax_supply_amount = 0
+
         self.auto_watch_enabled = tk.BooleanVar(value=True)
         self.folder_watcher = pdf_watcher.DownloadFolderWatcher(self.handle_auto_detected_pdf)
 
@@ -455,7 +459,7 @@ shortcut.Save
         lbl_logo.bind("<Button-1>", self._click_title)
         lbl_logo.bind("<B1-Motion>", self._drag_title)
 
-        ver_b = tk.Label(hdr, text="v8.4.4", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=4, pady=1)
+        ver_b = tk.Label(hdr, text="v8.5.0", font=("Malgun Gothic", 8, "bold"), bg="#1D4ED8", fg="white", padx=4, pady=1)
         ver_b.pack(side="left", padx=(4, 0))
 
         # 업로드 진행 상태 뱃지 ("1/5 완료") 및 초록색 프로그레스 막대바
@@ -647,6 +651,20 @@ shortcut.Save
             messagebox.showwarning("엑셀 생성 실패", "기록할 데이터가 없습니다. PDF 서류를 먼저 업로드해 주세요.")
             return
 
+        # 공급가액 불일치 상태일 경우 사용자 확인 절차
+        pr_amt = self.pr_supply_amount
+        tax_amt = self.tax_supply_amount
+        if pr_amt > 0 and tax_amt > 0 and pr_amt != tax_amt:
+            diff = abs(pr_amt - tax_amt)
+            confirm = messagebox.askyesno(
+                "⚠️ 공급가액 불일치 확인",
+                f"PR 구매요청서 공급가액({pr_amt:,}원)과 세금계산서 공급가액({tax_amt:,}원)이 일치하지 않습니다!\n"
+                f"(차액: {diff:,}원)\n\n"
+                f"현재 입력된 공급가액({data.get('amount', 0):,}원) 기준으로 전표 엑셀을 계속 생성하시겠습니까?"
+            )
+            if not confirm:
+                return
+
         try:
             tmpl_path = self.template_path.get()
             out_excel = excel_handler.generate_voucher_excel(data, template_path=tmpl_path)
@@ -762,6 +780,7 @@ shortcut.Save
             self.pr_title_var.set(data.get('pr_title', ''))
             
             amt = data.get('amount', 0)
+            self.pr_supply_amount = amt
             self.amount_var.set(f"{amt:,}" if amt else "0")
             
             vat = data.get('vat', 0)
@@ -781,6 +800,9 @@ shortcut.Save
                 self._shake_widget(self.e_amt, highlight_bg="#93C5FD")
 
             self.set_live_status(f"🚀 PR 서류 Title & 공급가액 {amt:,}원 추출 획득 완료! 💎", type="success")
+            
+            # PR 파싱 후 세금계산서 공급가액과 일치 여부 즉시 검증
+            self._check_amount_discrepancy()
         except Exception as e:
             self.set_live_status(f"⚠️ PR 서류 파싱 실패: {e}", type="error")
 
@@ -788,7 +810,7 @@ shortcut.Save
         """
         1) HTML/PDF 파일 업로드 감지
         2) HTML일 경우 자동 비밀번호 입력 및 지정 폴더 PDF 저장
-        3) 저장된 PDF 파일에서 작성일자(2026/08/11) 자동 파싱
+        3) 저장된 PDF 파일에서 작성일자 및 공급가액 자동 파싱
         """
         if not tax_path:
             tax_path = self.tax_pdf_path.get()
@@ -801,15 +823,18 @@ shortcut.Save
 
         # Step 1 & 2: HTML 세금계산서일 경우 HTML 텍스트에서 즉시 작성일자 1차 파싱 + 자동 해제 & PDF 저장 파이프라인 가동
         if pdf_parser._is_html_file(tax_path):
-            pdf_parser._log_debug("Detected HTML file. Attempting immediate HTML text date parsing...")
+            pdf_parser._log_debug("Detected HTML file. Attempting immediate HTML text data parsing...")
             try:
-                html_date = pdf_parser.parse_tax_invoice_date(tax_path)
-                pdf_parser._log_debug(f"Immediate HTML date parsing result: {html_date}")
-                if html_date:
-                    self.date_var.set(html_date)
+                html_data = pdf_parser.parse_tax_invoice_data(tax_path)
+                pdf_parser._log_debug(f"Immediate HTML data parsing result: {html_data}")
+                if html_data.get('date'):
+                    self.date_var.set(html_data['date'])
                     if hasattr(self, 'e_date'):
                         self._shake_widget(self.e_date, highlight_bg="#FEF08A")
-                    self.set_live_status(f"🎉 HTML 작성일자 [{html_date}] 즉시 획득 성공! ✨", type="success")
+                    self.set_live_status(f"🎉 HTML 작성일자 [{html_data['date']}] 즉시 획득 성공! ✨", type="success")
+                if html_data.get('supply_amount', 0) > 0:
+                    self.tax_supply_amount = html_data['supply_amount']
+                    self._check_amount_discrepancy()
             except Exception as e_html:
                 pdf_parser._log_debug(f"Immediate HTML date parsing exception: {e_html}")
 
@@ -817,19 +842,11 @@ shortcut.Save
             self.auto_unlock_and_save_pdf(tax_path)
             return
 
-        # Step 3: PDF 파일에서 작성일자 파싱
+        # Step 3: PDF 파일에서 작성일자 및 공급가액 파싱
         try:
-            tax_date = pdf_parser.parse_tax_invoice_date(tax_path)
-            pdf_parser._log_debug(f"parse_tax_invoice_date result for PDF: {tax_date}")
-            if tax_date:
-                self.date_var.set(tax_date)
-                if hasattr(self, 'e_date'):
-                    self._shake_widget(self.e_date, highlight_bg="#FEF08A")
-                self.root.update_idletasks()
-                self.root.update()
-                self.set_live_status(f"🎉 작성일자 [{tax_date}] 자동 획득 성공! ✨", type="success")
-            else:
-                self.set_live_status("⚠️ 세금계산서 작성일자를 찾지 못했습니다. 수동 입력해 주세요.", type="error")
+            tax_data = pdf_parser.parse_tax_invoice_data(tax_path)
+            pdf_parser._log_debug(f"parse_tax_invoice_data result for PDF: {tax_data}")
+            self._apply_tax_data(tax_data)
         except Exception as e:
             pdf_parser._log_debug(f"parse_tax_invoice_uploaded exception: {e}")
             self.set_live_status(f"⚠️ 파싱 오류: {e}", type="error")
@@ -1004,25 +1021,70 @@ shortcut.Save
 
             self.drop_tax.set_file(pdf_path)
 
-            tax_date = pdf_parser.parse_tax_invoice_date(pdf_path)
-            if not tax_date:
+            tax_data = pdf_parser.parse_tax_invoice_data(pdf_path)
+            if not tax_data.get('date'):
                 time.sleep(0.1)
-                pdf_parser._log_debug("Retrying parse_tax_invoice_date second attempt...")
-                tax_date = pdf_parser.parse_tax_invoice_date(pdf_path)
+                pdf_parser._log_debug("Retrying parse_tax_invoice_data second attempt...")
+                tax_data = pdf_parser.parse_tax_invoice_data(pdf_path)
 
-            pdf_parser._log_debug(f"_on_new_tax_pdf_saved final tax_date: {tax_date}")
-            if tax_date:
-                self.root.after(0, lambda d=tax_date: self._apply_tax_date(d))
+            pdf_parser._log_debug(f"_on_new_tax_pdf_saved final tax_data: {tax_data}")
+            if tax_data.get('date') or tax_data.get('supply_amount', 0) > 0:
+                self.root.after(0, lambda d=tax_data: self._apply_tax_data(d))
             else:
                 self.root.after(0, lambda: messagebox.showwarning("작성일자 미추출", f"저장된 PDF 세금계산서 [{os.path.basename(pdf_path)}] 에서 작성일자를 발견하지 못했습니다.\n\n(자세한 원인은 voucher_pass_debug.log 파일을 참고하세요)"))
 
         threading.Thread(target=_parse_job, daemon=True).start()
 
-    def _apply_tax_date(self, tax_date):
-        self.date_var.set(tax_date)
-        if hasattr(self, 'e_date'):
-            self._shake_widget(self.e_date, highlight_bg="#FEF08A")
-        self.set_live_status(f"🎉 작성일자 [{tax_date}] 자동 획득 성공! ✨", type="success")
+    def _apply_tax_data(self, tax_data):
+        """세금계산서에서 파싱된 작성일자 및 공급가액을 적용하고 금액 일치 여부를 검증"""
+        tax_date = tax_data.get('date', '')
+        tax_amt = tax_data.get('supply_amount', 0)
+
+        if tax_date:
+            self.date_var.set(tax_date)
+            if hasattr(self, 'e_date'):
+                self._shake_widget(self.e_date, highlight_bg="#FEF08A")
+            self.set_live_status(f"🎉 작성일자 [{tax_date}] 자동 획득 성공! ✨", type="success")
+
+        if tax_amt > 0:
+            self.tax_supply_amount = tax_amt
+
+        # PR 구매요청서와 세금계산서의 공급가액 비교 검증
+        self._check_amount_discrepancy()
+
+    def _check_amount_discrepancy(self):
+        """
+        PR 구매요청서의 공급가액과 세금계산서의 공급가액을 비교하여
+        차이가 있을 경우 경고 알림 팝업 및 상태바/위젯 강조 표시
+        """
+        pr_amt = self.pr_supply_amount
+        tax_amt = self.tax_supply_amount
+
+        # 두 서류의 공급가액이 모두 파싱되었을 때 검증 수행
+        if pr_amt > 0 and tax_amt > 0:
+            if pr_amt != tax_amt:
+                diff = abs(pr_amt - tax_amt)
+                pdf_parser._log_debug(f"[금액 불일치 감지] PR 공급가액: {pr_amt:,}원 != 세금계산서 공급가액: {tax_amt:,}원 (차액: {diff:,}원)")
+                
+                # 1. 라이브 상태바에 붉은색 경고 표시
+                self.set_live_status(f"⚠️ [공급가액 불일치] PR({pr_amt:,}원) ≠ 세금({tax_amt:,}원) [차액: {diff:,}원]", type="error")
+                
+                # 2. 공급가액 입력 위젯 붉은색 쉐이크 애니메이션
+                if hasattr(self, 'e_amt'):
+                    self._shake_widget(self.e_amt, highlight_bg="#FCA5A5")
+
+                # 3. 경고 팝업 띄움 (모달)
+                messagebox.showwarning(
+                    "⚠️ 공급가액 불일치 경고",
+                    f"구매요청서(PR)와 세금계산서의 공급가액이 일치하지 않습니다!\n\n"
+                    f"• PR 구매요청서: {pr_amt:,} 원\n"
+                    f"• 세금계산서:     {tax_amt:,} 원\n"
+                    f"• 차액 (불일치):  {diff:,} 원\n\n"
+                    f"금액을 확인하고 수정해 주세요!"
+                )
+            else:
+                pdf_parser._log_debug(f"[금액 일치 검증 완료] {pr_amt:,}원")
+                self.set_live_status(f"✅ 공급가액 일치 검증 완료 ({pr_amt:,}원) 🎯", type="success")
 
     def _shake_widget(self, widget, highlight_bg="#FEF08A"):
         """
@@ -1057,14 +1119,6 @@ shortcut.Save
         except Exception:
             pass
 
-    def _apply_tax_date(self, tax_date):
-        self.date_var.set(tax_date)
-        self.root.update_idletasks()
-        self.root.update()
-        if hasattr(self, 'e_date'):
-            self._shake_widget(self.e_date, highlight_bg="#86EFAC")
-        self.set_live_status(f"🎉 작성일자 [{tax_date}] 추출 완료! (셀이 통통~ 튀어올랐어요)", type="success")
-
     def _recalc_amounts(self, event=None):
         raw = self.amount_var.get().replace(',', '').strip()
         if raw.isdigit():
@@ -1073,6 +1127,8 @@ shortcut.Save
             tot = amt + vat
             self.vat_var.set(f"{vat:,}")
             self.total_amount_var.set(f"{tot:,}")
+            self.pr_supply_amount = amt
+            self._check_amount_discrepancy()
 
     def _parse_contract_pages(self, page_str):
         pages = set()

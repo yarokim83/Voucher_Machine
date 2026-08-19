@@ -90,11 +90,21 @@ def _log_debug(msg):
         except Exception:
             pass
 
-def parse_tax_invoice_date(file_path):
-    _log_debug(f"=== [parse_tax_invoice_date START] File: {file_path} ===")
+def parse_tax_invoice_data(file_path):
+    """
+    세금계산서 (HTML 또는 PDF)에서 작성일자 및 공급가액/세액/합계금액을 추출.
+    Returns: dict(date=str, supply_amount=int, vat=int, total_amount=int)
+    """
+    _log_debug(f"=== [parse_tax_invoice_data START] File: {file_path} ===")
+    result = {
+        'date': '',
+        'supply_amount': 0,
+        'vat': 0,
+        'total_amount': 0
+    }
     if not os.path.exists(file_path):
         _log_debug(f"ERROR: File does not exist: {file_path}")
-        return ''
+        return result
 
     _log_debug(f"File size: {os.path.getsize(file_path)} bytes")
 
@@ -137,15 +147,13 @@ def parse_tax_invoice_date(file_path):
 
     if not full_text or not full_text.strip():
         _log_debug("ERROR: full_text is empty after extraction!")
-        return ''
+        return result
 
     _log_debug(f"Total full_text length: {len(full_text)}")
-    _log_debug(f"Full text snippet (first 300 chars):\n{full_text[:300]}")
 
-    # 1. '작성일자' / '작 성 일 자' 키워드 뒤/아래 150자 문맥 잘라내어 날짜 수집
+    # 1. 작성일자 추출
     kw_pos = full_text.find("작성일자")
     if kw_pos == -1:
-        # 공백 들어간 형태 검색
         m_kw = re.search(r'작\s*성\s*일\s*자', full_text)
         if m_kw:
             kw_pos = m_kw.start()
@@ -158,84 +166,98 @@ def parse_tax_invoice_date(file_path):
         if m:
             y, month, d = m.group(1), int(m.group(2)), int(m.group(3))
             if 1 <= month <= 12 and 1 <= d <= 31:
-                res = f"{y}-{month:02d}-{d:02d}"
-                _log_debug(f"SUCCESS [Step 1-A Keyword '작성일자']: {res}")
-                return res
+                result['date'] = f"{y}-{month:02d}-{d:02d}"
+                _log_debug(f"SUCCESS [Step 1-A Keyword '작성일자']: {result['date']}")
 
-        m_dig = re.search(r'(20[1-3][0-9])(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])', sub_text)
-        if m_dig:
-            y, month, d = m_dig.group(1), int(m_dig.group(2)), int(m_dig.group(3))
-            res = f"{y}-{month:02d}-{d:02d}"
-            _log_debug(f"SUCCESS [Step 1-B Keyword '작성일자' digits]: {res}")
-            return res
+        if not result['date']:
+            m_dig = re.search(r'(20[1-3][0-9])(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])', sub_text)
+            if m_dig:
+                y, month, d = m_dig.group(1), int(m_dig.group(2)), int(m_dig.group(3))
+                result['date'] = f"{y}-{month:02d}-{d:02d}"
+                _log_debug(f"SUCCESS [Step 1-B Keyword '작성일자' digits]: {result['date']}")
 
-    # 2. '발행일자' / '공급일자' 키워드 탐색
-    kw_pos_bal = full_text.find("발행일자")
-    if kw_pos_bal == -1:
-        kw_pos_bal = full_text.find("공급일자")
-    if kw_pos_bal == -1:
-        m_kw_bal = re.search(r'(?:발\s*행\s*일\s*자|공\s*급\s*일\s*자)', full_text)
-        if m_kw_bal:
-            kw_pos_bal = m_kw_bal.start()
+    if not result['date']:
+        kw_pos_bal = full_text.find("발행일자")
+        if kw_pos_bal == -1:
+            kw_pos_bal = full_text.find("공급일자")
+        if kw_pos_bal == -1:
+            m_kw_bal = re.search(r'(?:발\s*행\s*일\s*자|공\s*급\s*일\s*자)', full_text)
+            if m_kw_bal:
+                kw_pos_bal = m_kw_bal.start()
 
-    if kw_pos_bal != -1:
-        sub_text = full_text[kw_pos_bal:kw_pos_bal + 150]
-        _log_debug(f"Found '발행일자/공급일자' at pos {kw_pos_bal}. Subtext: {repr(sub_text)}")
-        m = re.search(r'(20[1-3][0-9])[\s/.\-년]+\s*(\d{1,2})[\s/.\-월]+\s*(\d{1,2})', sub_text)
-        if m:
-            y, month, d = m.group(1), int(m.group(2)), int(m.group(3))
-            if 1 <= month <= 12 and 1 <= d <= 31:
-                res = f"{y}-{month:02d}-{d:02d}"
-                _log_debug(f"SUCCESS [Step 2 Keyword '발행일자/공급일자']: {res}")
-                return res
+        if kw_pos_bal != -1:
+            sub_text = full_text[kw_pos_bal:kw_pos_bal + 150]
+            _log_debug(f"Found '발행일자/공급일자' at pos {kw_pos_bal}. Subtext: {repr(sub_text)}")
+            m = re.search(r'(20[1-3][0-9])[\s/.\-년]+\s*(\d{1,2})[\s/.\-월]+\s*(\d{1,2})', sub_text)
+            if m:
+                y, month, d = m.group(1), int(m.group(2)), int(m.group(3))
+                if 1 <= month <= 12 and 1 <= d <= 31:
+                    result['date'] = f"{y}-{month:02d}-{d:02d}"
+                    _log_debug(f"SUCCESS [Step 2 Keyword '발행일자/공급일자']: {result['date']}")
 
-    # HTML 세금계산서 원본의 경우 암호문 내부 보안안내 날짜(예: Active X 안내 2017년) 오작동 방지
-    if _is_html_file(file_path):
-        _log_debug("HTML file without explicit 작성일자/발행일자 keywords. Skipping generic whole-document date match to avoid security notice date misparsing.")
-        return ''
+    if not result['date'] and not _is_html_file(file_path):
+        matches = re.findall(r'(20[1-3][0-9])[\s/.\-년]+\s*(\d{1,2})[\s/.\-월]+\s*(\d{1,2})[일\s]?', full_text)
+        if matches:
+            for mat in matches:
+                y, month, d = mat[0], int(mat[1]), int(mat[2])
+                if 1 <= month <= 12 and 1 <= d <= 31:
+                    result['date'] = f"{y}-{month:02d}-{d:02d}"
+                    _log_debug(f"SUCCESS [Step 3-A Fulltext 년월일]: {result['date']}")
+                    break
 
-    # 3. PDF 문서 전체 20XX년/월/일 탐색
-    matches = re.findall(r'(20[1-3][0-9])[\s/.\-년]+\s*(\d{1,2})[\s/.\-월]+\s*(\d{1,2})[일\s]?', full_text)
-    _log_debug(f"Step 3-A re.findall(년월일) matches: {matches}")
-    if matches:
-        for mat in matches:
-            y, month, d = mat[0], int(mat[1]), int(mat[2])
-            if 1 <= month <= 12 and 1 <= d <= 31:
-                res = f"{y}-{month:02d}-{d:02d}"
-                _log_debug(f"SUCCESS [Step 3-A Fulltext 년월일]: {res}")
-                return res
+        if not result['date']:
+            matches_fmt = re.findall(r'(20[1-3][0-9])[-.\s/](\d{1,2})[-.\s/](\d{1,2})', full_text)
+            if matches_fmt:
+                for mat in matches_fmt:
+                    y, month, d = mat[0], int(mat[1]), int(mat[2])
+                    if 1 <= month <= 12 and 1 <= d <= 31:
+                        result['date'] = f"{y}-{month:02d}-{d:02d}"
+                        _log_debug(f"SUCCESS [Step 3-B Fulltext YYYY-MM-DD]: {result['date']}")
+                        break
 
-    matches_fmt = re.findall(r'(20[1-3][0-9])[-.\s/](\d{1,2})[-.\s/](\d{1,2})', full_text)
-    _log_debug(f"Step 3-B re.findall(YYYY-MM-DD) matches: {matches_fmt}")
-    if matches_fmt:
-        for mat in matches_fmt:
-            y, month, d = mat[0], int(mat[1]), int(mat[2])
-            if 1 <= month <= 12 and 1 <= d <= 31:
-                res = f"{y}-{month:02d}-{d:02d}"
-                _log_debug(f"SUCCESS [Step 3-B Fulltext YYYY-MM-DD]: {res}")
-                return res
+    # 2. 공급가액(supply_amount) / 세액(vat) / 합계금액(total_amount) 추출
+    # 패턴 1: 작성일자 바로 뒤에 나오는 금액들 (예: 2026/08/11 2,100,000 210,000)
+    m_amt_seq = re.search(r'20[1-3][0-9][/\-.\s년]+\d{1,2}[/\-.\s월]+\d{1,2}[일\s]*\s+([1-9]\d{0,2}(?:,\d{3})+)\s+([0-9]\d{0,2}(?:,\d{3})*)', full_text)
+    if m_amt_seq:
+        s_amt = int(m_amt_seq.group(1).replace(',', ''))
+        v_amt = int(m_amt_seq.group(2).replace(',', ''))
+        if s_amt > 0:
+            result['supply_amount'] = s_amt
+            result['vat'] = v_amt
+            result['total_amount'] = s_amt + v_amt
+            _log_debug(f"SUCCESS [Amount Step 1 Date-Sequence]: supply={s_amt:,}, vat={v_amt:,}, total={s_amt+v_amt:,}")
 
-    matches_digits = re.findall(r'(20[1-3][0-9])(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])', full_text)
-    _log_debug(f"Step 3-C re.findall(8-digit YYYYMMDD) matches: {matches_digits}")
-    if matches_digits:
-        y, month, d = matches_digits[0][0], int(matches_digits[0][1]), int(matches_digits[0][2])
-        res = f"{y}-{month:02d}-{d:02d}"
-        _log_debug(f"SUCCESS [Step 3-C Fulltext YYYYMMDD]: {res}")
-        return res
+    # 패턴 2: 키워드 '공급가액' 뒤의 금액 추출
+    if result['supply_amount'] == 0:
+        kw_amt = re.search(r'(?:공\s*급\s*가\s*액)\s*[:\s]*([1-9]\d{0,2}(?:,\d{3})+)', full_text)
+        if kw_amt:
+            s_amt = int(kw_amt.group(1).replace(',', ''))
+            result['supply_amount'] = s_amt
+            result['vat'] = int(s_amt * 0.1)
+            result['total_amount'] = s_amt + result['vat']
+            _log_debug(f"SUCCESS [Amount Step 2 Keyword '공급가액']: supply={s_amt:,}")
 
-    # 4. 2자리 연도 패턴 탐색 (예: 26-08-11, 26.08.11, 26년 08월 11일)
-    matches_short = re.findall(r'(?:^|[^\d])([2-3][0-9])[-.\s/년]+\s*(0[1-9]|1[0-2])[-.\s/월]+\s*(0[1-9]|[12][0-9]|3[01])', full_text)
-    _log_debug(f"Step 4 Short year matches: {matches_short}")
-    if matches_short:
-        for mat in matches_short:
-            y_short, month, d = mat[0], int(mat[1]), int(mat[2])
-            if 1 <= month <= 12 and 1 <= d <= 31:
-                res = f"20{y_short}-{month:02d}-{d:02d}"
-                _log_debug(f"SUCCESS [Step 4 Short year YY-MM-DD]: {res}")
-                return res
+    # 패턴 3: 전체 금액 리스트에서 supply + vat = total 수학적 검증
+    if result['supply_amount'] == 0:
+        all_amounts = re.findall(r'([1-9]\d{0,2}(?:,\d{3})+)', full_text)
+        num_set = set([int(a.replace(',', '')) for a in all_amounts if 1000 <= int(a.replace(',', '')) <= 10000000000])
+        for a in sorted(num_set, reverse=True):
+            for v in num_set:
+                if (a + v) in num_set and (v == int(a * 0.1) or v == 0 or v == round(a * 0.1)):
+                    result['supply_amount'] = a
+                    result['vat'] = v
+                    result['total_amount'] = a + v
+                    _log_debug(f"SUCCESS [Amount Step 3 Math Verification]: supply={a:,}, vat={v:,}, total={a+v:,}")
+                    break
+            if result['supply_amount'] > 0:
+                break
 
-    _log_debug("FAILED: Could not parse any date from full_text")
-    return ''
+    _log_debug(f"=== [parse_tax_invoice_data END] Result: {result} ===")
+    return result
+
+def parse_tax_invoice_date(file_path):
+    data = parse_tax_invoice_data(file_path)
+    return data.get('date', '')
 
 def parse_pr_pdf(pdf_path):
     if not os.path.exists(pdf_path):
