@@ -483,117 +483,123 @@ shortcut.Save
 
     def _update_progress_summary(self):
         """
-        업로드 진행 상태 실시간 집계 & 막대바(Progress Bar) 채우기
+        업로드 진행 상태 실시간 집계 & 뱃지(0/5) 업데이트
         """
         count = sum(1 for var in [self.tax_pdf_path, self.spec_pdf_path, self.pr_pdf_path, self.po_pdf_path, self.contract_pdf_path] if var.get() and os.path.exists(var.get()))
-        pct = count * 20
-        if hasattr(self, 'progress_bar'):
-            self.progress_bar['value'] = pct
-
         if hasattr(self, 'lbl_progress'):
-            if count == 5:
-                self.lbl_progress.config(text="진행 상태: 5/5 완료 🎉", fg="#15803D", bg="#DCFCE7")
-            else:
-                self.lbl_progress.config(text=f"진행 상태: {count}/5 완료", fg="#1D4ED8", bg="#DBEAFE")
+            self.lbl_progress.config(text=f"{count}/5")
 
     def _build_widget_layout(self):
-        # 1. Header Bar (Navy/Blue Header & Progress Badge & Progressbar)
-        hdr = tk.Frame(self.root, bg="#3457A8", padx=8, pady=5)
+        # Windows 11 DWM 둥근 모서리 (Apple-like Rounded Window Corners)
+        try:
+            import ctypes
+            hwnd = ctypes.windll.user32.GetParent(self.root.winfo_id())
+            if not hwnd:
+                hwnd = self.root.winfo_id()
+            DWMWA_WINDOW_CORNER_PREFERENCE = 33
+            DWMWCP_ROUND = 2
+            val = ctypes.c_int(DWMWCP_ROUND)
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ctypes.byref(val), ctypes.sizeof(val))
+        except Exception:
+            pass
+
+        # 1. Header Bar (Navy/Blue Header & Progress Badge)
+        hdr = tk.Frame(self.root, bg="#3457A8", padx=12, pady=8)
         hdr.pack(fill="x")
         hdr.bind("<Button-1>", self._click_title)
         hdr.bind("<B1-Motion>", self._drag_title)
 
-        lbl_logo = tk.Label(hdr, text="⚡ Voucher Pass", font=("Malgun Gothic", 10, "bold"), bg="#3457A8", fg="#FFFFFF")
+        lbl_logo = tk.Label(hdr, text="⚡ Voucher Pass", font=("Malgun Gothic", 11, "bold"), bg="#3457A8", fg="#FFFFFF")
         lbl_logo.pack(side="left")
         lbl_logo.bind("<Button-1>", self._click_title)
         lbl_logo.bind("<B1-Motion>", self._drag_title)
 
-        ver_b = tk.Label(hdr, text="v8.5.1", font=("Malgun Gothic", 8, "bold"), bg="#26407F", fg="white", padx=4, pady=1)
-        ver_b.pack(side="left", padx=(4, 0))
+        ver_b = tk.Label(hdr, text="v8.6.0", font=("Malgun Gothic", 8, "bold"), bg="#26407F", fg="white", padx=6, pady=1)
+        ver_b.pack(side="left", padx=(6, 0))
 
-        # 업로드 진행 상태 뱃지 ("0/5 완료") 및 프로그레스 막대바
-        self.lbl_progress = tk.Label(hdr, text="진행: 0/5", font=("Malgun Gothic", 8, "bold"), bg="#26407F", fg="#FFFFFF", padx=5, pady=1)
-        self.lbl_progress.pack(side="left", padx=(6, 3))
-
-        style = ttk.Style()
-        style.theme_use('default')
-        style.configure("Green.Horizontal.TProgressbar", foreground='#1F9D63', background='#1F9D63', thickness=8)
-        self.progress_bar = ttk.Progressbar(hdr, style="Green.Horizontal.TProgressbar", orient="horizontal", length=55, mode="determinate")
-        self.progress_bar.pack(side="left", padx=(0, 2))
-
-        btn_min = tk.Label(hdr, text=" ─ ", font=("Arial", 10, "bold"), bg="#3457A8", fg="#E1E5EC", cursor="hand2")
-        btn_min.pack(side="right", padx=(3, 0))
-        btn_min.bind("<Button-1>", lambda e: self.root.withdraw())
-
-        btn_close = tk.Label(hdr, text=" ✕ ", font=("Arial", 10, "bold"), bg="#3457A8", fg="#FEE2E2", cursor="hand2")
-        btn_close.pack(side="right")
+        # 우측 0/5 원형 뱃지 및 창 제어 미니 버튼
+        btn_close = tk.Label(hdr, text="●", font=("Arial", 10), bg="#3457A8", fg="#FCA5A5", cursor="hand2")
+        btn_close.pack(side="right", padx=(4, 0))
         btn_close.bind("<Button-1>", lambda e: self.root.destroy())
 
+        btn_min = tk.Label(hdr, text="●", font=("Arial", 10), bg="#3457A8", fg="#FDE047", cursor="hand2")
+        btn_min.pack(side="right", padx=(4, 0))
+        btn_min.bind("<Button-1>", lambda e: self.root.withdraw())
+
+        self.lbl_progress = tk.Label(hdr, text="0/5", font=("Malgun Gothic", 9, "bold"), bg="#26407F", fg="#FFFFFF", padx=8, pady=2)
+        self.lbl_progress.pack(side="right", padx=(0, 6))
+
         # 2. Main Content Canvas
-        main_box = tk.Frame(self.root, bg="#EEF1F6", padx=6, pady=4)
+        main_box = tk.Frame(self.root, bg="#EEF1F6", padx=10, pady=8)
         main_box.pack(fill="both", expand=True)
 
-        # 3. 5가지 서류 Clean DropZone (색상 아이콘 칩 + 파일형식 태그 + 상태 배지)
+        # 3. 5가지 서류 Clean DropZone
         drop_container = tk.Frame(main_box, bg="#EEF1F6")
-        drop_container.pack(fill="x", pady=(0, 2))
+        drop_container.pack(fill="x", pady=(0, 4))
 
         self.drop_tax = CleanMinimalDropZone(
             drop_container, num_str="1", title="전자 세금계산서", tag_str="· 6068625399",
             chip_text="세", chip_bg="#C94A3C", file_var=self.tax_pdf_path,
             on_file_selected=self.parse_tax_invoice_uploaded, on_state_changed=self._update_progress_summary
         )
-        self.drop_tax.pack(fill="x", pady=1.5)
+        self.drop_tax.pack(fill="x", pady=2)
 
         self.drop_spec = CleanMinimalDropZone(
             drop_container, num_str="2", title="거래명세서", tag_str="· PDF",
             chip_text="명", chip_bg="#3A6FD8", file_var=self.spec_pdf_path,
             on_state_changed=self._update_progress_summary
         )
-        self.drop_spec.pack(fill="x", pady=1.5)
+        self.drop_spec.pack(fill="x", pady=2)
 
         self.drop_pr = CleanMinimalDropZone(
             drop_container, num_str="3", title="PR Print (구매요청서)", tag_str="· PDF",
             chip_text="PR", chip_bg="#8B5FD8", file_var=self.pr_pdf_path,
             on_file_selected=self.parse_uploaded_pdf, on_state_changed=self._update_progress_summary
         )
-        self.drop_pr.pack(fill="x", pady=1.5)
+        self.drop_pr.pack(fill="x", pady=2)
 
         self.drop_po = CleanMinimalDropZone(
             drop_container, num_str="4", title="발주서 (PO)", tag_str="· PDF",
             chip_text="PO", chip_bg="#E08C2B", file_var=self.po_pdf_path,
             on_file_selected=self.parse_uploaded_pdf, on_state_changed=self._update_progress_summary
         )
-        self.drop_po.pack(fill="x", pady=1.5)
-
-        f_contract_f = tk.Frame(drop_container, bg="#EEF1F6")
-        f_contract_f.pack(fill="x", pady=1.5)
+        self.drop_po.pack(fill="x", pady=2)
 
         self.drop_contract = CleanMinimalDropZone(
-            f_contract_f, num_str="5", title="업체 계약서", tag_str="· PDF",
+            drop_container, num_str="5", title="업체 계약서", tag_str="· PDF",
             chip_text="계", chip_bg="#5A6472", file_var=self.contract_pdf_path,
             on_state_changed=self._update_progress_summary
         )
-        self.drop_contract.pack(side="left", fill="x", expand=True)
+        self.drop_contract.pack(fill="x", pady=2)
 
-        # 계약서 페이지 지정 및 추출저장 바
-        pg_sub = tk.Frame(f_contract_f, bg="#F4F6FA", highlightbackground="#E1E5EC", highlightthickness=1, padx=4, pady=2)
-        pg_sub.pack(side="right", padx=(3, 0))
-        tk.Label(pg_sub, text="페이지", font=("Malgun Gothic", 7, "bold"), bg="#F4F6FA", fg="#6B7686").pack(side="top")
-        self.e_contract_page = tk.Entry(pg_sub, textvariable=self.contract_page, font=("Malgun Gothic", 8, "bold"), bg="#FFFFFF", fg="#1C2536", width=4, justify="center", relief="solid", bd=1)
-        self.e_contract_page.pack(side="top", pady=1)
-        tk.Button(pg_sub, text="💾 추출", font=("Malgun Gothic", 7, "bold"), bg="#F0A531", fg="white", activebackground="#D97706", activeforeground="white", relief="flat", padx=3, pady=1, cursor="hand2", command=self.save_sliced_contract_pdf).pack(side="top")
+        # 계약서 페이지 지정 및 추출저장 바 (독립 우측 정렬)
+        pg_save_row = tk.Frame(main_box, bg="#EEF1F6")
+        pg_save_row.pack(fill="x", pady=(2, 4))
+
+        btn_save_slice = tk.Button(
+            pg_save_row, text="💾 추출저장", font=("Malgun Gothic", 9, "bold"),
+            bg="#F0A531", fg="#FFFFFF", activebackground="#D97706", activeforeground="#FFFFFF",
+            relief="flat", padx=12, pady=4, cursor="hand2", command=self.save_sliced_contract_pdf
+        )
+        btn_save_slice.pack(side="right", padx=(4, 0))
+
+        pg_box = tk.Frame(pg_save_row, bg="#F4F6FA", highlightbackground="#E1E5EC", highlightthickness=1, padx=8, pady=3)
+        pg_box.pack(side="right")
+        tk.Label(pg_box, text="페이지", font=("Malgun Gothic", 8, "bold"), bg="#F4F6FA", fg="#6B7686").pack(side="left", padx=(0, 4))
+        self.e_contract_page = tk.Entry(pg_box, textvariable=self.contract_page, font=("Malgun Gothic", 9, "bold"), bg="#FFFFFF", fg="#1C2536", width=4, justify="center", relief="solid", bd=1)
+        self.e_contract_page.pack(side="left")
 
         # 4. 추출 데이터 7종 섹션 (라벨-값 분리 & 금액 우측정렬 & 합계금액 별도 강조 카드)
         data_card = tk.Frame(main_box, bg="#FFFFFF", highlightbackground="#E1E5EC", highlightthickness=1)
-        data_card.pack(fill="x", pady=(2, 2))
+        data_card.pack(fill="x", pady=(2, 4))
 
         # 데이터 카드 헤더
-        data_hdr = tk.Frame(data_card, bg="#F4F6FA", padx=8, pady=4)
+        data_hdr = tk.Frame(data_card, bg="#F4F6FA", padx=10, pady=5)
         data_hdr.pack(fill="x")
-        tk.Label(data_hdr, text="📋 추출 데이터 7종", font=("Malgun Gothic", 9, "bold"), bg="#F4F6FA", fg="#26407F").pack(side="left")
+        tk.Label(data_hdr, text="📋 추출 데이터 7종", font=("Malgun Gothic", 9, "bold"), bg="#F4F6FA", fg="#1C2536").pack(side="left")
 
         # 그리드 컨테이너
-        grid_f = tk.Frame(data_card, bg="#FFFFFF", padx=6, pady=4)
+        grid_f = tk.Frame(data_card, bg="#FFFFFF", padx=8, pady=6)
         grid_f.pack(fill="x")
 
         lbl_s = {"font": ("Malgun Gothic", 8, "bold"), "bg": "#FFFFFF", "fg": "#6B7686"}
@@ -601,83 +607,79 @@ shortcut.Save
 
         # Row 0: P/R No. (좌) | 작성일자 (우)
         f_c1_r0 = tk.Frame(grid_f, bg="#FFFFFF")
-        f_c1_r0.grid(row=0, column=0, sticky="ew", padx=2, pady=1)
+        f_c1_r0.grid(row=0, column=0, sticky="ew", padx=3, pady=2)
         tk.Label(f_c1_r0, text="• P/R No.", **lbl_s).pack(anchor="w")
-        self.e_prno = tk.Entry(f_c1_r0, textvariable=self.pr_no_var, font=("Malgun Gothic", 8, "bold"), bg="#FFFFFF", fg="#1C2536", relief="solid", bd=1)
-        self.e_prno.pack(fill="x")
+        self.e_prno = tk.Entry(f_c1_r0, textvariable=self.pr_no_var, font=("Malgun Gothic", 9, "bold"), bg="#FFFFFF", fg="#1C2536", relief="solid", bd=1)
+        self.e_prno.pack(fill="x", pady=(1, 0))
 
         f_c2_r0 = tk.Frame(grid_f, bg="#FFFFFF")
-        f_c2_r0.grid(row=0, column=1, sticky="ew", padx=2, pady=1)
+        f_c2_r0.grid(row=0, column=1, sticky="ew", padx=3, pady=2)
         f_date_lbl_box = tk.Frame(f_c2_r0, bg="#FFFFFF")
         f_date_lbl_box.pack(fill="x")
         tk.Label(f_date_lbl_box, text="• 작성일자", **lbl_s).pack(side="left")
         tk.Button(f_date_lbl_box, text="📋", command=lambda: self.copy_to_clipboard(self.date_var.get(), "작성일자"), **btn_cp).pack(side="right")
-        self.e_date = tk.Entry(f_c2_r0, textvariable=self.date_var, font=("Malgun Gothic", 8, "bold"), bg="#F5F8FF", fg="#26407F", relief="solid", bd=1)
-        self.e_date.pack(fill="x")
+        self.e_date = tk.Entry(f_c2_r0, textvariable=self.date_var, font=("Malgun Gothic", 9, "bold"), bg="#F5F8FF", fg="#26407F", relief="solid", bd=1)
+        self.e_date.pack(fill="x", pady=(1, 0))
 
         # Row 1: PR Title (전체 2열 너비 차지)
         f_r1 = tk.Frame(grid_f, bg="#FFFFFF")
-        f_r1.grid(row=1, column=0, columnspan=2, sticky="ew", padx=2, pady=1)
+        f_r1.grid(row=1, column=0, columnspan=2, sticky="ew", padx=3, pady=2)
         f_t_lbl_box = tk.Frame(f_r1, bg="#FFFFFF")
         f_t_lbl_box.pack(fill="x")
         tk.Label(f_t_lbl_box, text="• PR Title", **lbl_s).pack(side="left")
         tk.Button(f_t_lbl_box, text="📋", command=lambda: self.copy_to_clipboard(self.pr_title_var.get(), "PR Title"), **btn_cp).pack(side="right")
-        self.txt_pr_title = tk.Text(f_r1, width=20, height=2, wrap="word", font=("Malgun Gothic", 8, "bold"), bg="#F5F8FF", fg="#26407F", insertbackground="#26407F", relief="solid", bd=1)
-        self.txt_pr_title.pack(fill="x")
+        self.txt_pr_title = tk.Text(f_r1, width=20, height=2, wrap="word", font=("Malgun Gothic", 9, "bold"), bg="#F5F8FF", fg="#26407F", insertbackground="#26407F", relief="solid", bd=1)
+        self.txt_pr_title.pack(fill="x", pady=(1, 0))
         self.txt_pr_title.bind("<KeyRelease>", self._on_pr_title_txt_changed)
 
         # Row 2: 공급가액 (좌) | 거래처명 (우)
         f_c1_r2 = tk.Frame(grid_f, bg="#FFFFFF")
-        f_c1_r2.grid(row=2, column=0, sticky="ew", padx=2, pady=1)
+        f_c1_r2.grid(row=2, column=0, sticky="ew", padx=3, pady=2)
         f_amt_lbl_box = tk.Frame(f_c1_r2, bg="#FFFFFF")
         f_amt_lbl_box.pack(fill="x")
         tk.Label(f_amt_lbl_box, text="• 공급가액", **lbl_s).pack(side="left")
         tk.Button(f_amt_lbl_box, text="📋", command=lambda: self.copy_to_clipboard(self.amount_var.get(), "공급가액"), **btn_cp).pack(side="right")
-        self.e_amt = tk.Entry(f_c1_r2, textvariable=self.amount_var, font=("Consolas", 9, "bold"), bg="#F5F8FF", fg="#26407F", justify="right", relief="solid", bd=1)
-        self.e_amt.pack(fill="x")
+        self.e_amt = tk.Entry(f_c1_r2, textvariable=self.amount_var, font=("Consolas", 10, "bold"), bg="#F5F8FF", fg="#26407F", justify="right", relief="solid", bd=1)
+        self.e_amt.pack(fill="x", pady=(1, 0))
         self.e_amt.bind("<KeyRelease>", self._recalc_amounts)
 
         f_c2_r2 = tk.Frame(grid_f, bg="#FFFFFF")
-        f_c2_r2.grid(row=2, column=1, sticky="ew", padx=2, pady=1)
+        f_c2_r2.grid(row=2, column=1, sticky="ew", padx=3, pady=2)
         tk.Label(f_c2_r2, text="• 거래처명", **lbl_s).pack(anchor="w")
-        self.e_sup = tk.Entry(f_c2_r2, textvariable=self.supplier_var, font=("Malgun Gothic", 8, "bold"), bg="#FFFFFF", fg="#1C2536", relief="solid", bd=1)
-        self.e_sup.pack(fill="x")
+        self.e_sup = tk.Entry(f_c2_r2, textvariable=self.supplier_var, font=("Malgun Gothic", 9, "bold"), bg="#FFFFFF", fg="#1C2536", relief="solid", bd=1)
+        self.e_sup.pack(fill="x", pady=(1, 0))
 
-        # Row 3: 부가세 (우측)
+        # Row 3: 부가세 (좌측에 배치 - 공급가액 바로 아래 위치)
         f_c1_r3 = tk.Frame(grid_f, bg="#FFFFFF")
-        f_c1_r3.grid(row=3, column=0, sticky="ew", padx=2, pady=1)
-        tk.Label(f_c1_r3, text="", **lbl_s).pack(anchor="w") # 빈 공간 균형
-
-        f_c2_r3 = tk.Frame(grid_f, bg="#FFFFFF")
-        f_c2_r3.grid(row=3, column=1, sticky="ew", padx=2, pady=1)
-        tk.Label(f_c2_r3, text="• 부가세", **lbl_s).pack(anchor="w")
-        self.e_vat = tk.Entry(f_c2_r3, textvariable=self.vat_var, font=("Consolas", 9, "bold"), bg="#F5F8FF", fg="#26407F", justify="right", relief="solid", bd=1)
-        self.e_vat.pack(fill="x")
+        f_c1_r3.grid(row=3, column=0, sticky="ew", padx=3, pady=2)
+        tk.Label(f_c1_r3, text="• 부가세", **lbl_s).pack(anchor="w")
+        self.e_vat = tk.Entry(f_c1_r3, textvariable=self.vat_var, font=("Consolas", 10, "bold"), bg="#F5F8FF", fg="#26407F", justify="right", relief="solid", bd=1)
+        self.e_vat.pack(fill="x", pady=(1, 0))
 
         # Row 4: 합계금액 (별도 강조 카드: 전체 2열 너비 차지)
-        f_r4 = tk.Frame(grid_f, bg="#FFF9EC", highlightbackground="#F0A531", highlightthickness=1, padx=6, pady=4)
-        f_r4.grid(row=4, column=0, columnspan=2, sticky="ew", padx=2, pady=(3, 1))
+        f_r4 = tk.Frame(grid_f, bg="#FFF9EC", highlightbackground="#F0A531", highlightthickness=1, padx=8, pady=6)
+        f_r4.grid(row=4, column=0, columnspan=2, sticky="ew", padx=3, pady=(4, 2))
 
         f_tot_row = tk.Frame(f_r4, bg="#FFF9EC")
         f_tot_row.pack(fill="x")
-        tk.Label(f_tot_row, text="💳 합계금액", font=("Malgun Gothic", 8, "bold"), bg="#FFF9EC", fg="#8A5C00").pack(side="left")
+        tk.Label(f_tot_row, text="• 합계금액", font=("Malgun Gothic", 9, "bold"), bg="#FFF9EC", fg="#8A5C00").pack(side="left")
         
         # ₩ 기호 + 합계금액 (우측 정렬, 큰 폰트)
         f_tot_val_box = tk.Frame(f_tot_row, bg="#FFF9EC")
         f_tot_val_box.pack(side="right")
-        tk.Label(f_tot_val_box, text="₩ ", font=("Malgun Gothic", 9, "bold"), bg="#FFF9EC", fg="#8A5C00").pack(side="left")
-        self.e_tot = tk.Entry(f_tot_val_box, textvariable=self.total_amount_var, font=("Consolas", 10, "bold"), bg="#FFF9EC", fg="#8A5C00", justify="right", width=14, relief="flat", bd=0)
+        tk.Label(f_tot_val_box, text="₩ ", font=("Malgun Gothic", 10, "bold"), bg="#FFF9EC", fg="#8A5C00").pack(side="left")
+        self.e_tot = tk.Entry(f_tot_val_box, textvariable=self.total_amount_var, font=("Consolas", 11, "bold"), bg="#FFF9EC", fg="#8A5C00", justify="right", width=14, relief="flat", bd=0)
         self.e_tot.pack(side="left")
 
         grid_f.columnconfigure(0, weight=1)
         grid_f.columnconfigure(1, weight=1)
 
         # 실시간 상태 바 (Toast)
-        toast_box = tk.Frame(main_box, bg="#E6F7EE", highlightbackground="#86EFAC", highlightthickness=1, padx=6, pady=3)
-        toast_box.pack(fill="x", pady=(2, 3))
+        toast_box = tk.Frame(main_box, bg="#E6F7EE", highlightbackground="#86EFAC", highlightthickness=1, padx=8, pady=4)
+        toast_box.pack(fill="x", pady=(2, 4))
 
         self.lbl_live_status = tk.Label(
-            toast_box, text="✨ 서류를 올려주시면 데이터가 0.1초 만에 쏙! 추출됩니다.",
+            toast_box, text="🖥️ 바탕화면에 VoucherPass.lnk 바로가기가 생성되었습니다!",
             font=("Malgun Gothic", 8, "bold"), bg="#E6F7EE", fg="#1F9D63", anchor="w"
         )
         self.lbl_live_status.pack(fill="x")
@@ -690,19 +692,19 @@ shortcut.Save
         btn_print = tk.Button(
             act_panel, text="🖨️ 서류 5종 일괄 인쇄", font=("Malgun Gothic", 10, "bold"),
             bg="#1F9D63", fg="#FFFFFF", activebackground="#178350", activeforeground="#FFFFFF",
-            relief="flat", pady=6, cursor="hand2", command=self.print_pdf_documents_only
+            relief="flat", pady=8, cursor="hand2", command=self.print_pdf_documents_only
         )
-        btn_print.pack(side="top", fill="x", pady=(0, 3))
+        btn_print.pack(side="top", fill="x", pady=(0, 4))
 
         # 보조 버튼 2종 (Secondary: 하단 2분할 가로 배치)
         btn_row = tk.Frame(act_panel, bg="#EEF1F6")
         btn_row.pack(fill="x")
 
         btn_copy_all = tk.Button(
-            btn_row, text="📋 엑셀 양식 붙여넣기", font=("Malgun Gothic", 8, "bold"),
+            btn_row, text="📊 엑셀 양식 붙여넣기", font=("Malgun Gothic", 8, "bold"),
             bg="#FFFFFF", fg="#3457A8", activebackground="#EAF0FD", activeforeground="#26407F",
             highlightbackground="#3457A8", highlightthickness=1, relief="solid", bd=1,
-            pady=4, cursor="hand2", command=self.copy_all_3items
+            pady=5, cursor="hand2", command=self.copy_all_3items
         )
         btn_copy_all.pack(side="left", fill="x", expand=True, padx=(0, 2))
 
@@ -710,13 +712,13 @@ shortcut.Save
             btn_row, text="📁 건별 자동 보관", font=("Malgun Gothic", 8, "bold"),
             bg="#FFFFFF", fg="#3457A8", activebackground="#EAF0FD", activeforeground="#26407F",
             highlightbackground="#3457A8", highlightthickness=1, relief="solid", bd=1,
-            pady=4, cursor="hand2", command=self.archive_voucher_files
+            pady=5, cursor="hand2", command=self.archive_voucher_files
         )
         btn_arch.pack(side="right", fill="x", expand=True, padx=(2, 0))
 
         # 6. Printer Selector Bar
         prt_bar = tk.Frame(main_box, bg="#EEF1F6")
-        prt_bar.pack(fill="x", pady=(2, 0))
+        prt_bar.pack(fill="x", pady=(3, 0))
         tk.Label(prt_bar, text="🖨️ 프린터:", font=("Malgun Gothic", 8, "bold"), bg="#EEF1F6", fg="#6B7686").pack(side="left")
         self.printer_combo = ttk.Combobox(prt_bar, textvariable=self.selected_printer, font=("Malgun Gothic", 8), state="readonly")
         self.printer_combo.pack(side="left", fill="x", expand=True, padx=(4, 0))
