@@ -678,7 +678,7 @@ shortcut.Save
 
         self.lbl_live_status = tk.Label(
             toast_box, text="✨ 서류를 올려주시면 데이터가 0.1초 만에 쏙! 추출됩니다.",
-            font=("Malgun Gothic", 7.5, "bold"), bg="#E6F7EE", fg="#1F9D63", anchor="w"
+            font=("Malgun Gothic", 8, "bold"), bg="#E6F7EE", fg="#1F9D63", anchor="w"
         )
         self.lbl_live_status.pack(fill="x")
 
@@ -699,7 +699,7 @@ shortcut.Save
         btn_row.pack(fill="x")
 
         btn_copy_all = tk.Button(
-            btn_row, text="📋 엑셀 양식 붙여넣기", font=("Malgun Gothic", 8.5, "bold"),
+            btn_row, text="📋 엑셀 양식 붙여넣기", font=("Malgun Gothic", 8, "bold"),
             bg="#FFFFFF", fg="#3457A8", activebackground="#EAF0FD", activeforeground="#26407F",
             highlightbackground="#3457A8", highlightthickness=1, relief="solid", bd=1,
             pady=4, cursor="hand2", command=self.copy_all_3items
@@ -707,7 +707,7 @@ shortcut.Save
         btn_copy_all.pack(side="left", fill="x", expand=True, padx=(0, 2))
 
         btn_arch = tk.Button(
-            btn_row, text="📁 건별 자동 보관", font=("Malgun Gothic", 8.5, "bold"),
+            btn_row, text="📁 건별 자동 보관", font=("Malgun Gothic", 8, "bold"),
             bg="#FFFFFF", fg="#3457A8", activebackground="#EAF0FD", activeforeground="#26407F",
             highlightbackground="#3457A8", highlightthickness=1, relief="solid", bd=1,
             pady=4, cursor="hand2", command=self.archive_voucher_files
