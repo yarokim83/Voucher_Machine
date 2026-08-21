@@ -2,6 +2,19 @@
 
 All notable changes to VoucherPass will be documented in this file.
 
+## [v8.7.0] - 2026-08-21
+### UI Overhaul: 구글/제미나이 스타일 둥근 모서리(Rounded Corners) 전면 적용 & 레이아웃 안정화
+- **안티앨리어싱 둥근 프레임 (`RoundedFrame`)**:
+  Tkinter 자식 위젯 크기에 맞추어 자동 높이가 조절되는 `RoundedFrame`을 개발하여, 이전 Canvas 확장 버그를 원천 차단하고 드롭존 5종, 데이터 카드, 6개 입력 박스, 상태 토스트 바에 안정적인 둥근 모서리 R값 적용.
+- **안티앨리어싱 둥근 칩/배지 (`RoundedBadge`)**:
+  문서 종류별 색상 칩(세, 명, PR, PO, 계), 순번 원형 뱃지(1~5), 상태 뱃지(대기/완료), 복사 버튼(📋), 버전 뱃지에 부드러운 필(Pill)/라운드 형태의 둥근 모서리 적용.
+- **모던 라운드 액션 버튼 (`ModernRoundedButton`)**:
+  '서류 5종 일괄 인쇄' 에메랄드 주 버튼 및 하단 보조 버튼 2종에 부드러운 라운드 코너 및 호버 효과 적용.
+- **원형 도넛 진행 링 (`CircularProgressRing`)**:
+  타이틀바 우측에 0/5 실시간 원형 도넛 아크 링 연동.
+- **아이콘 런타임 강제 주입 (`iconphoto`)**:
+  `voucherpass_icon.png` 이미지를 윈도우 및 작업표시줄 아이콘으로 자동 매핑.
+
 ## [v8.6.4] - 2026-08-21
 ### UI Polish Release: 전체 UI 위젯(드롭존 5종, 입력창 6종, 카드, 합계금액, 토스트, 버튼) 전면 RoundedBox 곡률 적용
 - **전면 라운드 코너(R값) UI 완성**:
