@@ -2,6 +2,15 @@
 
 All notable changes to VoucherPass will be documented in this file.
 
+## [v8.6.2] - 2026-08-20
+### Feature & Polish Release: 원형 도넛 진행 링(CircularProgressRing), 소프트 라운드 인풋 테두리, 아이콘 캐시 리프레시
+- **원형 도넛 프로그레스 링 (`CircularProgressRing`)**:
+  타이틀바 우측에 둥근 도넛 형태의 원형 진행 아크 링과 중앙 `0/5` 카운터를 배치하여 이미지와 100% 동일한 비주얼 구현.
+- **애플 스타일 소프트 라운드 인풋 테두리**:
+  모든 Entry와 Text의 직각 사각 테두리를 제거하고 둥글고 부드러운 패딩 프레임(`highlightthickness=1`)으로 감싸 매끄러운 곡률 완성.
+- **새 아이콘 런타임 강제 매핑 (`iconphoto` + `iconbitmap`)**:
+  `voucherpass_icon.png` 이미지를 윈도우 창 및 작업표시줄에 직접 주입하여 새 아이콘이 즉각 노출되도록 보장.
+
 ## [v8.6.1] - 2026-08-20
 ### UI Optimization: 계약서 페이지 드롭존 우측 통합, 합계금액 부가세 우측 배치, 세로 공간 최적화 및 하단 짤림 완벽 개선
 - **계약서 페이지 입력란 드롭존 우측 일체형 통합**:

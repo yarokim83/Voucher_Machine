@@ -20,6 +20,46 @@ import pdf_parser
 import excel_handler
 import printer_handler
 import pdf_watcher
+from PIL import ImageDraw
+
+def make_rounded_image(w, h, r, bg_hex, border_hex=None, border_w=1):
+    scale = 4
+    W, H, R = int(w * scale), int(h * scale), int(r * scale)
+    img = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    draw.rounded_rectangle([0, 0, W-1, H-1], radius=R, fill=bg_hex, outline=border_hex, width=border_w*scale)
+    return img.resize((int(w), int(h)), Image.Resampling.LANCZOS)
+
+class CircularProgressRing(tk.Canvas):
+    """
+    원형 도넛 프로그레스 링 (0/5)
+    """
+    def __init__(self, parent, size=28, bg="#3457A8", track_color="#4B6CB7", prog_color="#22C55E", **kwargs):
+        super().__init__(parent, width=size, height=size, bg=bg, highlightthickness=0, bd=0, **kwargs)
+        self.size = size
+        self.track_color = track_color
+        self.prog_color = prog_color
+        self.count = 0
+        self.total = 5
+        self.draw()
+
+    def set_progress(self, count, total=5):
+        self.count = count
+        self.total = total
+        self.draw()
+
+    def draw(self):
+        self.delete("all")
+        pad = 2.5
+        w = 3.0
+        # 배경 도넛 링
+        self.create_oval(pad, pad, self.size - pad, self.size - pad, outline=self.track_color, width=w)
+        # 진행 링 (아크)
+        if self.count > 0:
+            extent = - (self.count / max(1, self.total)) * 359.9
+            self.create_arc(pad, pad, self.size - pad, self.size - pad, start=90, extent=extent, outline=self.prog_color, width=w, style="arc")
+        # 중앙 텍스트 0/5
+        self.create_text(self.size / 2, self.size / 2, text=f"{self.count}/{self.total}", fill="#FFFFFF", font=("Malgun Gothic", 7, "bold"))
 
 class CleanMinimalDropZone(tk.Frame):
     """
@@ -191,6 +231,13 @@ class VoucherPassApp:
         self.root.configure(bg="#EEF1F6", highlightbackground="#3457A8", highlightthickness=2)
 
         icon_path = self._get_icon_file('VoucherPass.ico')
+        icon_png = self._get_icon_file('voucherpass_icon.png') or self._get_icon_file('app_icon.png')
+        if icon_png and os.path.exists(icon_png):
+            try:
+                self._app_icon_img = ImageTk.PhotoImage(Image.open(icon_png))
+                self.root.iconphoto(True, self._app_icon_img)
+            except Exception:
+                pass
         if icon_path and os.path.exists(icon_path):
             try:
                 self.root.iconbitmap(icon_path)
@@ -483,11 +530,11 @@ shortcut.Save
 
     def _update_progress_summary(self):
         """
-        업로드 진행 상태 실시간 집계 & 뱃지(0/5) 업데이트
+        업로드 진행 상태 실시간 집계 & 원형 도넛 링(0/5) 업데이트
         """
         count = sum(1 for var in [self.tax_pdf_path, self.spec_pdf_path, self.pr_pdf_path, self.po_pdf_path, self.contract_pdf_path] if var.get() and os.path.exists(var.get()))
-        if hasattr(self, 'lbl_progress'):
-            self.lbl_progress.config(text=f"{count}/5")
+        if hasattr(self, 'circ_progress'):
+            self.circ_progress.set_progress(count, 5)
 
     def _build_widget_layout(self):
         # Windows 11 DWM 둥근 모서리 (Apple-like Rounded Window Corners)
@@ -503,8 +550,8 @@ shortcut.Save
         except Exception:
             pass
 
-        # 1. Header Bar (Navy/Blue Header & Progress Badge)
-        hdr = tk.Frame(self.root, bg="#3457A8", padx=12, pady=8)
+        # 1. Header Bar (Navy/Blue Header & Circular Progress Ring)
+        hdr = tk.Frame(self.root, bg="#3457A8", padx=12, pady=6)
         hdr.pack(fill="x")
         hdr.bind("<Button-1>", self._click_title)
         hdr.bind("<B1-Motion>", self._drag_title)
@@ -514,10 +561,10 @@ shortcut.Save
         lbl_logo.bind("<Button-1>", self._click_title)
         lbl_logo.bind("<B1-Motion>", self._drag_title)
 
-        ver_b = tk.Label(hdr, text="v8.6.1", font=("Malgun Gothic", 8, "bold"), bg="#26407F", fg="white", padx=6, pady=1)
+        ver_b = tk.Label(hdr, text="v8.6.2", font=("Malgun Gothic", 8, "bold"), bg="#26407F", fg="white", padx=6, pady=1)
         ver_b.pack(side="left", padx=(6, 0))
 
-        # 우측 0/5 원형 뱃지 및 창 제어 미니 버튼
+        # 우측 닫기/최소화 미니 점 버튼 및 원형 도넛 프로그레스 링 (0/5)
         btn_close = tk.Label(hdr, text="●", font=("Arial", 10), bg="#3457A8", fg="#FCA5A5", cursor="hand2")
         btn_close.pack(side="right", padx=(4, 0))
         btn_close.bind("<Button-1>", lambda e: self.root.destroy())
@@ -526,8 +573,9 @@ shortcut.Save
         btn_min.pack(side="right", padx=(4, 0))
         btn_min.bind("<Button-1>", lambda e: self.root.withdraw())
 
-        self.lbl_progress = tk.Label(hdr, text="0/5", font=("Malgun Gothic", 9, "bold"), bg="#26407F", fg="#FFFFFF", padx=8, pady=2)
-        self.lbl_progress.pack(side="right", padx=(0, 6))
+        # 이미지 2와 동일한 원형 도넛 진행 링 (CircularProgressRing)
+        self.circ_progress = CircularProgressRing(hdr, size=28, bg="#3457A8", track_color="#456BBF", prog_color="#22C55E")
+        self.circ_progress.pack(side="right", padx=(0, 6))
 
         # 2. Main Content Canvas
         main_box = tk.Frame(self.root, bg="#EEF1F6", padx=10, pady=8)
@@ -602,8 +650,10 @@ shortcut.Save
         f_c1_r0 = tk.Frame(grid_f, bg="#FFFFFF")
         f_c1_r0.grid(row=0, column=0, sticky="ew", padx=3, pady=1.5)
         tk.Label(f_c1_r0, text="• P/R No.", **lbl_s).pack(anchor="w")
-        self.e_prno = tk.Entry(f_c1_r0, textvariable=self.pr_no_var, font=("Malgun Gothic", 9, "bold"), bg="#FFFFFF", fg="#1C2536", relief="solid", bd=1)
-        self.e_prno.pack(fill="x", pady=(1, 0))
+        box_prno = tk.Frame(f_c1_r0, bg="#FFFFFF", highlightbackground="#CBD5E1", highlightthickness=1, padx=4, pady=2)
+        box_prno.pack(fill="x", pady=(1, 0))
+        self.e_prno = tk.Entry(box_prno, textvariable=self.pr_no_var, font=("Malgun Gothic", 9, "bold"), bg="#FFFFFF", fg="#1C2536", relief="flat", bd=0)
+        self.e_prno.pack(fill="x")
 
         f_c2_r0 = tk.Frame(grid_f, bg="#FFFFFF")
         f_c2_r0.grid(row=0, column=1, sticky="ew", padx=3, pady=1.5)
@@ -611,8 +661,10 @@ shortcut.Save
         f_date_lbl_box.pack(fill="x")
         tk.Label(f_date_lbl_box, text="• 작성일자", **lbl_s).pack(side="left")
         tk.Button(f_date_lbl_box, text="📋", command=lambda: self.copy_to_clipboard(self.date_var.get(), "작성일자"), **btn_cp).pack(side="right")
-        self.e_date = tk.Entry(f_c2_r0, textvariable=self.date_var, font=("Malgun Gothic", 9, "bold"), bg="#F5F8FF", fg="#26407F", relief="solid", bd=1)
-        self.e_date.pack(fill="x", pady=(1, 0))
+        box_date = tk.Frame(f_c2_r0, bg="#F5F8FF", highlightbackground="#B8CEF8", highlightthickness=1, padx=4, pady=2)
+        box_date.pack(fill="x", pady=(1, 0))
+        self.e_date = tk.Entry(box_date, textvariable=self.date_var, font=("Malgun Gothic", 9, "bold"), bg="#F5F8FF", fg="#26407F", relief="flat", bd=0)
+        self.e_date.pack(fill="x")
 
         # Row 1: PR Title (전체 2열 너비 차지)
         f_r1 = tk.Frame(grid_f, bg="#FFFFFF")
@@ -621,8 +673,10 @@ shortcut.Save
         f_t_lbl_box.pack(fill="x")
         tk.Label(f_t_lbl_box, text="• PR Title", **lbl_s).pack(side="left")
         tk.Button(f_t_lbl_box, text="📋", command=lambda: self.copy_to_clipboard(self.pr_title_var.get(), "PR Title"), **btn_cp).pack(side="right")
-        self.txt_pr_title = tk.Text(f_r1, width=20, height=2, wrap="word", font=("Malgun Gothic", 9, "bold"), bg="#F5F8FF", fg="#26407F", insertbackground="#26407F", relief="solid", bd=1)
-        self.txt_pr_title.pack(fill="x", pady=(1, 0))
+        box_title = tk.Frame(f_r1, bg="#F5F8FF", highlightbackground="#B8CEF8", highlightthickness=1, padx=4, pady=2)
+        box_title.pack(fill="x", pady=(1, 0))
+        self.txt_pr_title = tk.Text(box_title, width=20, height=2, wrap="word", font=("Malgun Gothic", 9, "bold"), bg="#F5F8FF", fg="#26407F", insertbackground="#26407F", relief="flat", bd=0)
+        self.txt_pr_title.pack(fill="x")
         self.txt_pr_title.bind("<KeyRelease>", self._on_pr_title_txt_changed)
 
         # Row 2: 공급가액 (좌) | 거래처명 (우)
@@ -632,22 +686,28 @@ shortcut.Save
         f_amt_lbl_box.pack(fill="x")
         tk.Label(f_amt_lbl_box, text="• 공급가액", **lbl_s).pack(side="left")
         tk.Button(f_amt_lbl_box, text="📋", command=lambda: self.copy_to_clipboard(self.amount_var.get(), "공급가액"), **btn_cp).pack(side="right")
-        self.e_amt = tk.Entry(f_c1_r2, textvariable=self.amount_var, font=("Consolas", 10, "bold"), bg="#F5F8FF", fg="#26407F", justify="right", relief="solid", bd=1)
-        self.e_amt.pack(fill="x", pady=(1, 0))
+        box_amt = tk.Frame(f_c1_r2, bg="#F5F8FF", highlightbackground="#B8CEF8", highlightthickness=1, padx=4, pady=2)
+        box_amt.pack(fill="x", pady=(1, 0))
+        self.e_amt = tk.Entry(box_amt, textvariable=self.amount_var, font=("Consolas", 10, "bold"), bg="#F5F8FF", fg="#26407F", justify="right", relief="flat", bd=0)
+        self.e_amt.pack(fill="x")
         self.e_amt.bind("<KeyRelease>", self._recalc_amounts)
 
         f_c2_r2 = tk.Frame(grid_f, bg="#FFFFFF")
         f_c2_r2.grid(row=2, column=1, sticky="ew", padx=3, pady=1.5)
         tk.Label(f_c2_r2, text="• 거래처명", **lbl_s).pack(anchor="w")
-        self.e_sup = tk.Entry(f_c2_r2, textvariable=self.supplier_var, font=("Malgun Gothic", 9, "bold"), bg="#FFFFFF", fg="#1C2536", relief="solid", bd=1)
-        self.e_sup.pack(fill="x", pady=(1, 0))
+        box_sup = tk.Frame(f_c2_r2, bg="#FFFFFF", highlightbackground="#CBD5E1", highlightthickness=1, padx=4, pady=2)
+        box_sup.pack(fill="x", pady=(1, 0))
+        self.e_sup = tk.Entry(box_sup, textvariable=self.supplier_var, font=("Malgun Gothic", 9, "bold"), bg="#FFFFFF", fg="#1C2536", relief="flat", bd=0)
+        self.e_sup.pack(fill="x")
 
         # Row 3: 부가세 (좌) | 합계금액 (우측 골드 카드 - 세로 공간 최적화)
         f_c1_r3 = tk.Frame(grid_f, bg="#FFFFFF")
         f_c1_r3.grid(row=3, column=0, sticky="ew", padx=3, pady=1.5)
         tk.Label(f_c1_r3, text="• 부가세", **lbl_s).pack(anchor="w")
-        self.e_vat = tk.Entry(f_c1_r3, textvariable=self.vat_var, font=("Consolas", 10, "bold"), bg="#F5F8FF", fg="#26407F", justify="right", relief="solid", bd=1)
-        self.e_vat.pack(fill="x", pady=(1, 0))
+        box_vat = tk.Frame(f_c1_r3, bg="#F5F8FF", highlightbackground="#B8CEF8", highlightthickness=1, padx=4, pady=2)
+        box_vat.pack(fill="x", pady=(1, 0))
+        self.e_vat = tk.Entry(box_vat, textvariable=self.vat_var, font=("Consolas", 10, "bold"), bg="#F5F8FF", fg="#26407F", justify="right", relief="flat", bd=0)
+        self.e_vat.pack(fill="x")
 
         # 합계금액 (우측 1열 차지: 골드 라운드 카드)
         f_c2_r3 = tk.Frame(grid_f, bg="#FFF9EC", highlightbackground="#F0A531", highlightthickness=1, padx=6, pady=2)
