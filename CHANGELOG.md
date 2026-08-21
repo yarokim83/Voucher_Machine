@@ -2,6 +2,13 @@
 
 All notable changes to VoucherPass will be documented in this file.
 
+## [v8.6.4] - 2026-08-21
+### UI Polish Release: 전체 UI 위젯(드롭존 5종, 입력창 6종, 카드, 합계금액, 토스트, 버튼) 전면 RoundedBox 곡률 적용
+- **전면 라운드 코너(R값) UI 완성**:
+  드롭존 5종, 계약서 페이지 상자, 추출 데이터 7종 카드, 6개 입력 필드 박스, 합계금액 골드 카드, 실시간 상태 토스트 바에 `RoundedBox`(PIL 4x 안티앨리어싱)를 전면 적용하여 직각 사각형 요소를 100% 제거.
+- **하단 보조 버튼 5:5 완벽 균등 분할**:
+  `📊 엑셀 양식 붙여넣기`와 `📁 건별 자동 보관` 텍스트가 잘리지 않고 시원하게 양분되어 배치되도록 개선.
+
 ## [v8.6.3] - 2026-08-21
 ### UI Release: PIL 기반 4배 슈퍼샘플링 안티앨리어싱 라운드 버튼(AppleRoundedButton) 전면 적용
 - **완벽한 R값 곡률 버튼 (`AppleRoundedButton`)**:

@@ -117,22 +117,67 @@ class AppleRoundedButton(tk.Canvas):
         self.create_image(0, 0, image=self._bg_img, anchor="nw")
         self.create_text(w / 2, h / 2, text=self.text, fill=self.fg_color, font=self.font)
 
+class RoundedBox(tk.Canvas):
+    """
+    모든 위젯을 감쌀 수 있는 가변 크기 둥근 모서리 R값 캔버스 박스
+    """
+    def __init__(self, parent, radius=8, bg_color="#FFFFFF", border_color="#E1E5EC", border_width=1, outer_bg="#EEF1F6", **kwargs):
+        super().__init__(parent, bg=outer_bg, highlightthickness=0, bd=0, **kwargs)
+        self.radius = radius
+        self.bg_color = bg_color
+        self.border_color = border_color
+        self.border_width = border_width
+        self.outer_bg = outer_bg
+        self._bg_img = None
+        self._last_w = 0
+        self._last_h = 0
+        self.bind("<Configure>", self._on_resize)
+        
+    def set_colors(self, bg_color=None, border_color=None):
+        if bg_color is not None:
+            self.bg_color = bg_color
+        if border_color is not None:
+            self.border_color = border_color
+        self._redraw()
+
+    def _on_resize(self, event):
+        if event.width > 6 and event.height > 6 and (event.width != self._last_w or event.height != self._last_h):
+            self._last_w = event.width
+            self._last_h = event.height
+            self._redraw()
+
+    def _redraw(self):
+        w = max(6, self._last_w or self.winfo_width())
+        h = max(6, self._last_h or self.winfo_height())
+        scale = 4
+        W, H, R = int(w * scale), int(h * scale), int(self.radius * scale)
+        img = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        draw.rounded_rectangle([0, 0, W-1, H-1], radius=R, fill=self.bg_color, outline=self.border_color, width=int(self.border_width*scale) if self.border_color else 0)
+        self._bg_img = ImageTk.PhotoImage(img.resize((int(w), int(h)), Image.Resampling.LANCZOS))
+        self.delete("bg")
+        self.create_image(0, 0, image=self._bg_img, anchor="nw", tags="bg")
+        self.tag_lower("bg")
+
 class CleanMinimalDropZone(tk.Frame):
     """
-    VoucherPass v8.5.0 Clean UX DropZone
-    - 문서 종류별 색상 아이콘 칩 + 파일형식 태그
-    - 완료 시 초록 테두리 & 배경 & [완료] 배지
+    VoucherPass Clean UX DropZone (완벽한 애플 스타일 R값 곡률 카드)
     """
     def __init__(self, parent, num_str, title, tag_str, chip_text, chip_bg, file_var, on_file_selected=None, on_state_changed=None, **kwargs):
-        super().__init__(parent, bg="#FFFFFF", highlightbackground="#E1E5EC", highlightthickness=1, bd=0, **kwargs)
+        super().__init__(parent, bg="#EEF1F6", bd=0, **kwargs)
         self.file_var = file_var
         self.on_file_selected = on_file_selected
         self.on_state_changed = on_state_changed
         self.chip_bg = chip_bg
         self.num_str = num_str
 
-        self.inner = tk.Frame(self, bg="#FFFFFF", padx=6, pady=4)
-        self.inner.pack(fill="both", expand=True)
+        # 둥근 모서리 R값 캔버스 카드
+        self.rbox = RoundedBox(self, radius=8, bg_color="#FFFFFF", border_color="#E1E5EC", border_width=1, outer_bg="#EEF1F6")
+        self.rbox.pack(fill="both", expand=True)
+
+        self.inner = tk.Frame(self.rbox, bg="#FFFFFF", padx=6, pady=4)
+        self.inner_win = self.rbox.create_window(3, 3, window=self.inner, anchor="nw")
+        self.rbox.bind("<Configure>", self._sync_inner_size, add="+")
 
         # 1. 문서 종류별 색상 아이콘 칩 (세, 명, PR, PO, 계)
         self.lbl_chip = tk.Label(
@@ -181,7 +226,7 @@ class CleanMinimalDropZone(tk.Frame):
         )
         self.lbl_badge.pack(side="right", padx=(4, 0))
 
-        for w in (self, self.inner, self.lbl_chip, txt_box, title_row, self.lbl_num, self.lbl_title, self.lbl_tag, self.lbl_status, self.lbl_badge):
+        for w in (self, self.rbox, self.inner, self.lbl_chip, txt_box, title_row, self.lbl_num, self.lbl_title, self.lbl_tag, self.lbl_status, self.lbl_badge):
             w.config(cursor="hand2")
             w.bind("<Button-1>", self._browse_file)
 
@@ -192,6 +237,10 @@ class CleanMinimalDropZone(tk.Frame):
             self.dnd_bind('<<DragLeave>>', self._on_drag_leave)
 
         self.file_var.trace_add("write", self._update_ui_state)
+
+    def _sync_inner_size(self, event):
+        if event.width > 10 and event.height > 10:
+            self.rbox.itemconfigure(self.inner_win, width=event.width - 6, height=event.height - 6)
 
     def _browse_file(self, event=None):
         path = filedialog.askopenfilename(filetypes=[("All Files", "*.*")])
@@ -226,7 +275,7 @@ class CleanMinimalDropZone(tk.Frame):
             self.set_file(valid_file)
 
     def _on_drag_enter(self, event=None):
-        self.config(bg="#EAF0FD", highlightbackground="#3457A8", highlightthickness=2)
+        self.rbox.set_colors(bg_color="#EAF0FD", border_color="#3457A8")
         self.inner.config(bg="#EAF0FD")
 
     def _on_drag_leave(self, event=None):
@@ -241,9 +290,9 @@ class CleanMinimalDropZone(tk.Frame):
         path = self.file_var.get()
         if path and os.path.exists(path):
             fname = os.path.basename(path)
-            # 완료 상태: 산뜻한 연초록 배경 + 초록 실선 테두리 + [완료] 배지
+            # 완료 상태: 산뜻한 연초록 둥근 카드 + 초록 둥근 테두리 + [완료] 배지
             bg_color = "#E6F7EE"
-            self.config(bg=bg_color, highlightbackground="#1F9D63", highlightthickness=1)
+            self.rbox.set_colors(bg_color=bg_color, border_color="#1F9D63")
             self.inner.config(bg=bg_color)
             self.lbl_title.master.config(bg=bg_color)
             self.lbl_title.master.master.config(bg=bg_color)
@@ -253,9 +302,9 @@ class CleanMinimalDropZone(tk.Frame):
             self.lbl_status.config(text=f"{fname} 업로드 완료", fg="#1F9D63", font=("Malgun Gothic", 7, "bold"), bg=bg_color)
             self.lbl_badge.config(text="완료", bg="#1F9D63", fg="#FFFFFF")
         else:
-            # 대기 상태: 깨끗한 흰색 배경 + 연한 회색 테두리 + [대기] 배지
+            # 대기 상태: 깨끗한 흰색 둥근 카드 + 연한 회색 둥근 테두리 + [대기] 배지
             bg_color = "#FFFFFF"
-            self.config(bg=bg_color, highlightbackground="#E1E5EC", highlightthickness=1)
+            self.rbox.set_colors(bg_color=bg_color, border_color="#E1E5EC")
             self.inner.config(bg=bg_color)
             self.lbl_title.master.config(bg=bg_color)
             self.lbl_title.master.master.config(bg=bg_color)
@@ -617,7 +666,7 @@ shortcut.Save
         lbl_logo.bind("<Button-1>", self._click_title)
         lbl_logo.bind("<B1-Motion>", self._drag_title)
 
-        ver_b = tk.Label(hdr, text="v8.6.3", font=("Malgun Gothic", 8, "bold"), bg="#26407F", fg="white", padx=6, pady=1)
+        ver_b = tk.Label(hdr, text="v8.6.4", font=("Malgun Gothic", 8, "bold"), bg="#26407F", fg="white", padx=6, pady=1)
         ver_b.pack(side="left", padx=(6, 0))
 
         # 우측 닫기/최소화 미니 점 버튼 및 원형 도넛 프로그레스 링 (0/5)
@@ -680,23 +729,29 @@ shortcut.Save
         )
         self.drop_contract.pack(side="left", fill="x", expand=True)
 
-        pg_box = tk.Frame(f_contract_row, bg="#FFFFFF", highlightbackground="#E1E5EC", highlightthickness=1, padx=6, pady=4)
-        pg_box.pack(side="right", fill="y", padx=(4, 0))
-        tk.Label(pg_box, text="페이지", font=("Malgun Gothic", 8, "bold"), bg="#FFFFFF", fg="#6B7686").pack(side="left", padx=(0, 3))
-        self.e_contract_page = tk.Entry(pg_box, textvariable=self.contract_page, font=("Malgun Gothic", 9, "bold"), bg="#F8FAFC", fg="#1C2536", width=3, justify="center", relief="solid", bd=1)
+        pg_rbox = RoundedBox(f_contract_row, radius=6, bg_color="#FFFFFF", border_color="#E1E5EC", border_width=1, outer_bg="#EEF1F6")
+        pg_rbox.pack(side="right", fill="y", padx=(4, 0))
+        pg_inner = tk.Frame(pg_rbox, bg="#FFFFFF", padx=5, pady=3)
+        pg_rbox.create_window(2, 2, window=pg_inner, anchor="nw")
+        tk.Label(pg_inner, text="페이지", font=("Malgun Gothic", 8, "bold"), bg="#FFFFFF", fg="#6B7686").pack(side="left", padx=(0, 3))
+        self.e_contract_page = tk.Entry(pg_inner, textvariable=self.contract_page, font=("Malgun Gothic", 9, "bold"), bg="#F8FAFC", fg="#1C2536", width=3, justify="center", relief="flat", bd=0)
         self.e_contract_page.pack(side="left")
 
         # 4. 추출 데이터 7종 섹션 (라벨-값 분리 & 금액 우측정렬 & 부가세 옆에 합계금액 배치로 세로 압축)
-        data_card = tk.Frame(main_box, bg="#FFFFFF", highlightbackground="#E1E5EC", highlightthickness=1)
+        data_card = RoundedBox(main_box, radius=8, bg_color="#FFFFFF", border_color="#E1E5EC", border_width=1, outer_bg="#EEF1F6")
         data_card.pack(fill="x", pady=(2, 3))
 
+        data_inner = tk.Frame(data_card, bg="#FFFFFF")
+        data_card_win = data_card.create_window(3, 3, window=data_inner, anchor="nw")
+        data_card.bind("<Configure>", lambda e: data_card.itemconfigure(data_card_win, width=e.width-6), add="+")
+
         # 데이터 카드 헤더
-        data_hdr = tk.Frame(data_card, bg="#F4F6FA", padx=10, pady=4)
+        data_hdr = tk.Frame(data_inner, bg="#F4F6FA", padx=10, pady=4)
         data_hdr.pack(fill="x")
         tk.Label(data_hdr, text="📋 추출 데이터 7종", font=("Malgun Gothic", 9, "bold"), bg="#F4F6FA", fg="#1C2536").pack(side="left")
 
         # 그리드 컨테이너
-        grid_f = tk.Frame(data_card, bg="#FFFFFF", padx=8, pady=4)
+        grid_f = tk.Frame(data_inner, bg="#FFFFFF", padx=8, pady=4)
         grid_f.pack(fill="x")
 
         lbl_s = {"font": ("Malgun Gothic", 8, "bold"), "bg": "#FFFFFF", "fg": "#6B7686"}
@@ -706,10 +761,11 @@ shortcut.Save
         f_c1_r0 = tk.Frame(grid_f, bg="#FFFFFF")
         f_c1_r0.grid(row=0, column=0, sticky="ew", padx=3, pady=1.5)
         tk.Label(f_c1_r0, text="• P/R No.", **lbl_s).pack(anchor="w")
-        box_prno = tk.Frame(f_c1_r0, bg="#FFFFFF", highlightbackground="#CBD5E1", highlightthickness=1, padx=4, pady=2)
+        box_prno = RoundedBox(f_c1_r0, radius=6, bg_color="#FFFFFF", border_color="#CBD5E1", border_width=1, outer_bg="#FFFFFF", height=26)
         box_prno.pack(fill="x", pady=(1, 0))
         self.e_prno = tk.Entry(box_prno, textvariable=self.pr_no_var, font=("Malgun Gothic", 9, "bold"), bg="#FFFFFF", fg="#1C2536", relief="flat", bd=0)
-        self.e_prno.pack(fill="x")
+        box_prno.create_window(6, 4, window=self.e_prno, anchor="nw")
+        box_prno.bind("<Configure>", lambda e, w=self.e_prno: box_prno.itemconfigure(1, width=e.width-12), add="+")
 
         f_c2_r0 = tk.Frame(grid_f, bg="#FFFFFF")
         f_c2_r0.grid(row=0, column=1, sticky="ew", padx=3, pady=1.5)
@@ -717,10 +773,11 @@ shortcut.Save
         f_date_lbl_box.pack(fill="x")
         tk.Label(f_date_lbl_box, text="• 작성일자", **lbl_s).pack(side="left")
         tk.Button(f_date_lbl_box, text="📋", command=lambda: self.copy_to_clipboard(self.date_var.get(), "작성일자"), **btn_cp).pack(side="right")
-        box_date = tk.Frame(f_c2_r0, bg="#F5F8FF", highlightbackground="#B8CEF8", highlightthickness=1, padx=4, pady=2)
+        box_date = RoundedBox(f_c2_r0, radius=6, bg_color="#F5F8FF", border_color="#B8CEF8", border_width=1, outer_bg="#FFFFFF", height=26)
         box_date.pack(fill="x", pady=(1, 0))
         self.e_date = tk.Entry(box_date, textvariable=self.date_var, font=("Malgun Gothic", 9, "bold"), bg="#F5F8FF", fg="#26407F", relief="flat", bd=0)
-        self.e_date.pack(fill="x")
+        box_date.create_window(6, 4, window=self.e_date, anchor="nw")
+        box_date.bind("<Configure>", lambda e, w=self.e_date: box_date.itemconfigure(1, width=e.width-12), add="+")
 
         # Row 1: PR Title (전체 2열 너비 차지)
         f_r1 = tk.Frame(grid_f, bg="#FFFFFF")
@@ -729,10 +786,11 @@ shortcut.Save
         f_t_lbl_box.pack(fill="x")
         tk.Label(f_t_lbl_box, text="• PR Title", **lbl_s).pack(side="left")
         tk.Button(f_t_lbl_box, text="📋", command=lambda: self.copy_to_clipboard(self.pr_title_var.get(), "PR Title"), **btn_cp).pack(side="right")
-        box_title = tk.Frame(f_r1, bg="#F5F8FF", highlightbackground="#B8CEF8", highlightthickness=1, padx=4, pady=2)
+        box_title = RoundedBox(f_r1, radius=6, bg_color="#F5F8FF", border_color="#B8CEF8", border_width=1, outer_bg="#FFFFFF", height=38)
         box_title.pack(fill="x", pady=(1, 0))
         self.txt_pr_title = tk.Text(box_title, width=20, height=2, wrap="word", font=("Malgun Gothic", 9, "bold"), bg="#F5F8FF", fg="#26407F", insertbackground="#26407F", relief="flat", bd=0)
-        self.txt_pr_title.pack(fill="x")
+        box_title.create_window(6, 3, window=self.txt_pr_title, anchor="nw")
+        box_title.bind("<Configure>", lambda e, w=self.txt_pr_title: box_title.itemconfigure(1, width=e.width-12, height=e.height-6), add="+")
         self.txt_pr_title.bind("<KeyRelease>", self._on_pr_title_txt_changed)
 
         # Row 2: 공급가액 (좌) | 거래처명 (우)
@@ -742,38 +800,48 @@ shortcut.Save
         f_amt_lbl_box.pack(fill="x")
         tk.Label(f_amt_lbl_box, text="• 공급가액", **lbl_s).pack(side="left")
         tk.Button(f_amt_lbl_box, text="📋", command=lambda: self.copy_to_clipboard(self.amount_var.get(), "공급가액"), **btn_cp).pack(side="right")
-        box_amt = tk.Frame(f_c1_r2, bg="#F5F8FF", highlightbackground="#B8CEF8", highlightthickness=1, padx=4, pady=2)
+        box_amt = RoundedBox(f_c1_r2, radius=6, bg_color="#F5F8FF", border_color="#B8CEF8", border_width=1, outer_bg="#FFFFFF", height=26)
         box_amt.pack(fill="x", pady=(1, 0))
         self.e_amt = tk.Entry(box_amt, textvariable=self.amount_var, font=("Consolas", 10, "bold"), bg="#F5F8FF", fg="#26407F", justify="right", relief="flat", bd=0)
-        self.e_amt.pack(fill="x")
+        box_amt.create_window(6, 4, window=self.e_amt, anchor="nw")
+        box_amt.bind("<Configure>", lambda e, w=self.e_amt: box_amt.itemconfigure(1, width=e.width-12), add="+")
         self.e_amt.bind("<KeyRelease>", self._recalc_amounts)
 
         f_c2_r2 = tk.Frame(grid_f, bg="#FFFFFF")
         f_c2_r2.grid(row=2, column=1, sticky="ew", padx=3, pady=1.5)
         tk.Label(f_c2_r2, text="• 거래처명", **lbl_s).pack(anchor="w")
-        box_sup = tk.Frame(f_c2_r2, bg="#FFFFFF", highlightbackground="#CBD5E1", highlightthickness=1, padx=4, pady=2)
+        box_sup = RoundedBox(f_c2_r2, radius=6, bg_color="#FFFFFF", border_color="#CBD5E1", border_width=1, outer_bg="#FFFFFF", height=26)
         box_sup.pack(fill="x", pady=(1, 0))
         self.e_sup = tk.Entry(box_sup, textvariable=self.supplier_var, font=("Malgun Gothic", 9, "bold"), bg="#FFFFFF", fg="#1C2536", relief="flat", bd=0)
-        self.e_sup.pack(fill="x")
+        box_sup.create_window(6, 4, window=self.e_sup, anchor="nw")
+        box_sup.bind("<Configure>", lambda e, w=self.e_sup: box_sup.itemconfigure(1, width=e.width-12), add="+")
 
         # Row 3: 부가세 (좌) | 합계금액 (우측 골드 카드 - 세로 공간 최적화)
         f_c1_r3 = tk.Frame(grid_f, bg="#FFFFFF")
         f_c1_r3.grid(row=3, column=0, sticky="ew", padx=3, pady=1.5)
         tk.Label(f_c1_r3, text="• 부가세", **lbl_s).pack(anchor="w")
-        box_vat = tk.Frame(f_c1_r3, bg="#F5F8FF", highlightbackground="#B8CEF8", highlightthickness=1, padx=4, pady=2)
+        box_vat = RoundedBox(f_c1_r3, radius=6, bg_color="#F5F8FF", border_color="#B8CEF8", border_width=1, outer_bg="#FFFFFF", height=26)
         box_vat.pack(fill="x", pady=(1, 0))
         self.e_vat = tk.Entry(box_vat, textvariable=self.vat_var, font=("Consolas", 10, "bold"), bg="#F5F8FF", fg="#26407F", justify="right", relief="flat", bd=0)
-        self.e_vat.pack(fill="x")
+        box_vat.create_window(6, 4, window=self.e_vat, anchor="nw")
+        box_vat.bind("<Configure>", lambda e, w=self.e_vat: box_vat.itemconfigure(1, width=e.width-12), add="+")
 
-        # 합계금액 (우측 1열 차지: 골드 라운드 카드)
-        f_c2_r3 = tk.Frame(grid_f, bg="#FFF9EC", highlightbackground="#F0A531", highlightthickness=1, padx=6, pady=2)
+        # 합계금액 (우측 1열 차지: 완벽한 R값 곡률 골드 라운드 카드)
+        f_c2_r3 = tk.Frame(grid_f, bg="#FFFFFF")
         f_c2_r3.grid(row=3, column=1, sticky="ew", padx=3, pady=1.5)
 
-        f_tot_lbl_box = tk.Frame(f_c2_r3, bg="#FFF9EC")
+        box_tot = RoundedBox(f_c2_r3, radius=8, bg_color="#FFF9EC", border_color="#F0A531", border_width=1, outer_bg="#FFFFFF", height=42)
+        box_tot.pack(fill="x")
+
+        f_tot_inner = tk.Frame(box_tot, bg="#FFF9EC")
+        box_tot_win = box_tot.create_window(6, 4, window=f_tot_inner, anchor="nw")
+        box_tot.bind("<Configure>", lambda e: box_tot.itemconfigure(box_tot_win, width=e.width-12), add="+")
+
+        f_tot_lbl_box = tk.Frame(f_tot_inner, bg="#FFF9EC")
         f_tot_lbl_box.pack(fill="x")
         tk.Label(f_tot_lbl_box, text="• 합계금액", font=("Malgun Gothic", 8, "bold"), bg="#FFF9EC", fg="#8A5C00").pack(side="left")
         
-        f_tot_val_box = tk.Frame(f_c2_r3, bg="#FFF9EC")
+        f_tot_val_box = tk.Frame(f_tot_inner, bg="#FFF9EC")
         f_tot_val_box.pack(fill="x", pady=(1, 0))
         tk.Label(f_tot_val_box, text="₩ ", font=("Malgun Gothic", 9, "bold"), bg="#FFF9EC", fg="#8A5C00").pack(side="left")
         self.e_tot = tk.Entry(f_tot_val_box, textvariable=self.total_amount_var, font=("Consolas", 10, "bold"), bg="#FFF9EC", fg="#8A5C00", justify="right", relief="flat", bd=0)
@@ -782,15 +850,16 @@ shortcut.Save
         grid_f.columnconfigure(0, weight=1)
         grid_f.columnconfigure(1, weight=1)
 
-        # 실시간 상태 바 (Toast)
-        toast_box = tk.Frame(main_box, bg="#E6F7EE", highlightbackground="#86EFAC", highlightthickness=1, padx=8, pady=3)
+        # 실시간 상태 바 (Toast: 완벽한 R값 곡률 연초록 카드)
+        toast_box = RoundedBox(main_box, radius=8, bg_color="#E6F7EE", border_color="#86EFAC", border_width=1, outer_bg="#EEF1F6", height=28)
         toast_box.pack(fill="x", pady=(2, 3))
 
         self.lbl_live_status = tk.Label(
             toast_box, text="🖥️ 바탕화면에 VoucherPass.lnk 바로가기가 생성되었습니다!",
             font=("Malgun Gothic", 8, "bold"), bg="#E6F7EE", fg="#1F9D63", anchor="w"
         )
-        self.lbl_live_status.pack(fill="x")
+        toast_win = toast_box.create_window(8, 4, window=self.lbl_live_status, anchor="nw")
+        toast_box.bind("<Configure>", lambda e: toast_box.itemconfigure(toast_win, width=e.width-16), add="+")
 
         # 5. 버튼 계층화 (Actions: '서류 5종 일괄 인쇄'를 상단 풀사이즈 주 버튼으로, 나머지 2개는 보조 버튼으로 하단 배치)
         act_panel = tk.Frame(main_box, bg="#EEF1F6")
@@ -804,23 +873,25 @@ shortcut.Save
         )
         btn_print.pack(side="top", fill="x", pady=(0, 3))
 
-        # 보조 버튼 2종 (Secondary: 하단 2분할 가로 배치 - 완벽한 R값 곡률 적용)
+        # 보조 버튼 2종 (Secondary: 하단 2분할 5:5 완벽 균등 분할 그리드)
         btn_row = tk.Frame(act_panel, bg="#EEF1F6")
         btn_row.pack(fill="x")
+        btn_row.columnconfigure(0, weight=1)
+        btn_row.columnconfigure(1, weight=1)
 
         btn_copy_all = AppleRoundedButton(
             btn_row, text="📊 엑셀 양식 붙여넣기", command=self.copy_all_3items,
             height=32, radius=7, bg_color="#FFFFFF", hover_bg="#EAF0FD", fg_color="#3457A8",
             border_color="#3457A8", font=("Malgun Gothic", 8, "bold")
         )
-        btn_copy_all.pack(side="left", fill="x", expand=True, padx=(0, 2))
+        btn_copy_all.grid(row=0, column=0, sticky="ew", padx=(0, 2))
 
         btn_arch = AppleRoundedButton(
             btn_row, text="📁 건별 자동 보관", command=self.archive_voucher_files,
             height=32, radius=7, bg_color="#FFFFFF", hover_bg="#EAF0FD", fg_color="#3457A8",
             border_color="#3457A8", font=("Malgun Gothic", 8, "bold")
         )
-        btn_arch.pack(side="right", fill="x", expand=True, padx=(2, 0))
+        btn_arch.grid(row=0, column=1, sticky="ew", padx=(2, 0))
 
         # 6. Printer Selector Bar
         prt_bar = tk.Frame(main_box, bg="#EEF1F6")
