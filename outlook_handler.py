@@ -143,16 +143,19 @@ def fetch_latest_outlook_file(max_age_seconds=1200):
 
 
 def fetch_outlook_attachment():
+    # 1. 0.003초 초고속: 아웃룩 임시 폴더 최신 파일 확인 (사용자가 메일에서 첨부를 클릭/열람한 경우)
+    temp_file = fetch_latest_outlook_file(max_age_seconds=1800)
+    if temp_file and os.path.exists(temp_file):
+        return temp_file, '아웃룩에서 열람한 최신 첨부파일을 가져왔습니다.'
+
+    # 2. 0.001초 초고속: 클립보드 확인 (사용자가 첨부파일을 Ctrl+C 복사한 경우)
     clip_files = extract_files_from_clipboard()
     if clip_files:
         return clip_files[0], '클립보드에서 첨부파일을 가져왔습니다.'
 
+    # 3. 보조: COM 활성 메일 확인
     com_files = extract_from_active_com_mail()
     if com_files:
         return com_files[0], '열려 있는 아웃룩 메일에서 첨부파일을 가져왔습니다.'
-
-    temp_file = fetch_latest_outlook_file(max_age_seconds=1200)
-    if temp_file and os.path.exists(temp_file):
-        return temp_file, '아웃룩에서 열람한 최신 첨부파일을 가져왔습니다.'
 
     return None, '아웃룩 첨부파일을 찾을 수 없습니다. 아웃룩에서 메일을 열거나 첨부파일을 확인해 주세요.'

@@ -703,7 +703,7 @@ shortcut.Save
         lbl_logo.bind("<Button-1>", self._click_title)
         lbl_logo.bind("<B1-Motion>", self._drag_title)
 
-        ver_b = RoundedBadge(hdr, text="v8.7.1", bg_color="#26407F", fg_color="#FFFFFF", font=("Malgun Gothic", 8, "bold"), radius=6, width=46, height=20, outer_bg="#3457A8")
+        ver_b = RoundedBadge(hdr, text="v8.7.2", bg_color="#26407F", fg_color="#FFFFFF", font=("Malgun Gothic", 8, "bold"), radius=6, width=46, height=20, outer_bg="#3457A8")
         ver_b.pack(side="left", padx=(6, 0))
 
         btn_outlook = RoundedBadge(hdr, text="📬 아웃룩", bg_color="#4F46E5", fg_color="#FFFFFF", font=("Malgun Gothic", 8, "bold"), radius=6, width=62, height=20, outer_bg="#3457A8", cursor="hand2")
@@ -929,7 +929,7 @@ shortcut.Save
                 self.folder_watcher.check_new_files()
             except Exception:
                 pass
-        self.root.after(2000, self._start_folder_watch_timer)
+        self.root.after(300, self._start_folder_watch_timer)
 
     def handle_auto_detected_pdf(self, pdf_path):
         """
@@ -1213,16 +1213,19 @@ shortcut.Save
                 file_uri = 'file:///' + html_path.replace('\\', '/').replace(' ', '%20')
                 pdf_parser._log_debug(f"[auto_unlock 1단계] HTML 열기: {file_uri}")
                 driver.get(file_uri)
-                time.sleep(2)
 
-                # Step 3: 비밀번호 입력
-                pdf_parser._log_debug("[auto_unlock 2단계] 비밀번호(6068625399) 입력...")
+                # Step 3: 비밀번호 입력 (동적 감지: 0.05초 간격 실시간 대기)
+                pdf_parser._log_debug("[auto_unlock 2단계] 비밀번호(6068625399) 동적 감지 및 입력...")
                 pwd_input = None
-                inputs = driver.find_elements(By.CSS_SELECTOR, 'input[type=password], input[type=text]')
-                for inp in inputs:
-                    if inp.is_displayed() and inp.get_attribute('type') in ('password', 'text'):
-                        pwd_input = inp
+                for _ in range(30):
+                    inputs = driver.find_elements(By.CSS_SELECTOR, 'input[type=password], input[type=text]')
+                    for inp in inputs:
+                        if inp.is_displayed() and inp.get_attribute('type') in ('password', 'text'):
+                            pwd_input = inp
+                            break
+                    if pwd_input:
                         break
+                    time.sleep(0.05)
 
                 if not pwd_input:
                     pdf_parser._log_debug("[auto_unlock ERROR] 비밀번호 입력란을 찾지 못했습니다.")
@@ -1252,10 +1255,21 @@ shortcut.Save
                             clicked = True
                             break
 
-                # Step 5: 세금계산서 렌더링 대기
-                pdf_parser._log_debug("[auto_unlock 4단계] 세금계산서 본문 렌더링 대기...")
+                # Step 5: 세금계산서 렌더링 동적 대기 (iframe 내용 로드 즉시 진행)
+                pdf_parser._log_debug("[auto_unlock 4단계] 세금계산서 본문 동적 렌더링 대기...")
                 self.root.after(0, lambda: self.set_live_status("📄 세금계산서 렌더링 중...", type="info"))
-                time.sleep(3)
+                for _ in range(40):
+                    is_ready = driver.execute_script("""
+                        var ifr = document.getElementById('CriMsgPosition');
+                        if (ifr) {
+                            var ifrDoc = ifr.contentDocument || ifr.contentWindow.document;
+                            if (ifrDoc && ifrDoc.body && ifrDoc.body.innerText.length > 30) return true;
+                        }
+                        return false;
+                    """)
+                    if is_ready:
+                        break
+                    time.sleep(0.05)
 
                 # Step 6: 인쇄 UI 정리 (상단 '인쇄/첨부보기' 툴바 및 비밀번호 대화상자 숨김, iframe 높이 자동 확장 및 스크롤바 제거)
                 try:
