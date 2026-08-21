@@ -20,6 +20,7 @@ import pdf_parser
 import excel_handler
 import printer_handler
 import pdf_watcher
+import outlook_handler
 
 
 class RoundedFrame(tk.Frame):
@@ -419,6 +420,10 @@ class VoucherPassApp:
         self._setup_system_tray()
         self._setup_global_hotkey()
 
+        # F4: 아웃룩 첨부파일 1클릭 가져오기, Ctrl+V: 클립보드 첨부파일 붙여넣기
+        self.root.bind("<F4>", lambda e: self.fetch_outlook_action())
+        self.root.bind("<Control-v>", lambda e: self.paste_from_clipboard_action())
+
         # PR Title Text - StringVar 양방향 동기화
         self.pr_title_var.trace_add("write", self._on_pr_title_var_changed)
 
@@ -698,8 +703,12 @@ shortcut.Save
         lbl_logo.bind("<Button-1>", self._click_title)
         lbl_logo.bind("<B1-Motion>", self._drag_title)
 
-        ver_b = RoundedBadge(hdr, text="v8.7.0", bg_color="#26407F", fg_color="#FFFFFF", font=("Malgun Gothic", 8, "bold"), radius=6, width=46, height=20, outer_bg="#3457A8")
+        ver_b = RoundedBadge(hdr, text="v8.7.1", bg_color="#26407F", fg_color="#FFFFFF", font=("Malgun Gothic", 8, "bold"), radius=6, width=46, height=20, outer_bg="#3457A8")
         ver_b.pack(side="left", padx=(6, 0))
+
+        btn_outlook = RoundedBadge(hdr, text="📬 아웃룩", bg_color="#4F46E5", fg_color="#FFFFFF", font=("Malgun Gothic", 8, "bold"), radius=6, width=62, height=20, outer_bg="#3457A8", cursor="hand2")
+        btn_outlook.pack(side="left", padx=(6, 0))
+        btn_outlook.bind("<Button-1>", lambda e: self.fetch_outlook_action())
 
         # 우측 창 제어 미니 버튼 및 도넛 프로그레스 링
         btn_close = tk.Label(hdr, text="●", font=("Arial", 10), bg="#3457A8", fg="#FCA5A5", cursor="hand2")
@@ -943,6 +952,31 @@ shortcut.Save
             self.drop_spec.set_file(pdf_path)
         elif pdf_type == 'contract':
             self.drop_contract.set_file(pdf_path)
+
+    def fetch_outlook_action(self):
+        """아웃룩에서 세금계산서/명세서 첨부파일을 1클릭으로 자동 추출 및 로드"""
+        fp, msg = outlook_handler.fetch_outlook_attachment()
+        if fp and os.path.exists(fp):
+            fname = os.path.basename(fp)
+            self.handle_auto_detected_pdf(fp)
+            if hasattr(self, 'lbl_live_status'):
+                self.lbl_live_status.config(text=f"📬 아웃룩 [{fname}] 가져오기 완료!")
+        else:
+            if hasattr(self, 'lbl_live_status'):
+                self.lbl_live_status.config(text="⚠️ 아웃룩 첨부파일을 찾을 수 없습니다.")
+            messagebox.showinfo("아웃룩 첨부파일 가져오기", "아웃룩에서 메일을 열어두거나 첨부파일을 선택한 후 다시 시도해 주세요.\n(또는 첨부파일을 복사[Ctrl+C]한 뒤 이 창에서 [Ctrl+V]를 누르셔도 됩니다.)")
+
+    def paste_from_clipboard_action(self):
+        """클립보드에 복사된 아웃룩 첨부파일 또는 파일 경로를 자동 추출 및 로드"""
+        files = outlook_handler.extract_files_from_clipboard()
+        if files:
+            for fp in files:
+                if os.path.exists(fp):
+                    fname = os.path.basename(fp)
+                    self.handle_auto_detected_pdf(fp)
+                    if hasattr(self, 'lbl_live_status'):
+                        self.lbl_live_status.config(text=f"📋 클립보드 [{fname}] 로드 완료!")
+                    break
 
     def generate_excel_action(self):
         data = self._get_form_data()

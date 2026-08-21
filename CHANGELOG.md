@@ -2,6 +2,15 @@
 
 All notable changes to VoucherPass will be documented in this file.
 
+## [v8.7.1] - 2026-08-21
+### Feature Release: 아웃룩(Outlook) 첨부파일 1클릭 자동 연동 및 실시간 감시 확장
+- **📬 아웃룩 원클릭 가져오기 (`[ 📬 아웃룩 ]` 버튼 & `F4` 단축키)**:
+  Outlook Secure Temp 폴더, COM 활성 메일, 클립보드 스트림을 3중으로 스캔하여, 아웃룩에서 열람/선택한 세금계산서(`NTS_eTaxInvoice.html`) 및 명세서(PDF)를 1클릭으로 즉시 자동 로드 및 파싱.
+- **📋 클립보드 첨부파일 붙여넣기 (`Ctrl+V`) 지원**:
+  아웃룩에서 첨부파일을 복사(`Ctrl+C`)한 후 VoucherPass에서 `Ctrl+V`를 누르면 `FileGroupDescriptorW`/`FileContents` 스트림을 자동 추출하여 해당 칸에 즉시 등록.
+- **실시간 감시 폴더 확장 (`pdf_watcher`)**:
+  기존 Downloads 외에 `Desktop(바탕화면)` 및 `OutlookSecureTempFolder`까지 실시간 감시 대상에 포함하여, 아웃룩 첨부파일을 열거나 바탕화면에 드래그하는 즉시 자동 인식.
+
 ## [v8.7.0] - 2026-08-21
 ### UI Overhaul: 구글/제미나이 스타일 둥근 모서리(Rounded Corners) 전면 적용 & 레이아웃 안정화
 - **안티앨리어싱 둥근 프레임 (`RoundedFrame`)**:
