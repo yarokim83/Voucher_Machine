@@ -61,6 +61,62 @@ class CircularProgressRing(tk.Canvas):
         # 중앙 텍스트 0/5
         self.create_text(self.size / 2, self.size / 2, text=f"{self.count}/{self.total}", fill="#FFFFFF", font=("Malgun Gothic", 7, "bold"))
 
+class AppleRoundedButton(tk.Canvas):
+    """
+    안티앨리어싱 둥근 모서리 R값과 호버 효과를 지원하는 애플 스타일 라운드 버튼
+    """
+    def __init__(self, parent, text, command=None, height=36, radius=8, bg_color="#1F9D63", hover_bg="#178350", fg_color="#FFFFFF", border_color=None, font=("Malgun Gothic", 10, "bold"), outer_bg="#EEF1F6", **kwargs):
+        super().__init__(parent, height=height, bg=outer_bg, highlightthickness=0, bd=0, cursor="hand2", **kwargs)
+        self.text = text
+        self.command = command
+        self.radius = radius
+        self.normal_bg = bg_color
+        self.hover_bg = hover_bg
+        self.fg_color = fg_color
+        self.border_color = border_color
+        self.font = font
+        self.outer_bg = outer_bg
+        self.current_bg = bg_color
+        self._last_w = 0
+        self._last_h = height
+        self._bg_img = None
+        
+        self.bind("<Configure>", self._on_resize)
+        self.bind("<Enter>", self._on_enter)
+        self.bind("<Leave>", self._on_leave)
+        self.bind("<Button-1>", self._on_click)
+
+    def _on_enter(self, e):
+        self.current_bg = self.hover_bg
+        self._redraw()
+
+    def _on_leave(self, e):
+        self.current_bg = self.normal_bg
+        self._redraw()
+
+    def _on_click(self, e):
+        if self.command:
+            self.command()
+
+    def _on_resize(self, event):
+        if event.width > 10 and event.height > 10 and (event.width != self._last_w or event.height != self._last_h):
+            self._last_w = event.width
+            self._last_h = event.height
+            self._redraw()
+
+    def _redraw(self):
+        w = max(10, self._last_w or self.winfo_width())
+        h = max(10, self._last_h or self.winfo_height())
+        scale = 4
+        W, H, R = int(w * scale), int(h * scale), int(self.radius * scale)
+        img = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        draw.rounded_rectangle([0, 0, W-1, H-1], radius=R, fill=self.current_bg, outline=self.border_color, width=1*scale if self.border_color else 0)
+        self._bg_img = ImageTk.PhotoImage(img.resize((int(w), int(h)), Image.Resampling.LANCZOS))
+        self.delete("all")
+        self.create_image(0, 0, image=self._bg_img, anchor="nw")
+        self.create_text(w / 2, h / 2, text=self.text, fill=self.fg_color, font=self.font)
+
 class CleanMinimalDropZone(tk.Frame):
     """
     VoucherPass v8.5.0 Clean UX DropZone
@@ -561,7 +617,7 @@ shortcut.Save
         lbl_logo.bind("<Button-1>", self._click_title)
         lbl_logo.bind("<B1-Motion>", self._drag_title)
 
-        ver_b = tk.Label(hdr, text="v8.6.2", font=("Malgun Gothic", 8, "bold"), bg="#26407F", fg="white", padx=6, pady=1)
+        ver_b = tk.Label(hdr, text="v8.6.3", font=("Malgun Gothic", 8, "bold"), bg="#26407F", fg="white", padx=6, pady=1)
         ver_b.pack(side="left", padx=(6, 0))
 
         # 우측 닫기/최소화 미니 점 버튼 및 원형 도넛 프로그레스 링 (0/5)
@@ -740,31 +796,29 @@ shortcut.Save
         act_panel = tk.Frame(main_box, bg="#EEF1F6")
         act_panel.pack(fill="x", pady=(0, 2))
 
-        # 주 버튼 (Primary: 상단 풀사이즈 에메랄드 그린)
-        btn_print = tk.Button(
-            act_panel, text="🖨️ 서류 5종 일괄 인쇄", font=("Malgun Gothic", 10, "bold"),
-            bg="#1F9D63", fg="#FFFFFF", activebackground="#178350", activeforeground="#FFFFFF",
-            relief="flat", pady=7, cursor="hand2", command=self.print_pdf_documents_only
+        # 주 버튼 (Primary: 상단 풀사이즈 에메랄드 그린 - 완벽한 R값 곡률 적용)
+        btn_print = AppleRoundedButton(
+            act_panel, text="🖨️ 서류 5종 일괄 인쇄", command=self.print_pdf_documents_only,
+            height=38, radius=8, bg_color="#1F9D63", hover_bg="#178350", fg_color="#FFFFFF",
+            font=("Malgun Gothic", 10, "bold")
         )
         btn_print.pack(side="top", fill="x", pady=(0, 3))
 
-        # 보조 버튼 2종 (Secondary: 하단 2분할 가로 배치)
+        # 보조 버튼 2종 (Secondary: 하단 2분할 가로 배치 - 완벽한 R값 곡률 적용)
         btn_row = tk.Frame(act_panel, bg="#EEF1F6")
         btn_row.pack(fill="x")
 
-        btn_copy_all = tk.Button(
-            btn_row, text="📊 엑셀 양식 붙여넣기", font=("Malgun Gothic", 8, "bold"),
-            bg="#FFFFFF", fg="#3457A8", activebackground="#EAF0FD", activeforeground="#26407F",
-            highlightbackground="#3457A8", highlightthickness=1, relief="solid", bd=1,
-            pady=4, cursor="hand2", command=self.copy_all_3items
+        btn_copy_all = AppleRoundedButton(
+            btn_row, text="📊 엑셀 양식 붙여넣기", command=self.copy_all_3items,
+            height=32, radius=7, bg_color="#FFFFFF", hover_bg="#EAF0FD", fg_color="#3457A8",
+            border_color="#3457A8", font=("Malgun Gothic", 8, "bold")
         )
         btn_copy_all.pack(side="left", fill="x", expand=True, padx=(0, 2))
 
-        btn_arch = tk.Button(
-            btn_row, text="📁 건별 자동 보관", font=("Malgun Gothic", 8, "bold"),
-            bg="#FFFFFF", fg="#3457A8", activebackground="#EAF0FD", activeforeground="#26407F",
-            highlightbackground="#3457A8", highlightthickness=1, relief="solid", bd=1,
-            pady=4, cursor="hand2", command=self.archive_voucher_files
+        btn_arch = AppleRoundedButton(
+            btn_row, text="📁 건별 자동 보관", command=self.archive_voucher_files,
+            height=32, radius=7, bg_color="#FFFFFF", hover_bg="#EAF0FD", fg_color="#3457A8",
+            border_color="#3457A8", font=("Malgun Gothic", 8, "bold")
         )
         btn_arch.pack(side="right", fill="x", expand=True, padx=(2, 0))
 

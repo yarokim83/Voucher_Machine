@@ -2,6 +2,13 @@
 
 All notable changes to VoucherPass will be documented in this file.
 
+## [v8.6.3] - 2026-08-21
+### UI Release: PIL 기반 4배 슈퍼샘플링 안티앨리어싱 라운드 버튼(AppleRoundedButton) 전면 적용
+- **완벽한 R값 곡률 버튼 (`AppleRoundedButton`)**:
+  Tkinter의 직각 사각 렌더링 한계를 돌파하여 PIL 4x 슈퍼샘플링 기반의 둥근 모서리 R값(`radius=8px`, `ImageDraw.rounded_rectangle`)을 가진 에메랄드 그린 주 버튼 및 화이트/블루 아웃라인 보조 버튼 구현.
+- **입력창 소프트 테두리 & 원형 도넛 링 동기화**:
+  부드러운 라운드 패딩 프레임과 타이틀바 도넛 진행 링(`CircularProgressRing`) 결합.
+
 ## [v8.6.2] - 2026-08-20
 ### Feature & Polish Release: 원형 도넛 진행 링(CircularProgressRing), 소프트 라운드 인풋 테두리, 아이콘 캐시 리프레시
 - **원형 도넛 프로그레스 링 (`CircularProgressRing`)**:
