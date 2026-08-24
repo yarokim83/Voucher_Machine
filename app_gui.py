@@ -414,9 +414,7 @@ class VoucherPassApp:
         self._load_printers()
         self._start_folder_watch_timer()
 
-        # 시작프로그램 자동 등록, 바로가기 생성 및 시스템 트레이/핫키 초기화
-        self.register_startup_registry()
-        self.create_desktop_shortcut()
+        # 시스템 트레이 및 글로벌 단축키 초기화 (시작프로그램/바로가기는 트레이 메뉴 토글에 따름)
         self._setup_system_tray()
         self._setup_global_hotkey()
 
@@ -565,7 +563,7 @@ class VoucherPassApp:
                 menu = pystray.Menu(
                     pystray.MenuItem("⚡ 위젯 열기/숨기기 (Ctrl+Shift+V / 마우스 위치)", _on_toggle, default=True),
                     pystray.MenuItem("🚀 시작프로그램 자동등록", _toggle_startup, checked=lambda item: self.is_startup_registered()),
-                    pystray.MenuItem("🖥️ 바탕화면 바로가기 아이콘 생성", lambda icon, item: self.create_desktop_shortcut()),
+                    pystray.MenuItem("🖥️ 바탕화면 바로가기 생성", lambda icon, item: self.toggle_desktop_shortcut(), checked=lambda item: self.is_desktop_shortcut_existing()),
                     pystray.MenuItem("✕ 종료", _on_exit)
                 )
 
@@ -633,6 +631,33 @@ class VoucherPassApp:
             self.set_live_status(f"🎉 업체 계약서 [{label_str}p] ({len(valid_pages)}페이지) 추출 저장 완료! 📂 {out_name}", type="success")
         except Exception as e:
             self.set_live_status(f"⚠️ 계약서 페이지 추출 오류: {e}", type="error")
+
+    def is_desktop_shortcut_existing(self):
+        """바탕화면에 VoucherPass.lnk 바로가기 존재 여부 확인"""
+        try:
+            desktop = os.path.join(os.path.expanduser('~'), 'Desktop')
+            lnk_path = os.path.join(desktop, 'VoucherPass.lnk')
+            return os.path.exists(lnk_path)
+        except Exception:
+            return False
+
+    def delete_desktop_shortcut(self):
+        """바탕화면 바로가기 삭제"""
+        try:
+            desktop = os.path.join(os.path.expanduser('~'), 'Desktop')
+            lnk_path = os.path.join(desktop, 'VoucherPass.lnk')
+            if os.path.exists(lnk_path):
+                os.remove(lnk_path)
+                self.set_live_status("🗑️ 바탕화면 바로가기가 삭제되었습니다.", type="info")
+        except Exception as e:
+            print(f"Delete shortcut error: {e}")
+
+    def toggle_desktop_shortcut(self):
+        """바탕화면 바로가기 생성/삭제 토글"""
+        if self.is_desktop_shortcut_existing():
+            self.delete_desktop_shortcut()
+        else:
+            self.create_desktop_shortcut()
 
     def create_desktop_shortcut(self):
         """
@@ -703,7 +728,7 @@ shortcut.Save
         lbl_logo.bind("<Button-1>", self._click_title)
         lbl_logo.bind("<B1-Motion>", self._drag_title)
 
-        ver_b = RoundedBadge(hdr, text="v8.7.3", bg_color="#26407F", fg_color="#FFFFFF", font=("Malgun Gothic", 8, "bold"), radius=6, width=46, height=20, outer_bg="#3457A8")
+        ver_b = RoundedBadge(hdr, text="v8.7.4", bg_color="#26407F", fg_color="#FFFFFF", font=("Malgun Gothic", 8, "bold"), radius=6, width=46, height=20, outer_bg="#3457A8")
         ver_b.pack(side="left", padx=(6, 0))
 
         btn_outlook = RoundedBadge(hdr, text="📬 아웃룩", bg_color="#4F46E5", fg_color="#FFFFFF", font=("Malgun Gothic", 8, "bold"), radius=6, width=62, height=20, outer_bg="#3457A8", cursor="hand2")
