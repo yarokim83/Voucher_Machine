@@ -1,3 +1,6 @@
+## [v8.7.6] - 2026-08-24 
+- UX 개선: 아웃룩 첨부파일 가져오기 시 진행 과정을 라이브 상태 표시줄(UI)로 실시간 안내하도록 변경 (스레드 처리) 
+ 
 # Changelog
 
 All notable changes to VoucherPass will be documented in this file.
