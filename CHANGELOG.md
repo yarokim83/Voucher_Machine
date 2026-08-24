@@ -2,6 +2,13 @@
 
 All notable changes to VoucherPass will be documented in this file.
 
+## [v8.7.3] - 2026-08-24
+### Bug Fix: PR 구매요청서 PDF 거래처명(Supplier) 추출 정확도 대폭 개선
+- **ToUnicode CMap 완벽 디코딩 엔진 탑재 (`pdf_parser`)**:
+  임베딩된 CIDFont(맑은 고딕 등)로 작성된 PR PDF에서 한글이 깨지거나 공백으로 치환되던 문제를 해결하기 위해, ToUnicode CMap 스트림을 직접 파싱하여 텍스트를 100% 온전히 복원하도록 개선.
+- **거래처명(Supplier) 정규식 및 정규화 강화**:
+  `SUPPLIERS RECOMMENDED` 추천업체 테이블, `Company Name`, `공급자/거래처/업체명` 등 다양한 PR 양식에서 거래처명을 정확히 추출하고, 불필요한 공백이나 인명/전화번호가 섞이지 않도록 정규화 적용.
+
 ## [v8.7.2] - 2026-08-21
 ### Performance Release: 아웃룩 파일 처리 속도 5초 ➔ 0.8초 초고속 최적화
 - **세금계산서 복호화 고정 대기(5초) 제거 & 0.05초 동적 조건 감지**:

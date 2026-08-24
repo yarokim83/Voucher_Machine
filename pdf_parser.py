@@ -18,7 +18,114 @@ except ImportError:
 
 DEFAULT_PASSWORDS = ['6068625399', '']
 
+
+def _parse_tounicode_cmap(data):
+    cmap = {}
+    if not data:
+        return cmap
+    # 1. parse beginbfchar
+    for block in re.findall(r'beginbfchar(.*?)endbfchar', data, re.DOTALL):
+        for src_hex, dst_hex in re.findall(r'<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>', block):
+            try:
+                src_cid = int(src_hex, 16)
+                dst_char = bytes.fromhex(dst_hex).decode('utf-16be', errors='ignore')
+                cmap[src_cid] = dst_char
+            except Exception:
+                pass
+
+    # 2. parse beginbfrange
+    for block in re.findall(r'beginbfrange(.*?)endbfrange', data, re.DOTALL):
+        for start_hex, end_hex, dst_start_hex in re.findall(r'<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>', block):
+            try:
+                s_cid = int(start_hex, 16)
+                e_cid = int(end_hex, 16)
+                d_cid = int(dst_start_hex, 16)
+                for cid in range(s_cid, e_cid + 1):
+                    cmap[cid] = chr(d_cid + (cid - s_cid))
+            except Exception:
+                pass
+    return cmap
+
+
+def extract_pdf_text_with_cmaps(pdf_path, passwords=DEFAULT_PASSWORDS):
+    """
+    ToUnicode CMap을 직접 파싱하여 CIDFont로 임베딩된 한글 폰트를 완벽하게 추출.
+    """
+    if not HAS_PYPDF:
+        return ""
+    try:
+        reader = PdfReader(pdf_path)
+    except Exception:
+        return ""
+
+    if reader.is_encrypted:
+        for pwd in passwords:
+            try:
+                if reader.decrypt(pwd):
+                    break
+            except Exception:
+                pass
+
+    full_pages = []
+    try:
+        for page in reader.pages:
+            fonts = page.get('/Resources', {}).get('/Font', {})
+            cmaps = {}
+            for fname, fref in fonts.items():
+                try:
+                    fobj = fref.get_object()
+                    to_u = fobj.get('/ToUnicode')
+                    if to_u:
+                        data = to_u.get_object().get_data().decode('latin1', errors='ignore')
+                        cmaps[fname] = _parse_tounicode_cmap(data)
+                    else:
+                        cmaps[fname] = {}
+                except Exception:
+                    cmaps[fname] = {}
+
+            contents = page.get_contents()
+            if not contents:
+                continue
+            raw = contents.get_data() if hasattr(contents, 'get_data') else b''
+            current_font = None
+            chunks = []
+
+            for b in raw.split(b'BT'):
+                if b'ET' not in b:
+                    continue
+                bt_body = b.split(b'ET')[0]
+                font_m = re.findall(rb'(/F\d+)\s+[\d.]+\s+Tf', bt_body)
+                if font_m:
+                    current_font = font_m[-1].decode('latin1')
+                tjs = re.findall(rb'<([0-9A-Fa-f]+)>\s*Tj', bt_body)
+                for tj in tjs:
+                    cmap = cmaps.get(current_font, {})
+                    hex_str = tj.decode('latin1')
+                    chars = []
+                    for i in range(0, len(hex_str), 4):
+                        cid = int(hex_str[i:i+4], 16)
+                        if cid in cmap:
+                            chars.append(cmap[cid])
+                        elif cid == 3:
+                            chars.append(' ')
+                        elif 32 <= cid <= 126:
+                            chars.append(chr(cid))
+                    if chars:
+                        chunks.append(''.join(chars))
+            if chunks:
+                full_pages.append(' '.join(chunks))
+    except Exception:
+        pass
+
+    return '\n'.join(full_pages)
+
+
 def extract_pdf_text_safely(pdf_path, passwords=DEFAULT_PASSWORDS):
+    # 1. CMap 직접 디코딩 방식 우선 시도 (PR, PO 한글 완벽 복원)
+    cmap_text = extract_pdf_text_with_cmaps(pdf_path, passwords)
+    if cmap_text and len(cmap_text.strip()) > 30:
+        return cmap_text
+
     full_text = ""
     if HAS_PDFPLUMBER:
         for pwd in passwords:
@@ -51,7 +158,7 @@ def extract_pdf_text_safely(pdf_path, passwords=DEFAULT_PASSWORDS):
             except Exception:
                 continue
 
-    return full_text
+    return full_text or cmap_text
 
 def _read_html_text(html_path):
     raw_content = ""
@@ -324,16 +431,46 @@ def parse_pr_pdf(pdf_path):
         extracted_data['vat'] = int(extracted_data['amount'] * 0.1)
         extracted_data['total_amount'] = extracted_data['amount'] + extracted_data['vat']
 
-    sup_match = re.search(r'Company\s+([가-힣A-Za-z0-9㈜(주)]+)', full_text)
-    if not sup_match:
-        sup_match = re.search(r'SUPPLIERS?\s*RECOMMENDED[\s\S]*?1\s+([가-힣A-Za-z0-9㈜(주)]+)', full_text)
-    if not sup_match:
-        sup_match = re.search(r'공급자\s*[:\s]*([가-힣A-Za-z0-9㈜(주)]+)', full_text)
-    if not sup_match:
-        sup_match = re.search(r'금강엔지니어링', full_text)
-    
-    if sup_match:
-        extracted_data['supplier'] = sup_match.group(1) if len(sup_match.groups()) > 0 else sup_match.group(0)
+    # 거래처명 (Supplier) 추출
+    def _clean_sup(s):
+        if not s:
+            return ''
+        s = re.sub(r'[\r\n\t]+', ' ', s)
+        s = re.sub(r'\s*\(\s*', '(', s)
+        s = re.sub(r'\s*\)\s*', ')', s)
+        s = re.sub(r'^\d+[\s.]*', '', s)
+        s = re.sub(r'\s+\d{9,12}.*$', '', s)
+        s = re.sub(r'\s+010.*$', '', s)
+        s = re.sub(r'\s+[a-zA-Z0-9_.+-]+@.*$', '', s)
+        # 한국어 글자 사이 공백 정규화 (예: '코 텍' -> '코텍')
+        if re.match(r'^[가-힣]\s+[가-힣](\s+[가-힣])?', s):
+            s = re.sub(r'\s+', '', s)
+        return s.strip()
+
+    sup_match = None
+    # 1. SUPPLIERS RECOMMENDED 테이블 패턴
+    idx_rec = full_text.find('SUPPLIERS')
+    if idx_rec != -1:
+        sub_rec = full_text[idx_rec:idx_rec + 400]
+        sup_match = re.search(r'1\s+([가-힣A-Za-z0-9㈜(주)\s\(\)._-]{2,30}?)(?=\s+[가-힣]{2,4}\s+\d|\s+010|\s+\d{9,12}|\s+[a-zA-Z0-9_.+-]+@|\s+PREPARED|\n|$)', sub_rec)
+        if sup_match:
+            cand = _clean_sup(sup_match.group(1))
+            if cand and cand not in ('Company', 'Name', 'No', 'Title'):
+                extracted_data['supplier'] = cand
+
+    if not extracted_data['supplier']:
+        # 2. Company / Vendor 명시적 필드 패턴
+        sup_match = re.search(r'Company\s+(?:Name\s+)?(?:Title\s+)?(?:1\s+)?([가-힣A-Za-z0-9㈜(주)\s\(\)._-]{2,30}?)(?=\s+[가-힣]{2,4}\s+\d|\s+010|\s+\d{9,12}|\s+[a-zA-Z0-9_.+-]+@|\s+PREPARED|\n|$)', full_text)
+        if sup_match:
+            cand = _clean_sup(sup_match.group(1))
+            if cand and cand not in ('Company', 'Name', 'No', 'Title'):
+                extracted_data['supplier'] = cand
+
+    if not extracted_data['supplier']:
+        # 3. 공급자 / 거래처 / 공급업체 라벨 패턴
+        sup_match = re.search(r'(?:공급자|공급업체|거래처|업체명|상호|협력업체|추천업체|Vendor|Supplier)\s*[:\s]*([가-힣A-Za-z0-9㈜(주)\s\(\)._-]{2,30})', full_text, re.IGNORECASE)
+        if sup_match:
+            extracted_data['supplier'] = _clean_sup(sup_match.group(1))
 
     return extracted_data
 
