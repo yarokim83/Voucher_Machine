@@ -142,57 +142,17 @@ def fetch_latest_outlook_file(max_age_seconds=1200):
     return None
 
 
-def fetch_outlook_attachments(max_age_seconds=600):
+def fetch_outlook_attachments():
     """
-    아웃룩에서 세금계산서(HTML/PDF) 및 거래명세서(PDF) 첨부파일들을 스마트 분류하여 일괄 반환.
-    max_age_seconds: 임시 폴더 스캔 시 이 시간(초) 이내에 수정된 파일만 인식 (기본 10분).
-    Returns: list of file_paths, msg
+    아웃룩에서 현재 선택/열람 중인 메일의 첨부파일을 COM API로 직접 추출.
+    COM 실패 시 즉시 실패 메시지 반환 (임시 폴더/클립보드 폴백 없음).
+    Returns: (list of file_paths, msg)
     """
-    # 1. COM 활성 메일 확인 (메일이 열려 있거나 선택된 경우 모든 첨부파일 추출)
     com_files = extract_from_active_com_mail()
     if com_files:
-        return com_files, '열려 있는 아웃룩 메일에서 첨부파일을 가져왔습니다.'
+        return com_files, '아웃룩에서 선택한 메일의 첨부파일을 가져왔습니다.'
 
-    # 2. 클립보드 확인 (Ctrl+C 복사된 첨부파일들)
-    clip_files = extract_files_from_clipboard()
-    if clip_files:
-        return clip_files, '클립보드에서 첨부파일을 가져왔습니다.'
-
-    # 3. 아웃룩 임시 폴더에서 최근 열람된 첨부파일만 스마트 추출
-    dirs = get_outlook_temp_dirs()
-    now = time.time()
-    recent_htmls = []
-    recent_pdfs = []
-
-    for d in dirs:
-        for fp in glob.glob(os.path.join(d, '*.html')) + glob.glob(os.path.join(d, '*.htm')):
-            mtime = os.path.getmtime(fp)
-            if now - mtime <= max_age_seconds:
-                recent_htmls.append((mtime, fp))
-        for fp in glob.glob(os.path.join(d, '*.pdf')):
-            mtime = os.path.getmtime(fp)
-            if now - mtime <= max_age_seconds:
-                recent_pdfs.append((mtime, fp))
-
-    recent_htmls.sort(key=lambda x: x[0], reverse=True)
-    recent_pdfs.sort(key=lambda x: x[0], reverse=True)
-
-    results = []
-
-    # 세금계산서 HTML 우선 (NTS_eTaxInvoice 최우선)
-    if recent_htmls:
-        nts = [fp for _, fp in recent_htmls if any(k in os.path.basename(fp).lower() for k in ['nts', 'tax', 'invoice', '세금'])]
-        sel_html = nts[0] if nts else recent_htmls[0][1]
-        results.append(sel_html)
-
-    # 최근 열람 PDF 추가
-    if recent_pdfs:
-        results.append(recent_pdfs[0][1])
-
-    if results:
-        return results, '아웃룩에서 최근 열람한 첨부파일을 가져왔습니다.'
-
-    return [], '아웃룩 첨부파일을 찾을 수 없습니다. 아웃룩에서 메일을 열어두거나 첨부파일을 클릭/열람한 후 다시 시도해 주세요.'
+    return [], '아웃룩 연동 실패: 아웃룩에서 세금계산서 메일을 선택한 상태인지 확인해 주세요.\n\n• 아웃룩이 실행 중이어야 합니다\n• 메일 목록에서 해당 메일을 클릭/선택해 주세요\n• 첨부파일(NTS_eTaxInvoice.html)이 포함된 메일이어야 합니다'
 
 
 def fetch_outlook_attachment():
