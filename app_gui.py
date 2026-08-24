@@ -24,7 +24,7 @@ import outlook_handler
 
 
 class RoundedFrame(tk.Frame):
-    """PIL ?�티?�리?�싱 ?�근 모서�?배경??가�?Tk Frame. ?�식 ?�젯 ?�기???�라 ?�동 ?�이 조절."""
+    """PIL 안티앨리어싱 둥근 모서리 배경을 가진 Tk Frame. 자식 위젯 크기에 따라 자동 높이 조절."""
     def __init__(self, parent, radius=8, bg_color="#FFFFFF", border_color="#E2E8F0", border_width=1, outer_bg="#EEF1F6", **kw):
         super().__init__(parent, bg=outer_bg, bd=0, highlightthickness=0, **kw)
         self.radius = radius
@@ -68,7 +68,7 @@ class RoundedFrame(tk.Frame):
 
 
 class RoundedBadge(tk.Canvas):
-    """?�티?�리?�싱 ?�근 �?배�?"""
+    """안티앨리어싱 둥근 칩/배지"""
     def __init__(self, parent, text, bg_color="#C94A3C", fg_color="#FFFFFF", font=("Malgun Gothic", 8, "bold"), radius=6, width=28, height=22, border_color=None, outer_bg="#FFFFFF", **kw):
         super().__init__(parent, width=width, height=height, bg=outer_bg, highlightthickness=0, bd=0, **kw)
         self.text = text
@@ -114,7 +114,7 @@ class RoundedBadge(tk.Canvas):
 
 
 class CircularProgressRing(tk.Canvas):
-    """?�형 ?�넛 ?�로그레??�?(0/5)"""
+    """원형 도넛 프로그레스 링 (0/5)"""
     def __init__(self, parent, size=28, bg="#3457A8", track_color="#4B6CB7", prog_color="#22C55E", **kwargs):
         super().__init__(parent, width=size, height=size, bg=bg, highlightthickness=0, bd=0, **kwargs)
         self.size = size
@@ -141,7 +141,7 @@ class CircularProgressRing(tk.Canvas):
 
 
 class ModernRoundedButton(tk.Canvas):
-    """?�티?�리?�싱 ?�근 모서�?버튼 (고정 ?�이 Canvas 기반)"""
+    """안티앨리어싱 둥근 모서리 버튼 (고정 높이 Canvas 기반)"""
     def __init__(self, parent, text, command=None, height=36, radius=8, bg_color="#1F9D63", hover_bg="#178350", fg_color="#FFFFFF", border_color=None, font=("Malgun Gothic", 10, "bold"), outer_bg="#EEF1F6", **kwargs):
         super().__init__(parent, height=height, bg=outer_bg, highlightthickness=0, bd=0, cursor="hand2", **kwargs)
         self.text = text
@@ -189,9 +189,9 @@ class ModernRoundedButton(tk.Canvas):
 class CleanMinimalDropZone(RoundedFrame):
     """
     VoucherPass Modern Rounded DropZone
-    - ?�티?�리?�싱 ?�근 ?�두�?카드 (RoundedFrame ?�속)
-    - ?�티?�리?�싱 ?�근 문서 �?(?? �? PR, PO, �?
-    - ?�티?�리?�싱 ?�근 ?��??�료 배�?
+    - 안티앨리어싱 둥근 테두리 카드 (RoundedFrame 상속)
+    - 안티앨리어싱 둥근 문서 칩 (세, 명, PR, PO, 계)
+    - 안티앨리어싱 둥근 대기/완료 배지
     """
     def __init__(self, parent, num_str, title, tag_str, chip_text, chip_bg, file_var, on_file_selected=None, on_state_changed=None, outer_bg="#EEF1F6", **kwargs):
         super().__init__(parent, radius=8, bg_color="#FFFFFF", border_color="#E1E5EC", border_width=1, outer_bg=outer_bg, padx=6, pady=4, **kwargs)
@@ -201,18 +201,18 @@ class CleanMinimalDropZone(RoundedFrame):
         self.chip_bg = chip_bg
         self.num_str = num_str
 
-        # 1. 문서 종류�??�상 ?�이�?�?(?? �? PR, PO, �?
+        # 1. 문서 종류별 색상 아이콘 칩 (세, 명, PR, PO, 계)
         self.lbl_chip = RoundedBadge(
             self, text=chip_text, bg_color=chip_bg, fg_color="#FFFFFF",
             font=("Malgun Gothic", 9, "bold"), radius=6, width=28, height=22, outer_bg="#FFFFFF"
         )
         self.lbl_chip.pack(side="left", padx=(2, 6))
 
-        # 2. 중앙 ?�스??컨테?�너 (?�목 + ?�그 & ?�일 ?�트)
+        # 2. 중앙 텍스트 컨테이너 (제목 + 태그 & 파일 힌트)
         self.txt_box = tk.Frame(self, bg="#FFFFFF")
         self.txt_box.pack(side="left", fill="both", expand=True)
 
-        # ?�단 ?�?��? ??(?�번 ??+ 문서�?+ ?�일?�식 ?�그)
+        # 상단 타이틀 행 (순번 원 + 문서명 + 파일형식 태그)
         self.title_row = tk.Frame(self.txt_box, bg="#FFFFFF")
         self.title_row.pack(fill="x", anchor="w")
 
@@ -234,16 +234,16 @@ class CleanMinimalDropZone(RoundedFrame):
         )
         self.lbl_tag.pack(side="left", padx=(2, 0))
 
-        # ?�단 ?�트/?�료 ?�내
+        # 하단 힌트/완료 안내
         self.lbl_status = tk.Label(
-            self.txt_box, text="?�기�??�일???�래그하거나 ?�릭?�여 ?�택",
+            self.txt_box, text="여기로 파일을 드래그하거나 클릭하여 선택",
             font=("Malgun Gothic", 7), bg="#FFFFFF", fg="#94A3B8", anchor="w"
         )
         self.lbl_status.pack(fill="x", pady=(1, 0))
 
-        # 3. ?�측 ?�태 배�? ([?��? / [?�료])
+        # 3. 우측 상태 배지 ([대기] / [완료])
         self.lbl_badge = RoundedBadge(
-            self, text="?��?, bg_color="#ECEFF4", fg_color="#6B7686",
+            self, text="대기", bg_color="#ECEFF4", fg_color="#6B7686",
             font=("Malgun Gothic", 7, "bold"), radius=5, width=36, height=18, outer_bg="#FFFFFF"
         )
         self.lbl_badge.pack(side="right", padx=(2, 2))
@@ -324,13 +324,13 @@ class CleanMinimalDropZone(RoundedFrame):
             self.title_row.config(bg=bg_color)
             self.lbl_title.config(bg=bg_color, fg="#1C2536")
             self.lbl_tag.config(bg=bg_color, fg="#1F9D63")
-            self.lbl_status.config(text=f"{fname} ?�로???�료", fg="#1F9D63", font=("Malgun Gothic", 7, "bold"), bg=bg_color)
+            self.lbl_status.config(text=f"{fname} 업로드 완료", fg="#1F9D63", font=("Malgun Gothic", 7, "bold"), bg=bg_color)
             self.lbl_chip.outer_bg = bg_color
             self.lbl_chip.redraw()
             self.lbl_num.set_content(bg_color="#1F9D63", fg_color="#FFFFFF")
             self.lbl_num.outer_bg = bg_color
             self.lbl_num.redraw()
-            self.lbl_badge.set_content(text="?�료", bg_color="#1F9D63", fg_color="#FFFFFF")
+            self.lbl_badge.set_content(text="완료", bg_color="#1F9D63", fg_color="#FFFFFF")
             self.lbl_badge.outer_bg = bg_color
             self.lbl_badge.redraw()
         else:
@@ -340,13 +340,13 @@ class CleanMinimalDropZone(RoundedFrame):
             self.title_row.config(bg=bg_color)
             self.lbl_title.config(bg=bg_color, fg="#1C2536")
             self.lbl_tag.config(bg=bg_color, fg="#64748B")
-            self.lbl_status.config(text="?�기�??�일???�래그하거나 ?�릭?�여 ?�택", fg="#94A3B8", font=("Malgun Gothic", 7), bg=bg_color)
+            self.lbl_status.config(text="여기로 파일을 드래그하거나 클릭하여 선택", fg="#94A3B8", font=("Malgun Gothic", 7), bg=bg_color)
             self.lbl_chip.outer_bg = bg_color
             self.lbl_chip.redraw()
             self.lbl_num.set_content(bg_color="#E2E8F0", fg_color="#64748B")
             self.lbl_num.outer_bg = bg_color
             self.lbl_num.redraw()
-            self.lbl_badge.set_content(text="?��?, bg_color="#ECEFF4", fg_color="#6B7686")
+            self.lbl_badge.set_content(text="대기", bg_color="#ECEFF4", fg_color="#6B7686")
             self.lbl_badge.outer_bg = bg_color
             self.lbl_badge.redraw()
 
@@ -392,7 +392,7 @@ class VoucherPassApp:
         self.contract_pdf_path = tk.StringVar()
         self.contract_page = tk.StringVar(value="1")
 
-        self.template_path = tk.StringVar(value=r"C:\Users\baewoong.kim\Desktop\고려?�강(2025).xlsx")
+        self.template_path = tk.StringVar(value=r"C:\Users\baewoong.kim\Desktop\고려제강(2025).xlsx")
         self.selected_printer = tk.StringVar()
 
         self.pr_no_var = tk.StringVar()
@@ -403,7 +403,7 @@ class VoucherPassApp:
         self.date_var = tk.StringVar()
         self.supplier_var = tk.StringVar()
 
-        # PR �??�금계산??공급가??불일�?검증용 ?�태 변??
+        # PR 및 세금계산서 공급가액 불일치 검증용 상태 변수
         self.pr_supply_amount = 0
         self.tax_supply_amount = 0
 
@@ -414,15 +414,15 @@ class VoucherPassApp:
         self._load_printers()
         self._start_folder_watch_timer()
 
-        # ?�스???�레??�?글로벌 ?�축??초기??(?�작?�로그램/바로가기는 ?�레??메뉴 ?��????�름)
+        # 시스템 트레이 및 글로벌 단축키 초기화 (시작프로그램/바로가기는 트레이 메뉴 토글에 따름)
         self._setup_system_tray()
         self._setup_global_hotkey()
 
-        # F4: ?�웃�?첨�??�일 1?�릭 가?�오�? Ctrl+V: ?�립보드 첨�??�일 붙여?�기
+        # F4: 아웃룩 첨부파일 1클릭 가져오기, Ctrl+V: 클립보드 첨부파일 붙여넣기
         self.root.bind("<F4>", lambda e: self.fetch_outlook_action())
         self.root.bind("<Control-v>", lambda e: self.paste_from_clipboard_action())
 
-        # PR Title Text - StringVar ?�방???�기??
+        # PR Title Text - StringVar 양방향 동기화
         self.pr_title_var.trace_add("write", self._on_pr_title_var_changed)
 
     def _on_pr_title_var_changed(self, *args):
@@ -445,7 +445,7 @@ class VoucherPassApp:
 
     def popup_at_cursor(self):
         """
-        ?�재 마우??커서 ?�치�??�젯??�? ?�업
+        현재 마우스 커서 위치로 위젯을 뿅! 팝업
         """
         try:
             mx = self.root.winfo_pointerx()
@@ -467,7 +467,7 @@ class VoucherPassApp:
 
     def is_startup_registered(self):
         """
-        ?�작?�로그램 ?�록 ?��? ?�인
+        시작프로그램 등록 여부 확인
         """
         try:
             import winreg
@@ -480,7 +480,7 @@ class VoucherPassApp:
 
     def register_startup_registry(self):
         """
-        ?�도???�작 ?�로그램 ?��??�트�??�동 ?�록
+        윈도우 시작 프로그램 레지스트리 자동 등록
         """
         try:
             import winreg
@@ -491,20 +491,20 @@ class VoucherPassApp:
             key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
             with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_SET_VALUE) as key:
                 winreg.SetValueEx(key, "VoucherPass", 0, winreg.REG_SZ, f'"{exe_path}"')
-            self.set_live_status("?? ?�도???�작?�로그램??VoucherPass가 ?�록?�었?�니??", type="success")
+            self.set_live_status("🚀 윈도우 시작프로그램에 VoucherPass가 등록되었습니다!", type="success")
         except Exception as e:
             print(f"Startup registry error: {e}")
 
     def unregister_startup_registry(self):
         """
-        ?�도???�작 ?�로그램 ?��??�트�??�제
+        윈도우 시작 프로그램 레지스트리 해제
         """
         try:
             import winreg
             key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
             with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_SET_VALUE) as key:
                 winreg.DeleteValue(key, "VoucherPass")
-            self.set_live_status("?�� ?�도???�작?�로그램 ?�록???�제?�었?�니??", type="info")
+            self.set_live_status("🛑 윈도우 시작프로그램 등록이 해제되었습니다.", type="info")
         except Exception as e:
             print(f"Unregister startup error: {e}")
 
@@ -534,7 +534,7 @@ class VoucherPassApp:
 
     def _setup_system_tray(self):
         """
-        ?�도???�측 ?�단 ?�스???�레???�이�??�록 (?�적 ?��? 지??
+        윈도우 우측 하단 시스템 트레이 아이콘 등록 (동적 토글 지원)
         """
         def _tray_worker():
             try:
@@ -561,10 +561,10 @@ class VoucherPassApp:
                     self.root.after(0, self.root.destroy)
 
                 menu = pystray.Menu(
-                    pystray.MenuItem("???�젯 ?�기/?�기�?(Ctrl+Shift+V / 마우???�치)", _on_toggle, default=True),
-                    pystray.MenuItem("?? ?�작?�로그램 ?�동?�록", _toggle_startup, checked=lambda item: self.is_startup_registered()),
-                    pystray.MenuItem("?���?바탕?�면 바로가�??�성", lambda icon, item: self.toggle_desktop_shortcut(), checked=lambda item: self.is_desktop_shortcut_existing()),
-                    pystray.MenuItem("??종료", _on_exit)
+                    pystray.MenuItem("⚡ 위젯 열기/숨기기 (Ctrl+Shift+V / 마우스 위치)", _on_toggle, default=True),
+                    pystray.MenuItem("🚀 시작프로그램 자동등록", _toggle_startup, checked=lambda item: self.is_startup_registered()),
+                    pystray.MenuItem("🖥️ 바탕화면 바로가기 생성", lambda icon, item: self.toggle_desktop_shortcut(), checked=lambda item: self.is_desktop_shortcut_existing()),
+                    pystray.MenuItem("✕ 종료", _on_exit)
                 )
 
                 self.tray_icon = pystray.Icon("VoucherPass", image, "Voucher Pass", menu)
@@ -576,7 +576,7 @@ class VoucherPassApp:
 
     def _setup_global_hotkey(self):
         """
-        ?�역 ?�축??(Ctrl+Shift+V) 감�? ??
+        전역 단축키 (Ctrl+Shift+V) 감지 훅
         """
         def _hotkey_worker():
             try:
@@ -597,11 +597,11 @@ class VoucherPassApp:
 
     def save_sliced_contract_pdf(self):
         """
-        ?�체 계약??지???�이지(?? 12-13 -> 2?�이지)�?별도 PDF 추출 ?�??
+        업체 계약서 지정 페이지(예: 12-13 -> 2페이지)만 별도 PDF 추출 저장
         """
         contract_pdf = self.contract_pdf_path.get()
         if not contract_pdf or not os.path.exists(contract_pdf):
-            self.set_live_status("?�️ 추출???�체 계약??PDF ?�일???�려지지 ?�았?�니??", type="error")
+            self.set_live_status("⚠️ 추출할 업체 계약서 PDF 파일이 올려지지 않았습니다.", type="error")
             return
 
         page_str = self.contract_page.get().strip()
@@ -615,25 +615,25 @@ class VoucherPassApp:
 
             valid_pages = [p for p in page_indices if 0 <= p < total_pages]
             if not valid_pages:
-                self.set_live_status(f"?�️ ?�효?��? ?��? ?�이지 범위?�니?? (�?{total_pages}?�이지)", type="error")
+                self.set_live_status(f"⚠️ 유효하지 않은 페이지 범위입니다. (총 {total_pages}페이지)", type="error")
                 return
 
             for p in valid_pages:
                 writer.add_page(reader.pages[p])
 
             desktop = os.path.join(os.path.expanduser('~'), 'Desktop')
-            out_name = f"계약??{label_str}p.pdf"
+            out_name = f"계약서_{label_str}p.pdf"
             out_path = os.path.join(desktop, out_name)
 
             with open(out_path, 'wb') as f_out:
                 writer.write(f_out)
 
-            self.set_live_status(f"?�� ?�체 계약??[{label_str}p] ({len(valid_pages)}?�이지) 추출 ?�???�료! ?�� {out_name}", type="success")
+            self.set_live_status(f"🎉 업체 계약서 [{label_str}p] ({len(valid_pages)}페이지) 추출 저장 완료! 📂 {out_name}", type="success")
         except Exception as e:
-            self.set_live_status(f"?�️ 계약???�이지 추출 ?�류: {e}", type="error")
+            self.set_live_status(f"⚠️ 계약서 페이지 추출 오류: {e}", type="error")
 
     def is_desktop_shortcut_existing(self):
-        """바탕?�면??VoucherPass.lnk 바로가�?존재 ?��? ?�인"""
+        """바탕화면에 VoucherPass.lnk 바로가기 존재 여부 확인"""
         try:
             desktop = os.path.join(os.path.expanduser('~'), 'Desktop')
             lnk_path = os.path.join(desktop, 'VoucherPass.lnk')
@@ -642,18 +642,18 @@ class VoucherPassApp:
             return False
 
     def delete_desktop_shortcut(self):
-        """바탕?�면 바로가�???��"""
+        """바탕화면 바로가기 삭제"""
         try:
             desktop = os.path.join(os.path.expanduser('~'), 'Desktop')
             lnk_path = os.path.join(desktop, 'VoucherPass.lnk')
             if os.path.exists(lnk_path):
                 os.remove(lnk_path)
-                self.set_live_status("?���?바탕?�면 바로가기�? ??��?�었?�니??", type="info")
+                self.set_live_status("🗑️ 바탕화면 바로가기가 삭제되었습니다.", type="info")
         except Exception as e:
             print(f"Delete shortcut error: {e}")
 
     def toggle_desktop_shortcut(self):
-        """바탕?�면 바로가�??�성/??�� ?��?"""
+        """바탕화면 바로가기 생성/삭제 토글"""
         if self.is_desktop_shortcut_existing():
             self.delete_desktop_shortcut()
         else:
@@ -661,7 +661,7 @@ class VoucherPassApp:
 
     def create_desktop_shortcut(self):
         """
-        Windows ?�식 바로가�?(.lnk) ?�성
+        Windows 정식 바로가기 (.lnk) 생성
         """
         try:
             exe_path = sys.executable if getattr(sys, 'frozen', False) else os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dist', 'VoucherPass.exe')
@@ -682,7 +682,7 @@ shortcut.Save
                 f.write(vbs_script)
 
             subprocess.run(['cscript', '//Nologo', vbs_file], check=True)
-            self.set_live_status("?���?바탕?�면??VoucherPass.lnk 바로가기�? ?�성?�었?�니??", type="success")
+            self.set_live_status("🖥️ 바탕화면에 VoucherPass.lnk 바로가기가 생성되었습니다!", type="success")
         except Exception as e:
             print(f"Shortcut creation error: {e}")
 
@@ -697,14 +697,14 @@ shortcut.Save
 
     def _update_progress_summary(self):
         """
-        ?�로??진행 ?�태 ?�시�?집계 & 뱃�?(0/5) ?�데?�트
+        업로드 진행 상태 실시간 집계 & 뱃지(0/5) 업데이트
         """
         count = sum(1 for var in [self.tax_pdf_path, self.spec_pdf_path, self.pr_pdf_path, self.po_pdf_path, self.contract_pdf_path] if var.get() and os.path.exists(var.get()))
         if hasattr(self, 'circ_progress'):
             self.circ_progress.set_progress(count, 5)
 
     def _build_widget_layout(self):
-        # Windows 11 DWM ?�근 모서�?(Apple-like Rounded Window Corners)
+        # Windows 11 DWM 둥근 모서리 (Apple-like Rounded Window Corners)
         try:
             import ctypes
             hwnd = ctypes.windll.user32.GetParent(self.root.winfo_id())
@@ -723,7 +723,7 @@ shortcut.Save
         hdr.bind("<Button-1>", self._click_title)
         hdr.bind("<B1-Motion>", self._drag_title)
 
-        lbl_logo = tk.Label(hdr, text="??Voucher Pass", font=("Malgun Gothic", 11, "bold"), bg="#3457A8", fg="#FFFFFF")
+        lbl_logo = tk.Label(hdr, text="⚡ Voucher Pass", font=("Malgun Gothic", 11, "bold"), bg="#3457A8", fg="#FFFFFF")
         lbl_logo.pack(side="left")
         lbl_logo.bind("<Button-1>", self._click_title)
         lbl_logo.bind("<B1-Motion>", self._drag_title)
@@ -731,16 +731,16 @@ shortcut.Save
         ver_b = RoundedBadge(hdr, text="v8.7.6", bg_color="#26407F", fg_color="#FFFFFF", font=("Malgun Gothic", 8, "bold"), radius=6, width=46, height=20, outer_bg="#3457A8")
         ver_b.pack(side="left", padx=(6, 0))
 
-        btn_outlook = RoundedBadge(hdr, text="?�� ?�웃�?, bg_color="#4F46E5", fg_color="#FFFFFF", font=("Malgun Gothic", 8, "bold"), radius=6, width=62, height=20, outer_bg="#3457A8", cursor="hand2")
+        btn_outlook = RoundedBadge(hdr, text="📬 아웃룩", bg_color="#4F46E5", fg_color="#FFFFFF", font=("Malgun Gothic", 8, "bold"), radius=6, width=62, height=20, outer_bg="#3457A8", cursor="hand2")
         btn_outlook.pack(side="left", padx=(6, 0))
         btn_outlook.bind("<Button-1>", lambda e: self.fetch_outlook_action())
 
-        # ?�측 �??�어 미니 버튼 �??�넛 ?�로그레??�?
-        btn_close = tk.Label(hdr, text="??, font=("Arial", 10), bg="#3457A8", fg="#FCA5A5", cursor="hand2")
+        # 우측 창 제어 미니 버튼 및 도넛 프로그레스 링
+        btn_close = tk.Label(hdr, text="●", font=("Arial", 10), bg="#3457A8", fg="#FCA5A5", cursor="hand2")
         btn_close.pack(side="right", padx=(4, 0))
         btn_close.bind("<Button-1>", lambda e: self.root.destroy())
 
-        btn_min = tk.Label(hdr, text="??, font=("Arial", 10), bg="#3457A8", fg="#FDE047", cursor="hand2")
+        btn_min = tk.Label(hdr, text="●", font=("Arial", 10), bg="#3457A8", fg="#FDE047", cursor="hand2")
         btn_min.pack(side="right", padx=(4, 0))
         btn_min.bind("<Button-1>", lambda e: self.root.withdraw())
 
@@ -751,74 +751,74 @@ shortcut.Save
         main_box = tk.Frame(self.root, bg="#EEF1F6", padx=10, pady=8)
         main_box.pack(fill="both", expand=True)
 
-        # 3. 5가지 ?�류 Clean DropZone
+        # 3. 5가지 서류 Clean DropZone
         drop_container = tk.Frame(main_box, bg="#EEF1F6")
         drop_container.pack(fill="x", pady=(0, 2))
 
         self.drop_tax = CleanMinimalDropZone(
-            drop_container, num_str="1", title="?�자 ?�금계산??, tag_str="· 6068625399",
-            chip_text="??, chip_bg="#C94A3C", file_var=self.tax_pdf_path,
+            drop_container, num_str="1", title="전자 세금계산서", tag_str="· 6068625399",
+            chip_text="세", chip_bg="#C94A3C", file_var=self.tax_pdf_path,
             on_file_selected=self.parse_tax_invoice_uploaded, on_state_changed=self._update_progress_summary
         )
         self.drop_tax.pack(fill="x", pady=1.5)
 
         self.drop_spec = CleanMinimalDropZone(
-            drop_container, num_str="2", title="거래명세??, tag_str="· PDF",
-            chip_text="�?, chip_bg="#3A6FD8", file_var=self.spec_pdf_path,
+            drop_container, num_str="2", title="거래명세서", tag_str="· PDF",
+            chip_text="명", chip_bg="#3A6FD8", file_var=self.spec_pdf_path,
             on_state_changed=self._update_progress_summary
         )
         self.drop_spec.pack(fill="x", pady=1.5)
 
         self.drop_pr = CleanMinimalDropZone(
-            drop_container, num_str="3", title="PR Print (구매?�청??", tag_str="· PDF",
+            drop_container, num_str="3", title="PR Print (구매요청서)", tag_str="· PDF",
             chip_text="PR", chip_bg="#8B5FD8", file_var=self.pr_pdf_path,
             on_file_selected=self.parse_uploaded_pdf, on_state_changed=self._update_progress_summary
         )
         self.drop_pr.pack(fill="x", pady=1.5)
 
         self.drop_po = CleanMinimalDropZone(
-            drop_container, num_str="4", title="발주??(PO)", tag_str="· PDF",
+            drop_container, num_str="4", title="발주서 (PO)", tag_str="· PDF",
             chip_text="PO", chip_bg="#E08C2B", file_var=self.po_pdf_path,
             on_file_selected=self.parse_uploaded_pdf, on_state_changed=self._update_progress_summary
         )
         self.drop_po.pack(fill="x", pady=1.5)
 
-        # 5�??�체 계약??(?�른쪽에 ?�이지 ?�력?� ?�체???�합)
+        # 5번 업체 계약서 (오른쪽에 페이지 입력란 일체형 통합)
         f_contract_row = tk.Frame(drop_container, bg="#EEF1F6")
         f_contract_row.pack(fill="x", pady=1.5)
 
         self.drop_contract = CleanMinimalDropZone(
-            f_contract_row, num_str="5", title="?�체 계약??, tag_str="· PDF",
-            chip_text="�?, chip_bg="#5A6472", file_var=self.contract_pdf_path,
+            f_contract_row, num_str="5", title="업체 계약서", tag_str="· PDF",
+            chip_text="계", chip_bg="#5A6472", file_var=self.contract_pdf_path,
             on_state_changed=self._update_progress_summary
         )
         self.drop_contract.pack(side="left", fill="x", expand=True)
 
         pg_box = RoundedFrame(f_contract_row, radius=6, bg_color="#FFFFFF", border_color="#E1E5EC", outer_bg="#EEF1F6", padx=5, pady=3)
         pg_box.pack(side="right", fill="y", padx=(4, 0))
-        tk.Label(pg_box, text="?�이지", font=("Malgun Gothic", 8, "bold"), bg="#FFFFFF", fg="#6B7686").pack(side="left", padx=(0, 3))
+        tk.Label(pg_box, text="페이지", font=("Malgun Gothic", 8, "bold"), bg="#FFFFFF", fg="#6B7686").pack(side="left", padx=(0, 3))
         self.e_contract_page = tk.Entry(pg_box, textvariable=self.contract_page, font=("Malgun Gothic", 9, "bold"), bg="#F8FAFC", fg="#1C2536", width=3, justify="center", relief="flat", bd=0)
         self.e_contract_page.pack(side="left")
 
-        # 4. 추출 ?�이??7�??�션 (?�벨-�?분리 & 금액 ?�측?�렬 & 부가???�에 ?�계금액 배치�??�로 ?�축)
+        # 4. 추출 데이터 7종 섹션 (라벨-값 분리 & 금액 우측정렬 & 부가세 옆에 합계금액 배치로 세로 압축)
         data_card = RoundedFrame(main_box, radius=10, bg_color="#FFFFFF", border_color="#E1E5EC", outer_bg="#EEF1F6", padx=8, pady=5)
         data_card.pack(fill="x", pady=(2, 3))
 
-        # ?�이??카드 ?�더
+        # 데이터 카드 헤더
         data_hdr = tk.Frame(data_card, bg="#FFFFFF")
         data_hdr.pack(fill="x", pady=(0, 2))
-        tk.Label(data_hdr, text="?�� 추출 ?�이??7�?, font=("Malgun Gothic", 9, "bold"), bg="#FFFFFF", fg="#1C2536").pack(side="left")
+        tk.Label(data_hdr, text="📋 추출 데이터 7종", font=("Malgun Gothic", 9, "bold"), bg="#FFFFFF", fg="#1C2536").pack(side="left")
 
-        # 그리??컨테?�너
+        # 그리드 컨테이너
         grid_f = tk.Frame(data_card, bg="#FFFFFF")
         grid_f.pack(fill="x")
 
         lbl_s = {"font": ("Malgun Gothic", 8, "bold"), "bg": "#FFFFFF", "fg": "#6B7686"}
 
-        # Row 0: P/R No. (�? | ?�성?�자 (??
+        # Row 0: P/R No. (좌) | 작성일자 (우)
         f_c1_r0 = tk.Frame(grid_f, bg="#FFFFFF")
         f_c1_r0.grid(row=0, column=0, sticky="ew", padx=3, pady=1.5)
-        tk.Label(f_c1_r0, text="??P/R No.", **lbl_s).pack(anchor="w")
+        tk.Label(f_c1_r0, text="• P/R No.", **lbl_s).pack(anchor="w")
         box_prno = RoundedFrame(f_c1_r0, radius=5, bg_color="#FFFFFF", border_color="#CBD5E1", outer_bg="#FFFFFF", padx=5, pady=2)
         box_prno.pack(fill="x", pady=(1, 0))
         self.e_prno = tk.Entry(box_prno, textvariable=self.pr_no_var, font=("Malgun Gothic", 9, "bold"), bg="#FFFFFF", fg="#1C2536", relief="flat", bd=0)
@@ -828,22 +828,22 @@ shortcut.Save
         f_c2_r0.grid(row=0, column=1, sticky="ew", padx=3, pady=1.5)
         f_date_lbl_box = tk.Frame(f_c2_r0, bg="#FFFFFF")
         f_date_lbl_box.pack(fill="x")
-        tk.Label(f_date_lbl_box, text="???�성?�자", **lbl_s).pack(side="left")
-        btn_cp_date = RoundedBadge(f_date_lbl_box, text="?��", bg_color="#EAF0FD", fg_color="#3457A8", font=("Malgun Gothic", 7, "bold"), radius=4, width=20, height=16, outer_bg="#FFFFFF", cursor="hand2")
+        tk.Label(f_date_lbl_box, text="• 작성일자", **lbl_s).pack(side="left")
+        btn_cp_date = RoundedBadge(f_date_lbl_box, text="📋", bg_color="#EAF0FD", fg_color="#3457A8", font=("Malgun Gothic", 7, "bold"), radius=4, width=20, height=16, outer_bg="#FFFFFF", cursor="hand2")
         btn_cp_date.pack(side="right")
-        btn_cp_date.bind("<Button-1>", lambda e: self.copy_to_clipboard(self.date_var.get(), "?�성?�자"))
+        btn_cp_date.bind("<Button-1>", lambda e: self.copy_to_clipboard(self.date_var.get(), "작성일자"))
         box_date = RoundedFrame(f_c2_r0, radius=5, bg_color="#F5F8FF", border_color="#CBD5E1", outer_bg="#FFFFFF", padx=5, pady=2)
         box_date.pack(fill="x", pady=(1, 0))
         self.e_date = tk.Entry(box_date, textvariable=self.date_var, font=("Malgun Gothic", 9, "bold"), bg="#F5F8FF", fg="#26407F", relief="flat", bd=0)
         self.e_date.pack(fill="x")
 
-        # Row 1: PR Title (?�체 2???�비 차�?)
+        # Row 1: PR Title (전체 2열 너비 차지)
         f_r1 = tk.Frame(grid_f, bg="#FFFFFF")
         f_r1.grid(row=1, column=0, columnspan=2, sticky="ew", padx=3, pady=1.5)
         f_t_lbl_box = tk.Frame(f_r1, bg="#FFFFFF")
         f_t_lbl_box.pack(fill="x")
-        tk.Label(f_t_lbl_box, text="??PR Title", **lbl_s).pack(side="left")
-        btn_cp_t = RoundedBadge(f_t_lbl_box, text="?��", bg_color="#EAF0FD", fg_color="#3457A8", font=("Malgun Gothic", 7, "bold"), radius=4, width=20, height=16, outer_bg="#FFFFFF", cursor="hand2")
+        tk.Label(f_t_lbl_box, text="• PR Title", **lbl_s).pack(side="left")
+        btn_cp_t = RoundedBadge(f_t_lbl_box, text="📋", bg_color="#EAF0FD", fg_color="#3457A8", font=("Malgun Gothic", 7, "bold"), radius=4, width=20, height=16, outer_bg="#FFFFFF", cursor="hand2")
         btn_cp_t.pack(side="right")
         btn_cp_t.bind("<Button-1>", lambda e: self.copy_to_clipboard(self.pr_title_var.get(), "PR Title"))
         box_t = RoundedFrame(f_r1, radius=5, bg_color="#F5F8FF", border_color="#CBD5E1", outer_bg="#FFFFFF", padx=5, pady=2)
@@ -852,15 +852,15 @@ shortcut.Save
         self.txt_pr_title.pack(fill="x")
         self.txt_pr_title.bind("<KeyRelease>", self._on_pr_title_txt_changed)
 
-        # Row 2: 공급가??(�? | 거래처명 (??
+        # Row 2: 공급가액 (좌) | 거래처명 (우)
         f_c1_r2 = tk.Frame(grid_f, bg="#FFFFFF")
         f_c1_r2.grid(row=2, column=0, sticky="ew", padx=3, pady=1.5)
         f_amt_lbl_box = tk.Frame(f_c1_r2, bg="#FFFFFF")
         f_amt_lbl_box.pack(fill="x")
-        tk.Label(f_amt_lbl_box, text="??공급가??, **lbl_s).pack(side="left")
-        btn_cp_amt = RoundedBadge(f_amt_lbl_box, text="?��", bg_color="#EAF0FD", fg_color="#3457A8", font=("Malgun Gothic", 7, "bold"), radius=4, width=20, height=16, outer_bg="#FFFFFF", cursor="hand2")
+        tk.Label(f_amt_lbl_box, text="• 공급가액", **lbl_s).pack(side="left")
+        btn_cp_amt = RoundedBadge(f_amt_lbl_box, text="📋", bg_color="#EAF0FD", fg_color="#3457A8", font=("Malgun Gothic", 7, "bold"), radius=4, width=20, height=16, outer_bg="#FFFFFF", cursor="hand2")
         btn_cp_amt.pack(side="right")
-        btn_cp_amt.bind("<Button-1>", lambda e: self.copy_to_clipboard(self.amount_var.get(), "공급가??))
+        btn_cp_amt.bind("<Button-1>", lambda e: self.copy_to_clipboard(self.amount_var.get(), "공급가액"))
         box_amt = RoundedFrame(f_c1_r2, radius=5, bg_color="#F5F8FF", border_color="#CBD5E1", outer_bg="#FFFFFF", padx=5, pady=2)
         box_amt.pack(fill="x", pady=(1, 0))
         self.e_amt = tk.Entry(box_amt, textvariable=self.amount_var, font=("Consolas", 10, "bold"), bg="#F5F8FF", fg="#26407F", justify="right", relief="flat", bd=0)
@@ -869,73 +869,73 @@ shortcut.Save
 
         f_c2_r2 = tk.Frame(grid_f, bg="#FFFFFF")
         f_c2_r2.grid(row=2, column=1, sticky="ew", padx=3, pady=1.5)
-        tk.Label(f_c2_r2, text="??거래처명", **lbl_s).pack(anchor="w")
+        tk.Label(f_c2_r2, text="• 거래처명", **lbl_s).pack(anchor="w")
         box_sup = RoundedFrame(f_c2_r2, radius=5, bg_color="#FFFFFF", border_color="#CBD5E1", outer_bg="#FFFFFF", padx=5, pady=2)
         box_sup.pack(fill="x", pady=(1, 0))
         self.e_sup = tk.Entry(box_sup, textvariable=self.supplier_var, font=("Malgun Gothic", 9, "bold"), bg="#FFFFFF", fg="#1C2536", relief="flat", bd=0)
         self.e_sup.pack(fill="x")
 
-        # Row 3: 부가??(�? | ?�계금액 (?�측 골드 카드 - ?�로 공간 최적??
+        # Row 3: 부가세 (좌) | 합계금액 (우측 골드 카드 - 세로 공간 최적화)
         f_c1_r3 = tk.Frame(grid_f, bg="#FFFFFF")
         f_c1_r3.grid(row=3, column=0, sticky="ew", padx=3, pady=1.5)
-        tk.Label(f_c1_r3, text="??부가??, **lbl_s).pack(anchor="w")
+        tk.Label(f_c1_r3, text="• 부가세", **lbl_s).pack(anchor="w")
         box_vat = RoundedFrame(f_c1_r3, radius=5, bg_color="#F5F8FF", border_color="#CBD5E1", outer_bg="#FFFFFF", padx=5, pady=2)
         box_vat.pack(fill="x", pady=(1, 0))
         self.e_vat = tk.Entry(box_vat, textvariable=self.vat_var, font=("Consolas", 10, "bold"), bg="#F5F8FF", fg="#26407F", justify="right", relief="flat", bd=0)
         self.e_vat.pack(fill="x")
 
-        # ?�계금액 (?�측 1??차�?: 골드 ?�운??카드)
+        # 합계금액 (우측 1열 차지: 골드 라운드 카드)
         f_c2_r3 = RoundedFrame(grid_f, radius=8, bg_color="#FFF9EC", border_color="#F0A531", outer_bg="#FFFFFF", padx=6, pady=2)
         f_c2_r3.grid(row=3, column=1, sticky="ew", padx=3, pady=1.5)
 
         f_tot_lbl_box = tk.Frame(f_c2_r3, bg="#FFF9EC")
         f_tot_lbl_box.pack(fill="x")
-        tk.Label(f_tot_lbl_box, text="???�계금액", font=("Malgun Gothic", 8, "bold"), bg="#FFF9EC", fg="#8A5C00").pack(side="left")
+        tk.Label(f_tot_lbl_box, text="• 합계금액", font=("Malgun Gothic", 8, "bold"), bg="#FFF9EC", fg="#8A5C00").pack(side="left")
         
         f_tot_val_box = tk.Frame(f_c2_r3, bg="#FFF9EC")
         f_tot_val_box.pack(fill="x", pady=(1, 0))
-        tk.Label(f_tot_val_box, text="??", font=("Malgun Gothic", 9, "bold"), bg="#FFF9EC", fg="#8A5C00").pack(side="left")
+        tk.Label(f_tot_val_box, text="₩ ", font=("Malgun Gothic", 9, "bold"), bg="#FFF9EC", fg="#8A5C00").pack(side="left")
         self.e_tot = tk.Entry(f_tot_val_box, textvariable=self.total_amount_var, font=("Consolas", 10, "bold"), bg="#FFF9EC", fg="#8A5C00", justify="right", relief="flat", bd=0)
         self.e_tot.pack(side="right", fill="x", expand=True)
 
         grid_f.columnconfigure(0, weight=1)
         grid_f.columnconfigure(1, weight=1)
 
-        # ?�시�??�태 �?(Toast)
+        # 실시간 상태 바 (Toast)
         toast_box = RoundedFrame(main_box, radius=8, bg_color="#E6F7EE", border_color="#86EFAC", outer_bg="#EEF1F6", padx=8, pady=3)
         toast_box.pack(fill="x", pady=(2, 3))
 
         self.lbl_live_status = tk.Label(
-            toast_box, text="?���?바탕?�면??VoucherPass.lnk 바로가기�? ?�성?�었?�니??",
+            toast_box, text="🖥️ 바탕화면에 VoucherPass.lnk 바로가기가 생성되었습니다!",
             font=("Malgun Gothic", 8, "bold"), bg="#E6F7EE", fg="#1F9D63", anchor="w"
         )
         self.lbl_live_status.pack(fill="x")
 
-        # 5. 버튼 계층??(Actions: '?�류 5�??�괄 ?�쇄'�??�단 ?�?�이�?�?버튼?�로, ?�머지 2개는 보조 버튼?�로 ?�단 배치)
+        # 5. 버튼 계층화 (Actions: '서류 5종 일괄 인쇄'를 상단 풀사이즈 주 버튼으로, 나머지 2개는 보조 버튼으로 하단 배치)
         act_panel = tk.Frame(main_box, bg="#EEF1F6")
         act_panel.pack(fill="x", pady=(0, 2))
 
-        # �?버튼 (Primary: ?�단 ?�?�이�??�메?�드 그린 ModernRoundedButton)
+        # 주 버튼 (Primary: 상단 풀사이즈 에메랄드 그린 ModernRoundedButton)
         btn_print = ModernRoundedButton(
-            act_panel, text="?���??�류 5�??�괄 ?�쇄", command=self.print_pdf_documents_only,
+            act_panel, text="🖨️ 서류 5종 일괄 인쇄", command=self.print_pdf_documents_only,
             height=38, radius=8, bg_color="#1F9D63", hover_bg="#178350", fg_color="#FFFFFF",
             font=("Malgun Gothic", 10, "bold")
         )
         btn_print.pack(side="top", fill="x", pady=(0, 3))
 
-        # 보조 버튼 2�?(Secondary: ?�단 2분할 가�?배치 ModernRoundedButton)
+        # 보조 버튼 2종 (Secondary: 하단 2분할 가로 배치 ModernRoundedButton)
         btn_row = tk.Frame(act_panel, bg="#EEF1F6")
         btn_row.pack(fill="x")
 
         btn_copy_all = ModernRoundedButton(
-            btn_row, text="?�� ?��? ?�식 붙여?�기", command=self.copy_all_3items,
+            btn_row, text="📊 엑셀 양식 붙여넣기", command=self.copy_all_3items,
             height=32, radius=7, bg_color="#FFFFFF", hover_bg="#EAF0FD", fg_color="#3457A8",
             border_color="#3457A8", font=("Malgun Gothic", 8, "bold")
         )
         btn_copy_all.pack(side="left", fill="x", expand=True, padx=(0, 2))
 
         btn_arch = ModernRoundedButton(
-            btn_row, text="?�� 건별 ?�동 보�?", command=self.archive_voucher_files,
+            btn_row, text="📁 건별 자동 보관", command=self.archive_voucher_files,
             height=32, radius=7, bg_color="#FFFFFF", hover_bg="#EAF0FD", fg_color="#3457A8",
             border_color="#3457A8", font=("Malgun Gothic", 8, "bold")
         )
@@ -944,7 +944,7 @@ shortcut.Save
         # 6. Printer Selector Bar
         prt_bar = tk.Frame(main_box, bg="#EEF1F6")
         prt_bar.pack(fill="x", pady=(2, 0))
-        tk.Label(prt_bar, text="?���??�린??", font=("Malgun Gothic", 8, "bold"), bg="#EEF1F6", fg="#6B7686").pack(side="left")
+        tk.Label(prt_bar, text="🖨️ 프린터:", font=("Malgun Gothic", 8, "bold"), bg="#EEF1F6", fg="#6B7686").pack(side="left")
         self.printer_combo = ttk.Combobox(prt_bar, textvariable=self.selected_printer, font=("Malgun Gothic", 8), state="readonly")
         self.printer_combo.pack(side="left", fill="x", expand=True, padx=(4, 0))
 
@@ -958,13 +958,13 @@ shortcut.Save
 
     def handle_auto_detected_pdf(self, pdf_path):
         """
-        지???�더(?�운로드/바탕?�면)???�로??PDF가 감�??�면 ?�동?�로 ?�싱 �?분류
+        지정 폴더(다운로드/바탕화면)에 새로운 PDF가 감지되면 자동으로 파싱 및 분류
         """
         if not pdf_path or not os.path.exists(pdf_path):
             return
 
         pdf_type = pdf_parser.classify_pdf_type(pdf_path)
-        if pdf_type == 'tax' or '?�금' in os.path.basename(pdf_path) or '조회' in os.path.basename(pdf_path):
+        if pdf_type == 'tax' or '세금' in os.path.basename(pdf_path) or '조회' in os.path.basename(pdf_path):
             self.drop_tax.set_file(pdf_path)
             self.parse_tax_invoice_uploaded(pdf_path)
         elif pdf_type == 'pr':
@@ -979,8 +979,8 @@ shortcut.Save
             self.drop_contract.set_file(pdf_path)
 
     def fetch_outlook_action(self):
-        """?�웃룩에???�금계산??명세??첨�??�일??1?�릭?�로 ?�동 추출 �?로드"""
-        self.set_live_status("???�웃�??�동 �?.. (메일?�서 첨�??�일??추출?�고 ?�습?�다)", type="info")
+        """아웃룩에서 세금계산서/명세서 첨부파일을 1클릭으로 자동 추출 및 로드"""
+        self.set_live_status("⏳ 아웃룩 연동 중... (메일에서 첨부파일을 추출하고 있습니다)", type="info")
         self.root.update()
 
         import threading
@@ -992,20 +992,20 @@ shortcut.Save
 
     def _on_fetch_outlook_done(self, files, msg):
         if files:
-            self.set_live_status("?�� 첨�??�일 ?�운로드 ?�료. ?�류 분류 �?처리 �?..", type="info")
+            self.set_live_status("🔄 첨부파일 다운로드 완료. 서류 분류 및 처리 중...", type="info")
             loaded_names = []
             for fp in files:
                 if os.path.exists(fp):
                     self.handle_auto_detected_pdf(fp)
                     loaded_names.append(os.path.basename(fp))
             if loaded_names and hasattr(self, 'lbl_live_status'):
-                self.set_live_status(f"?�� ?�웃�?[{', '.join(loaded_names)}] 가?�오�??�료!", type="success")
+                self.set_live_status(f"📬 아웃룩 [{', '.join(loaded_names)}] 가져오기 완료!", type="success")
         else:
-            self.set_live_status("?�️ ?�웃�??�동 ?�패", type="error")
-            messagebox.showinfo("?�웃�?첨�??�일 가?�오�?, msg)
+            self.set_live_status("⚠️ 아웃룩 연동 실패", type="error")
+            messagebox.showinfo("아웃룩 첨부파일 가져오기", msg)
 
     def paste_from_clipboard_action(self):
-        """?�립보드??복사???�웃�?첨�??�일 ?�는 ?�일 경로�??�동 추출 �?로드"""
+        """클립보드에 복사된 아웃룩 첨부파일 또는 파일 경로를 자동 추출 및 로드"""
         files = outlook_handler.extract_files_from_clipboard()
         if files:
             for fp in files:
@@ -1013,25 +1013,25 @@ shortcut.Save
                     fname = os.path.basename(fp)
                     self.handle_auto_detected_pdf(fp)
                     if hasattr(self, 'lbl_live_status'):
-                        self.lbl_live_status.config(text=f"?�� ?�립보드 [{fname}] 로드 ?�료!")
+                        self.lbl_live_status.config(text=f"📋 클립보드 [{fname}] 로드 완료!")
                     break
 
     def generate_excel_action(self):
         data = self._get_form_data()
         if not data.get('pr_no') and not data.get('pr_title') and not data.get('amount'):
-            messagebox.showwarning("?��? ?�성 ?�패", "기록???�이?��? ?�습?�다. PDF ?�류�?먼�? ?�로?�해 주세??")
+            messagebox.showwarning("엑셀 생성 실패", "기록할 데이터가 없습니다. PDF 서류를 먼저 업로드해 주세요.")
             return
 
-        # 공급가??불일�??�태??경우 ?�용???�인 ?�차
+        # 공급가액 불일치 상태일 경우 사용자 확인 절차
         pr_amt = self.pr_supply_amount
         tax_amt = self.tax_supply_amount
         if pr_amt > 0 and tax_amt > 0 and pr_amt != tax_amt:
             diff = abs(pr_amt - tax_amt)
             confirm = messagebox.askyesno(
-                "?�️ 공급가??불일�??�인",
-                f"PR 구매?�청??공급가??{pr_amt:,}??�??�금계산??공급가??{tax_amt:,}?????�치?��? ?�습?�다!\n"
-                f"(차액: {diff:,}??\n\n"
-                f"?�재 ?�력??공급가??{data.get('amount', 0):,}?? 기�??�로 ?�표 ?��???계속 ?�성?�시겠습?�까?"
+                "⚠️ 공급가액 불일치 확인",
+                f"PR 구매요청서 공급가액({pr_amt:,}원)과 세금계산서 공급가액({tax_amt:,}원)이 일치하지 않습니다!\n"
+                f"(차액: {diff:,}원)\n\n"
+                f"현재 입력된 공급가액({data.get('amount', 0):,}원) 기준으로 전표 엑셀을 계속 생성하시겠습니까?"
             )
             if not confirm:
                 return
@@ -1039,11 +1039,11 @@ shortcut.Save
         try:
             tmpl_path = self.template_path.get()
             out_excel = excel_handler.generate_voucher_excel(data, template_path=tmpl_path)
-            res = messagebox.askyesno("?�� ?��? 기록 ?�???�료", f"고려?�강 ?��? ?�플릿에 ?�이?��? ?�상 기록?�었?�니??\n\n?�� ?��? ?�일: {out_excel}\n\n지�??�당 ?��? ?�일???�어보시겠습?�까?")
+            res = messagebox.askyesno("📊 엑셀 기록 저장 완료", f"고려제강 엑셀 템플릿에 데이터가 정상 기록되었습니다!\n\n📄 엑셀 파일: {out_excel}\n\n지금 해당 엑셀 파일을 열어보시겠습니까?")
             if res:
                 os.startfile(out_excel)
         except Exception as e:
-            messagebox.showerror("?��? ?�???�류", f"?��? ?�성 �??�류가 발생?�습?�다:\n{e}")
+            messagebox.showerror("엑셀 저장 오류", f"엑셀 생성 중 오류가 발생했습니다:\n{e}")
 
     def archive_voucher_files(self):
         data = self._get_form_data()
@@ -1056,27 +1056,27 @@ shortcut.Save
         ]
 
         if not any(pdf_paths):
-            messagebox.showwarning("보�? ?�패", "?�리??PDF ?�류가 ?�습?�다.")
+            messagebox.showwarning("보관 실패", "정리할 PDF 서류가 없습니다.")
             return
 
         try:
             target_dir, files = excel_handler.archive_voucher_package(data, pdf_paths)
-            res = messagebox.askyesno("?�동 ?�리 보�? ?�료", f"?�음 보�????�더가 ?�동 ?�성?�고 ?�류가 ?�돈?�었?�니??\n\n?�� ?�치: {target_dir}\n\n지�??�당 ?�더�??�색기로 ?�어보시겠습?�까?")
+            res = messagebox.askyesno("자동 정리 보관 완료", f"다음 보관소 폴더가 자동 생성되고 서류가 정돈되었습니다!\n\n📂 위치: {target_dir}\n\n지금 해당 폴더를 탐색기로 열어보시겠습니까?")
             if res:
                 os.startfile(target_dir)
 
         except Exception as e:
-            messagebox.showerror("보�? ?�류", f"건별 ?�더 ?�리 �??�류 발생:\n{e}")
+            messagebox.showerror("보관 오류", f"건별 폴더 정리 중 오류 발생:\n{e}")
 
     def copy_to_clipboard(self, text, label_name):
         if not text:
-            self.set_live_status(f"?�️ {label_name} 값이 비어 ?�습?�다.", type="error")
+            self.set_live_status(f"⚠️ {label_name} 값이 비어 있습니다.", type="error")
             return
         
         self.root.clipboard_clear()
         self.root.clipboard_append(text)
         self.root.update()
-        self.set_live_status(f"?�� [{label_name}] ?�스??복사 ?�료: {text}", type="success")
+        self.set_live_status(f"📋 [{label_name}] 텍스트 복사 완료: {text}", type="success")
 
     def copy_all_3items(self):
         d = self.date_var.get().strip()
@@ -1084,7 +1084,7 @@ shortcut.Save
         a = self.amount_var.get().strip()
 
         if not d and not t and not a:
-            self.set_live_status("?�️ 복사???�이????��???�습?�다. ?�류�?먼�? ?�려주세??", type="error")
+            self.set_live_status("⚠️ 복사할 데이터 항목이 없습니다. 서류를 먼저 올려주세요.", type="error")
             return
 
         combined_text = f"{d}\n{t}\n{a}"
@@ -1092,13 +1092,13 @@ shortcut.Save
         self.root.clipboard_append(combined_text)
         self.root.update()
 
-        self.set_live_status(f"?�� Voucher ?��? ?�식 3�???�� 복사 ?�료! (?��? ?� ?�택 ??Ctrl+V)", type="success")
+        self.set_live_status(f"🎉 Voucher 엑셀 양식 3종 항목 복사 완료! (엑셀 셀 선택 후 Ctrl+V)", type="success")
 
     def _load_printers(self):
         printers = printer_handler.get_installed_printers()
         self.printer_combo['values'] = printers
 
-        # ?�?�된 마�?�??�린???�정 로드
+        # 저장된 마지막 프린터 설정 로드
         cfg_file = self._get_config_path()
         last_printer = ''
         if os.path.exists(cfg_file):
@@ -1170,18 +1170,18 @@ shortcut.Save
             if hasattr(self, 'e_amt'):
                 self._shake_widget(self.e_amt, highlight_bg="#93C5FD")
 
-            self.set_live_status(f"?? PR ?�류 Title & 공급가??{amt:,}??추출 ?�득 ?�료! ?��", type="success")
+            self.set_live_status(f"🚀 PR 서류 Title & 공급가액 {amt:,}원 추출 획득 완료! 💎", type="success")
             
-            # PR ?�싱 ???�금계산??공급가?�과 ?�치 ?��? 즉시 검�?
+            # PR 파싱 후 세금계산서 공급가액과 일치 여부 즉시 검증
             self._check_amount_discrepancy()
         except Exception as e:
-            self.set_live_status(f"?�️ PR ?�류 ?�싱 ?�패: {e}", type="error")
+            self.set_live_status(f"⚠️ PR 서류 파싱 실패: {e}", type="error")
 
     def parse_tax_invoice_uploaded(self, tax_path=None):
         """
-        1) HTML/PDF ?�일 ?�로??감�?
-        2) HTML??경우 ?�동 비�?번호 ?�력 �?지???�더 PDF ?�??
-        3) ?�?�된 PDF ?�일?�서 ?�성?�자 �?공급가???�동 ?�싱
+        1) HTML/PDF 파일 업로드 감지
+        2) HTML일 경우 자동 비밀번호 입력 및 지정 폴더 PDF 저장
+        3) 저장된 PDF 파일에서 작성일자 및 공급가액 자동 파싱
         """
         if not tax_path:
             tax_path = self.tax_pdf_path.get()
@@ -1192,7 +1192,7 @@ shortcut.Save
             pdf_parser._log_debug(f"parse_tax_invoice_uploaded: File missing or invalid: {tax_path}")
             return
 
-        # Step 1 & 2: HTML ?�금계산?�일 경우 HTML ?�스?�에??즉시 ?�성?�자 1�??�싱 + ?�동 ?�제 & PDF ?�???�이?�라??가??
+        # Step 1 & 2: HTML 세금계산서일 경우 HTML 텍스트에서 즉시 작성일자 1차 파싱 + 자동 해제 & PDF 저장 파이프라인 가동
         if pdf_parser._is_html_file(tax_path):
             pdf_parser._log_debug("Detected HTML file. Attempting immediate HTML text data parsing...")
             try:
@@ -1202,7 +1202,7 @@ shortcut.Save
                     self.date_var.set(html_data['date'])
                     if hasattr(self, 'e_date'):
                         self._shake_widget(self.e_date, highlight_bg="#FEF08A")
-                    self.set_live_status(f"?�� HTML ?�성?�자 [{html_data['date']}] 즉시 ?�득 ?�공! ??, type="success")
+                    self.set_live_status(f"🎉 HTML 작성일자 [{html_data['date']}] 즉시 획득 성공! ✨", type="success")
                 if html_data.get('supply_amount', 0) > 0:
                     self.tax_supply_amount = html_data['supply_amount']
                     self._check_amount_discrepancy()
@@ -1213,19 +1213,19 @@ shortcut.Save
             self.auto_unlock_and_save_pdf(tax_path)
             return
 
-        # Step 3: PDF ?�일?�서 ?�성?�자 �?공급가???�싱
+        # Step 3: PDF 파일에서 작성일자 및 공급가액 파싱
         try:
             tax_data = pdf_parser.parse_tax_invoice_data(tax_path)
             pdf_parser._log_debug(f"parse_tax_invoice_data result for PDF: {tax_data}")
             self._apply_tax_data(tax_data)
         except Exception as e:
             pdf_parser._log_debug(f"parse_tax_invoice_uploaded exception: {e}")
-            self.set_live_status(f"?�️ ?�싱 ?�류: {e}", type="error")
+            self.set_live_status(f"⚠️ 파싱 오류: {e}", type="error")
 
     def auto_unlock_and_save_pdf(self, html_path):
-        """Selenium headless Edge + CDP Page.printToPDF 방식?�로
-        NTS ?�금계산??HTML??비�?번호 복호????PDF�?변??
-        브라?��? 종류/?�상???�린???�정???�전 ?�립??"""
+        """Selenium headless Edge + CDP Page.printToPDF 방식으로
+        NTS 세금계산서 HTML을 비밀번호 복호화 후 PDF로 변환.
+        브라우저 종류/해상도/프린터 설정에 완전 독립적."""
         import threading, time, tempfile
 
         def _worker():
@@ -1236,10 +1236,10 @@ shortcut.Save
                 from selenium.webdriver.common.by import By
                 import base64
 
-                pdf_parser._log_debug(f"[auto_unlock] Selenium headless ?�작: {html_path}")
-                self.root.after(0, lambda: self.set_live_status("?�� ?�금계산??복호??�?..", type="info"))
+                pdf_parser._log_debug(f"[auto_unlock] Selenium headless 시작: {html_path}")
+                self.root.after(0, lambda: self.set_live_status("🔐 세금계산서 복호화 중...", type="info"))
 
-                # Step 1: headless Edge 브라?��? ?�행 (A4 ?�로 비율??맞게 충분???�도???�기 지??
+                # Step 1: headless Edge 브라우저 실행 (A4 세로 비율에 맞게 충분한 윈도우 크기 지정)
                 options = Options()
                 options.add_argument('--headless=new')
                 options.add_argument('--disable-gpu')
@@ -1247,13 +1247,13 @@ shortcut.Save
                 options.add_argument('--window-size=1200,1600')
                 driver = webdriver.Edge(options=options)
 
-                # Step 2: HTML ?�일 ?�기
+                # Step 2: HTML 파일 열기
                 file_uri = 'file:///' + html_path.replace('\\', '/').replace(' ', '%20')
-                pdf_parser._log_debug(f"[auto_unlock 1?�계] HTML ?�기: {file_uri}")
+                pdf_parser._log_debug(f"[auto_unlock 1단계] HTML 열기: {file_uri}")
                 driver.get(file_uri)
 
-                # Step 3: 비�?번호 ?�력 (?�적 감�?: 0.05�?간격 ?�시�??��?
-                pdf_parser._log_debug("[auto_unlock 2?�계] 비�?번호(6068625399) ?�적 감�? �??�력...")
+                # Step 3: 비밀번호 입력 (동적 감지: 0.05초 간격 실시간 대기)
+                pdf_parser._log_debug("[auto_unlock 2단계] 비밀번호(6068625399) 동적 감지 및 입력...")
                 pwd_input = None
                 for _ in range(30):
                     inputs = driver.find_elements(By.CSS_SELECTOR, 'input[type=password], input[type=text]')
@@ -1266,25 +1266,25 @@ shortcut.Save
                     time.sleep(0.05)
 
                 if not pwd_input:
-                    pdf_parser._log_debug("[auto_unlock ERROR] 비�?번호 ?�력?�??찾�? 못했?�니??")
-                    self.root.after(0, lambda: self.set_live_status("?�️ 비�?번호 ?�력?� 미발�?, type="error"))
+                    pdf_parser._log_debug("[auto_unlock ERROR] 비밀번호 입력란을 찾지 못했습니다.")
+                    self.root.after(0, lambda: self.set_live_status("⚠️ 비밀번호 입력란 미발견", type="error"))
                     return
 
                 pwd_input.clear()
                 pwd_input.send_keys('6068625399')
 
-                # Step 4: ?�인 버튼 ?�릭
-                pdf_parser._log_debug("[auto_unlock 3?�계] ?�인 버튼 ?�릭...")
+                # Step 4: 확인 버튼 클릭
+                pdf_parser._log_debug("[auto_unlock 3단계] 확인 버튼 클릭...")
                 buttons = driver.find_elements(By.CSS_SELECTOR, 'button, input[type=button], input[type=submit], a[onclick]')
                 clicked = False
                 for btn in buttons:
                     if btn.is_displayed():
                         onclick = btn.get_attribute('onclick') or ''
                         text = btn.text or ''
-                        if 'Cri' in onclick or 'InputPwd' in onclick or '?�인' in text:
+                        if 'Cri' in onclick or 'InputPwd' in onclick or '확인' in text:
                             btn.click()
                             clicked = True
-                            pdf_parser._log_debug(f"[auto_unlock 3?�계] ?�릭?? text='{text}', onclick='{onclick[:50]}'")
+                            pdf_parser._log_debug(f"[auto_unlock 3단계] 클릭됨: text='{text}', onclick='{onclick[:50]}'")
                             break
                 if not clicked:
                     for btn in buttons:
@@ -1293,9 +1293,9 @@ shortcut.Save
                             clicked = True
                             break
 
-                # Step 5: ?�금계산???�더�??�적 ?��?(iframe ?�용 로드 즉시 진행)
-                pdf_parser._log_debug("[auto_unlock 4?�계] ?�금계산??본문 ?�적 ?�더�??��?..")
-                self.root.after(0, lambda: self.set_live_status("?�� ?�금계산???�더�?�?..", type="info"))
+                # Step 5: 세금계산서 렌더링 동적 대기 (iframe 내용 로드 즉시 진행)
+                pdf_parser._log_debug("[auto_unlock 4단계] 세금계산서 본문 동적 렌더링 대기...")
+                self.root.after(0, lambda: self.set_live_status("📄 세금계산서 렌더링 중...", type="info"))
                 for _ in range(40):
                     is_ready = driver.execute_script("""
                         var ifr = document.getElementById('CriMsgPosition');
@@ -1309,10 +1309,10 @@ shortcut.Save
                         break
                     time.sleep(0.05)
 
-                # Step 6: ?�쇄 UI ?�리 (?�단 '?�쇄/첨�?보기' ?�바 �?비�?번호 ?�?�상???��?, iframe ?�이 ?�동 ?�장 �??�크롤바 ?�거)
+                # Step 6: 인쇄 UI 정리 (상단 '인쇄/첨부보기' 툴바 및 비밀번호 대화상자 숨김, iframe 높이 자동 확장 및 스크롤바 제거)
                 try:
                     driver.execute_script("""
-                        // ?�단 버튼�?�??�업 ?�?�상???��?
+                        // 상단 버튼바 및 팝업 대화상자 숨김
                         var btnBar = document.getElementById('CriBtnPosition');
                         if (btnBar) btnBar.style.display = 'none';
                         var pwdDlg = document.getElementById('idPcPwdDlg');
@@ -1320,7 +1320,7 @@ shortcut.Save
                         var mobDlg = document.getElementById('idMobilePwdDlg');
                         if (mobDlg) mobDlg.style.display = 'none';
                         
-                        // ?�금계산??본문 iframe(CriMsgPosition) ?�이�??��? 문서 ?�체 ?�이�??�장?�고 ?�크롤바 ?�거
+                        // 세금계산서 본문 iframe(CriMsgPosition) 높이를 내부 문서 전체 높이로 확장하고 스크롤바 제거
                         var ifr = document.getElementById('CriMsgPosition');
                         if (ifr) {
                             var ifrDoc = ifr.contentDocument || ifr.contentWindow.document;
@@ -1335,11 +1335,11 @@ shortcut.Save
                     """)
                     driver.execute_cdp_cmd('Emulation.setEmulatedMedia', {'media': 'print'})
                 except Exception as e_em:
-                    pdf_parser._log_debug(f"[auto_unlock 4?�계] UI ?�리/미디???�정 보조 ?�외: {e_em}")
+                    pdf_parser._log_debug(f"[auto_unlock 4단계] UI 정리/미디어 설정 보조 예외: {e_em}")
 
-                # Step 7: CDP Page.printToPDF�??�전??A4 ?�금계산??PDF ?�성 (?�단 ?�림 방�? scale: 0.95)
-                pdf_parser._log_debug("[auto_unlock 5?�계] CDP Page.printToPDF ?�출 (scale=0.95, A4 ?�벽 비율)...")
-                self.root.after(0, lambda: self.set_live_status("?���?PDF ?�성 �?..", type="info"))
+                # Step 7: CDP Page.printToPDF로 온전한 A4 세금계산서 PDF 생성 (하단 잘림 방지 scale: 0.95)
+                pdf_parser._log_debug("[auto_unlock 5단계] CDP Page.printToPDF 호출 (scale=0.95, A4 완벽 비율)...")
+                self.root.after(0, lambda: self.set_live_status("🖨️ PDF 생성 중...", type="info"))
 
                 params = {
                     'landscape': False,
@@ -1356,27 +1356,27 @@ shortcut.Save
                 }
                 result = driver.execute_cdp_cmd('Page.printToPDF', params)
 
-                # Step 8: PDF ?�일 ?�??
+                # Step 8: PDF 파일 저장
                 tempdir = tempfile.gettempdir()
                 expected_pdf_path = os.path.join(tempdir, f"NTS_eTaxInvoice_{int(time.time())}.pdf")
                 with open(expected_pdf_path, 'wb') as f:
                     f.write(base64.b64decode(result['data']))
 
                 pdf_size = os.path.getsize(expected_pdf_path)
-                pdf_parser._log_debug(f"[auto_unlock SUCCESS] PDF ?�???�료: {expected_pdf_path} ({pdf_size} bytes)")
+                pdf_parser._log_debug(f"[auto_unlock SUCCESS] PDF 저장 완료: {expected_pdf_path} ({pdf_size} bytes)")
 
                 if pdf_size > 0:
                     self.root.after(0, lambda: self.root.lift())
                     self.root.after(0, lambda p=expected_pdf_path: self._on_new_tax_pdf_saved(p))
                 else:
-                    pdf_parser._log_debug("[auto_unlock ERROR] PDF ?�일 ?�기가 0?�니??")
-                    self.root.after(0, lambda: self.set_live_status("?�️ PDF ?�성 ?�패 (0 bytes)", type="error"))
+                    pdf_parser._log_debug("[auto_unlock ERROR] PDF 파일 크기가 0입니다.")
+                    self.root.after(0, lambda: self.set_live_status("⚠️ PDF 생성 실패 (0 bytes)", type="error"))
 
             except Exception as e:
                 pdf_parser._log_debug(f"[auto_unlock ERROR] Exception: {e}")
                 print(f"Auto unlock & save PDF error: {e}")
                 self.root.after(0, lambda: self.root.lift())
-                self.root.after(0, lambda: self.set_live_status(f"?�️ PDF 변???�류: {e}", type="error"))
+                self.root.after(0, lambda: self.set_live_status(f"⚠️ PDF 변환 오류: {e}", type="error"))
 
             finally:
                 if driver:
@@ -1395,7 +1395,7 @@ shortcut.Save
         def _parse_job():
             import time
             pdf_parser._log_debug(f"_on_new_tax_pdf_saved parse job started for: {pdf_path}")
-            # 0.05�??�위 초고???�일 ?�정???��?
+            # 0.05초 단위 초고속 파일 안정화 대기
             for _ in range(10):
                 try:
                     if os.path.getsize(pdf_path) > 100:
@@ -1416,12 +1416,12 @@ shortcut.Save
             if tax_data.get('date') or tax_data.get('supply_amount', 0) > 0:
                 self.root.after(0, lambda d=tax_data: self._apply_tax_data(d))
             else:
-                self.root.after(0, lambda: messagebox.showwarning("?�성?�자 미추�?, f"?�?�된 PDF ?�금계산??[{os.path.basename(pdf_path)}] ?�서 ?�성?�자�?발견?��? 못했?�니??\n\n(?�세???�인?� voucher_pass_debug.log ?�일??참고?�세??"))
+                self.root.after(0, lambda: messagebox.showwarning("작성일자 미추출", f"저장된 PDF 세금계산서 [{os.path.basename(pdf_path)}] 에서 작성일자를 발견하지 못했습니다.\n\n(자세한 원인은 voucher_pass_debug.log 파일을 참고하세요)"))
 
         threading.Thread(target=_parse_job, daemon=True).start()
 
     def _apply_tax_data(self, tax_data):
-        """?�금계산?�에???�싱???�성?�자 �?공급가?�을 ?�용?�고 금액 ?�치 ?��?�?검�?""
+        """세금계산서에서 파싱된 작성일자 및 공급가액을 적용하고 금액 일치 여부를 검증"""
         tax_date = tax_data.get('date', '')
         tax_amt = tax_data.get('supply_amount', 0)
 
@@ -1429,51 +1429,51 @@ shortcut.Save
             self.date_var.set(tax_date)
             if hasattr(self, 'e_date'):
                 self._shake_widget(self.e_date, highlight_bg="#FEF08A")
-            self.set_live_status(f"?�� ?�성?�자 [{tax_date}] ?�동 ?�득 ?�공! ??, type="success")
+            self.set_live_status(f"🎉 작성일자 [{tax_date}] 자동 획득 성공! ✨", type="success")
 
         if tax_amt > 0:
             self.tax_supply_amount = tax_amt
 
-        # PR 구매?�청?��? ?�금계산?�의 공급가??비교 검�?
+        # PR 구매요청서와 세금계산서의 공급가액 비교 검증
         self._check_amount_discrepancy()
 
     def _check_amount_discrepancy(self):
         """
-        PR 구매?�청?�의 공급가?�과 ?�금계산?�의 공급가?�을 비교?�여
-        차이가 ?�을 경우 경고 ?�림 ?�업 �??�태�??�젯 강조 ?�시
+        PR 구매요청서의 공급가액과 세금계산서의 공급가액을 비교하여
+        차이가 있을 경우 경고 알림 팝업 및 상태바/위젯 강조 표시
         """
         pr_amt = self.pr_supply_amount
         tax_amt = self.tax_supply_amount
 
-        # ???�류??공급가?�이 모두 ?�싱?�었????검�??�행
+        # 두 서류의 공급가액이 모두 파싱되었을 때 검증 수행
         if pr_amt > 0 and tax_amt > 0:
             if pr_amt != tax_amt:
                 diff = abs(pr_amt - tax_amt)
-                pdf_parser._log_debug(f"[금액 불일�?감�?] PR 공급가?? {pr_amt:,}??!= ?�금계산??공급가?? {tax_amt:,}??(차액: {diff:,}??")
+                pdf_parser._log_debug(f"[금액 불일치 감지] PR 공급가액: {pr_amt:,}원 != 세금계산서 공급가액: {tax_amt:,}원 (차액: {diff:,}원)")
                 
-                # 1. ?�이�??�태바에 붉�???경고 ?�시
-                self.set_live_status(f"?�️ [공급가??불일�? PR({pr_amt:,}?? ???�금({tax_amt:,}?? [차액: {diff:,}??", type="error")
+                # 1. 라이브 상태바에 붉은색 경고 표시
+                self.set_live_status(f"⚠️ [공급가액 불일치] PR({pr_amt:,}원) ≠ 세금({tax_amt:,}원) [차액: {diff:,}원]", type="error")
                 
-                # 2. 공급가???�력 ?�젯 붉�????�이???�니메이??
+                # 2. 공급가액 입력 위젯 붉은색 쉐이크 애니메이션
                 if hasattr(self, 'e_amt'):
                     self._shake_widget(self.e_amt, highlight_bg="#FCA5A5")
 
-                # 3. 경고 ?�업 ?��? (모달)
+                # 3. 경고 팝업 띄움 (모달)
                 messagebox.showwarning(
-                    "?�️ 공급가??불일�?경고",
-                    f"구매?�청??PR)?� ?�금계산?�의 공급가?�이 ?�치?��? ?�습?�다!\n\n"
-                    f"??PR 구매?�청?? {pr_amt:,} ??n"
-                    f"???�금계산??     {tax_amt:,} ??n"
-                    f"??차액 (불일�?:  {diff:,} ??n\n"
-                    f"금액???�인?�고 ?�정??주세??"
+                    "⚠️ 공급가액 불일치 경고",
+                    f"구매요청서(PR)와 세금계산서의 공급가액이 일치하지 않습니다!\n\n"
+                    f"• PR 구매요청서: {pr_amt:,} 원\n"
+                    f"• 세금계산서:     {tax_amt:,} 원\n"
+                    f"• 차액 (불일치):  {diff:,} 원\n\n"
+                    f"금액을 확인하고 수정해 주세요!"
                 )
             else:
-                pdf_parser._log_debug(f"[금액 ?�치 검�??�료] {pr_amt:,}??)
-                self.set_live_status(f"??공급가???�치 검�??�료 ({pr_amt:,}?? ?��", type="success")
+                pdf_parser._log_debug(f"[금액 일치 검증 완료] {pr_amt:,}원")
+                self.set_live_status(f"✅ 공급가액 일치 검증 완료 ({pr_amt:,}원) 🎯", type="success")
 
     def _shake_widget(self, widget, highlight_bg="#FEF08A"):
         """
-        추출???�이???�창이 �???�????�통?? ?��??�게 ?�들리는 ?�이???�니메이??
+        추출된 데이터 셀창이 좌-우-좌-우 통통통~ 재미있게 흔들리는 쉐이크 애니메이션
         """
         if not widget or not os.path.exists if not hasattr(widget, 'config') else False:
             pass
@@ -1482,7 +1482,7 @@ shortcut.Save
             orig_bg = widget.cget("bg")
             widget.config(bg=highlight_bg)
 
-            # 좌우 ?�프???�턴 (Shake Sequence)
+            # 좌우 오프셋 패턴 (Shake Sequence)
             offsets = [5, -5, 4, -4, 2, -2, 0]
 
             def _animate(idx):
@@ -1569,45 +1569,45 @@ shortcut.Save
                     dec_pdf = pdf_parser.decrypt_pdf_to_temp(self.tax_pdf_path.get())
                     ok = printer_handler.print_pdf_file(dec_pdf, printer_name=printer)
                     if ok:
-                        printed_list.append("???�자 ?�금계산??PDF")
+                        printed_list.append("① 전자 세금계산서 PDF")
                     else:
-                        failed_list.append("???�자 ?�금계산??PDF")
+                        failed_list.append("① 전자 세금계산서 PDF")
                 except Exception as e1:
                     print(f"Tax print error: {e1}")
-                    failed_list.append("???�자 ?�금계산??PDF")
+                    failed_list.append("① 전자 세금계산서 PDF")
 
             if self.spec_pdf_path.get() and os.path.exists(self.spec_pdf_path.get()):
                 try:
                     ok = printer_handler.print_pdf_file(self.spec_pdf_path.get(), printer_name=printer)
                     if ok:
-                        printed_list.append("??거래명세??PDF")
+                        printed_list.append("② 거래명세서 PDF")
                     else:
-                        failed_list.append("??거래명세??PDF")
+                        failed_list.append("② 거래명세서 PDF")
                 except Exception as e2:
                     print(f"Spec print error: {e2}")
-                    failed_list.append("??거래명세??PDF")
+                    failed_list.append("② 거래명세서 PDF")
 
             if self.pr_pdf_path.get() and os.path.exists(self.pr_pdf_path.get()):
                 try:
                     ok = printer_handler.print_pdf_file(self.pr_pdf_path.get(), printer_name=printer)
                     if ok:
-                        printed_list.append("??PR Print PDF (구매?�청??")
+                        printed_list.append("③ PR Print PDF (구매요청서)")
                     else:
-                        failed_list.append("??PR Print PDF (구매?�청??")
+                        failed_list.append("③ PR Print PDF (구매요청서)")
                 except Exception as e3:
                     print(f"PR print error: {e3}")
-                    failed_list.append("??PR Print PDF (구매?�청??")
+                    failed_list.append("③ PR Print PDF (구매요청서)")
 
             if self.po_pdf_path.get() and os.path.exists(self.po_pdf_path.get()):
                 try:
                     ok = printer_handler.print_pdf_file(self.po_pdf_path.get(), printer_name=printer)
                     if ok:
-                        printed_list.append("??발주??(PO) PDF")
+                        printed_list.append("④ 발주서 (PO) PDF")
                     else:
-                        failed_list.append("??발주??(PO) PDF")
+                        failed_list.append("④ 발주서 (PO) PDF")
                 except Exception as e4:
                     print(f"PO print error: {e4}")
-                    failed_list.append("??발주??(PO) PDF")
+                    failed_list.append("④ 발주서 (PO) PDF")
 
             if self.contract_pdf_path.get() and os.path.exists(self.contract_pdf_path.get()):
                 try:
@@ -1615,30 +1615,30 @@ shortcut.Save
                     page_indices, label_str = self._parse_contract_pages(page_str)
                     ok = printer_handler.print_pdf_file(self.contract_pdf_path.get(), printer_name=printer, page_range=page_indices)
                     if ok:
-                        printed_list.append(f"???�체 계약??PDF ({label_str} ?�이지)")
+                        printed_list.append(f"⑤ 업체 계약서 PDF ({label_str} 페이지)")
                     else:
-                        failed_list.append(f"???�체 계약??PDF ({label_str} ?�이지)")
+                        failed_list.append(f"⑤ 업체 계약서 PDF ({label_str} 페이지)")
                 except Exception as e5:
                     print(f"Contract print error: {e5}")
-                    failed_list.append(f"???�체 계약??PDF ({label_str} ?�이지)")
+                    failed_list.append(f"⑤ 업체 계약서 PDF ({label_str} 페이지)")
 
             if not printed_list and not failed_list:
-                self.set_live_status("?�️ ?�쇄??PDF ?�류가 ?�로?�되지 ?�았?�니??", type="error")
+                self.set_live_status("⚠️ 인쇄할 PDF 서류가 업로드되지 않았습니다.", type="error")
                 return
 
             if printed_list:
                 summary = ", ".join(printed_list)
                 if failed_list:
                     fail_summary = ", ".join(failed_list)
-                    self.set_live_status(f"?�️ ?��? ?�쇄 ?�공 [{summary}], ?�패 [{fail_summary}] (?�린?? {printer})", type="error")
+                    self.set_live_status(f"⚠️ 일부 인쇄 성공 [{summary}], 실패 [{fail_summary}] (프린터: {printer})", type="error")
                 else:
-                    self.set_live_status(f"?���??�류 ?�괄 ?�쇄 ?�청 ?�료: [{summary}] (?�린?? {printer})", type="success")
+                    self.set_live_status(f"🖨️ 서류 일괄 인쇄 요청 완료: [{summary}] (프린터: {printer})", type="success")
             else:
                 fail_summary = ", ".join(failed_list)
-                self.set_live_status(f"?�️ ?�쇄 ?�패: [{fail_summary}] (?�린?? {printer})", type="error")
+                self.set_live_status(f"⚠️ 인쇄 실패: [{fail_summary}] (프린터: {printer})", type="error")
 
         except Exception as e:
-            self.set_live_status(f"?�️ ?�쇄 ?�류: {e}", type="error")
+            self.set_live_status(f"⚠️ 인쇄 오류: {e}", type="error")
 
 def main():
     if HAS_DND:
