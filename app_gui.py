@@ -728,7 +728,7 @@ shortcut.Save
         lbl_logo.bind("<Button-1>", self._click_title)
         lbl_logo.bind("<B1-Motion>", self._drag_title)
 
-        ver_b = RoundedBadge(hdr, text="v8.7.4", bg_color="#26407F", fg_color="#FFFFFF", font=("Malgun Gothic", 8, "bold"), radius=6, width=46, height=20, outer_bg="#3457A8")
+        ver_b = RoundedBadge(hdr, text="v8.7.5", bg_color="#26407F", fg_color="#FFFFFF", font=("Malgun Gothic", 8, "bold"), radius=6, width=46, height=20, outer_bg="#3457A8")
         ver_b.pack(side="left", padx=(6, 0))
 
         btn_outlook = RoundedBadge(hdr, text="📬 아웃룩", bg_color="#4F46E5", fg_color="#FFFFFF", font=("Malgun Gothic", 8, "bold"), radius=6, width=62, height=20, outer_bg="#3457A8", cursor="hand2")
@@ -980,12 +980,15 @@ shortcut.Save
 
     def fetch_outlook_action(self):
         """아웃룩에서 세금계산서/명세서 첨부파일을 1클릭으로 자동 추출 및 로드"""
-        fp, msg = outlook_handler.fetch_outlook_attachment()
-        if fp and os.path.exists(fp):
-            fname = os.path.basename(fp)
-            self.handle_auto_detected_pdf(fp)
-            if hasattr(self, 'lbl_live_status'):
-                self.lbl_live_status.config(text=f"📬 아웃룩 [{fname}] 가져오기 완료!")
+        files, msg = outlook_handler.fetch_outlook_attachments()
+        if files:
+            loaded_names = []
+            for fp in files:
+                if os.path.exists(fp):
+                    self.handle_auto_detected_pdf(fp)
+                    loaded_names.append(os.path.basename(fp))
+            if loaded_names and hasattr(self, 'lbl_live_status'):
+                self.lbl_live_status.config(text=f"📬 아웃룩 [{', '.join(loaded_names)}] 가져오기 완료!")
         else:
             if hasattr(self, 'lbl_live_status'):
                 self.lbl_live_status.config(text="⚠️ 아웃룩 첨부파일을 찾을 수 없습니다.")

@@ -142,20 +142,62 @@ def fetch_latest_outlook_file(max_age_seconds=1200):
     return None
 
 
-def fetch_outlook_attachment():
-    # 1. 0.003초 초고속: 아웃룩 임시 폴더 최신 파일 확인 (사용자가 메일에서 첨부를 클릭/열람한 경우)
-    temp_file = fetch_latest_outlook_file(max_age_seconds=1800)
-    if temp_file and os.path.exists(temp_file):
-        return temp_file, '아웃룩에서 열람한 최신 첨부파일을 가져왔습니다.'
-
-    # 2. 0.001초 초고속: 클립보드 확인 (사용자가 첨부파일을 Ctrl+C 복사한 경우)
-    clip_files = extract_files_from_clipboard()
-    if clip_files:
-        return clip_files[0], '클립보드에서 첨부파일을 가져왔습니다.'
-
-    # 3. 보조: COM 활성 메일 확인
+def fetch_outlook_attachments(max_age_seconds=600):
+    """
+    아웃룩에서 세금계산서(HTML/PDF) 및 거래명세서(PDF) 첨부파일들을 스마트 분류하여 일괄 반환.
+    max_age_seconds: 임시 폴더 스캔 시 이 시간(초) 이내에 수정된 파일만 인식 (기본 10분).
+    Returns: list of file_paths, msg
+    """
+    # 1. COM 활성 메일 확인 (메일이 열려 있거나 선택된 경우 모든 첨부파일 추출)
     com_files = extract_from_active_com_mail()
     if com_files:
-        return com_files[0], '열려 있는 아웃룩 메일에서 첨부파일을 가져왔습니다.'
+        return com_files, '열려 있는 아웃룩 메일에서 첨부파일을 가져왔습니다.'
 
-    return None, '아웃룩 첨부파일을 찾을 수 없습니다. 아웃룩에서 메일을 열거나 첨부파일을 확인해 주세요.'
+    # 2. 클립보드 확인 (Ctrl+C 복사된 첨부파일들)
+    clip_files = extract_files_from_clipboard()
+    if clip_files:
+        return clip_files, '클립보드에서 첨부파일을 가져왔습니다.'
+
+    # 3. 아웃룩 임시 폴더에서 최근 열람된 첨부파일만 스마트 추출
+    dirs = get_outlook_temp_dirs()
+    now = time.time()
+    recent_htmls = []
+    recent_pdfs = []
+
+    for d in dirs:
+        for fp in glob.glob(os.path.join(d, '*.html')) + glob.glob(os.path.join(d, '*.htm')):
+            mtime = os.path.getmtime(fp)
+            if now - mtime <= max_age_seconds:
+                recent_htmls.append((mtime, fp))
+        for fp in glob.glob(os.path.join(d, '*.pdf')):
+            mtime = os.path.getmtime(fp)
+            if now - mtime <= max_age_seconds:
+                recent_pdfs.append((mtime, fp))
+
+    recent_htmls.sort(key=lambda x: x[0], reverse=True)
+    recent_pdfs.sort(key=lambda x: x[0], reverse=True)
+
+    results = []
+
+    # 세금계산서 HTML 우선 (NTS_eTaxInvoice 최우선)
+    if recent_htmls:
+        nts = [fp for _, fp in recent_htmls if any(k in os.path.basename(fp).lower() for k in ['nts', 'tax', 'invoice', '세금'])]
+        sel_html = nts[0] if nts else recent_htmls[0][1]
+        results.append(sel_html)
+
+    # 최근 열람 PDF 추가
+    if recent_pdfs:
+        results.append(recent_pdfs[0][1])
+
+    if results:
+        return results, '아웃룩에서 최근 열람한 첨부파일을 가져왔습니다.'
+
+    return [], '아웃룩 첨부파일을 찾을 수 없습니다. 아웃룩에서 메일을 열어두거나 첨부파일을 클릭/열람한 후 다시 시도해 주세요.'
+
+
+def fetch_outlook_attachment():
+    files, msg = fetch_outlook_attachments()
+    if files:
+        return files[0], msg
+    return None, msg
+
