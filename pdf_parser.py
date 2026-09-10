@@ -3,6 +3,10 @@ import os
 import tempfile
 import base64
 import time
+import html
+from datetime import date
+from voucher_core import extract_amounts
+from file_utils import temp_output
 
 try:
     import pdfplumber
@@ -16,7 +20,7 @@ try:
 except ImportError:
     HAS_PYPDF = False
 
-DEFAULT_PASSWORDS = ['6068625399', '']
+DEFAULT_PASSWORDS = [os.getenv('VOUCHERPASS_PDF_PASSWORD', '6068625399'), '']
 
 
 def _parse_tounicode_cmap(data):
@@ -121,68 +125,52 @@ def extract_pdf_text_with_cmaps(pdf_path, passwords=DEFAULT_PASSWORDS):
 
 
 def extract_pdf_text_safely(pdf_path, passwords=DEFAULT_PASSWORDS):
-    # 1. CMap 직접 디코딩 방식 우선 시도 (PR, PO 한글 완벽 복원)
-    cmap_text = extract_pdf_text_with_cmaps(pdf_path, passwords)
-    if cmap_text and len(cmap_text.strip()) > 30:
-        return cmap_text
-
-    full_text = ""
-    if HAS_PDFPLUMBER:
+    # Prefer layout-preserving extraction. CMap is a fallback for unreadable text.
+    for backend in ('plumber', 'pypdf'):
         for pwd in passwords:
             try:
-                with pdfplumber.open(pdf_path, password=pwd) as pdf:
-                    for page in pdf.pages:
-                        txt = page.extract_text()
-                        if txt:
-                            full_text += txt + "\n"
-                if full_text.strip():
-                    return full_text
-            except Exception:
-                continue
-
-    if HAS_PYPDF:
-        for pwd in passwords:
-            try:
-                reader = PdfReader(pdf_path)
-                if reader.is_encrypted:
-                    try:
-                        reader.decrypt(pwd)
-                    except Exception:
+                if backend == 'plumber' and HAS_PDFPLUMBER:
+                    with pdfplumber.open(pdf_path, password=pwd) as pdf:
+                        text = '\n'.join(page.extract_text() or '' for page in pdf.pages)
+                elif backend == 'pypdf' and HAS_PYPDF:
+                    reader = PdfReader(pdf_path)
+                    if reader.is_encrypted and not reader.decrypt(pwd):
                         continue
-                for page in reader.pages:
-                    txt = page.extract_text()
-                    if txt:
-                        full_text += txt + "\n"
-                if full_text.strip():
-                    return full_text
+                    text = '\n'.join(page.extract_text() or '' for page in reader.pages)
+                else:
+                    continue
+                if text.strip() and '(cid:' not in text and '\ufffd' not in text:
+                    return text
             except Exception:
                 continue
+    return extract_pdf_text_with_cmaps(pdf_path, passwords)
 
-    return full_text or cmap_text
 
 def _read_html_text(html_path):
-    raw_content = ""
-    for enc in ['utf-8', 'euc-kr', 'cp949', 'utf-16']:
+    with open(html_path, 'rb') as stream:
+        raw = stream.read()
+    encodings = ['utf-16'] if raw.startswith((b'\xff\xfe', b'\xfe\xff')) else ['utf-8-sig', 'cp949', 'euc-kr']
+    raw_content = None
+    for encoding in encodings:
         try:
-            with open(html_path, 'r', encoding=enc, errors='ignore') as f:
-                raw_content = f.read()
-            if raw_content:
-                break
-        except Exception:
+            raw_content = raw.decode(encoding)
+            break
+        except UnicodeDecodeError:
             continue
+    if raw_content is None:
+        raise ValueError('HTML 문자 인코딩을 확인할 수 없습니다.')
+    text = re.sub(r'<(script|style)\b[^>]*>.*?</\1>', '', raw_content, flags=re.I | re.S)
+    text = re.sub(r'</(?:tr|p|div)>|<br\s*/?>', '\n', text, flags=re.I)
+    text = html.unescape(re.sub(r'<[^>]+>', ' ', text))
+    return '\n'.join(re.sub(r'[^\S\n]+', ' ', line).strip() for line in text.splitlines())
 
-    if not raw_content:
-        return ''
-
-    text = re.sub(r'<[^>]+>', ' ', raw_content)
-    text = re.sub(r'&[a-zA-Z]+;', ' ', text)
-    text = re.sub(r'\s+', ' ', text)
-    return text
 
 def _is_html_file(file_path):
     return file_path.lower().endswith(('.html', '.htm'))
 
 def _log_debug(msg):
+    if os.getenv('VOUCHERPASS_DEBUG') != '1':
+        return
     log_locations = [
         os.path.join(os.path.dirname(os.path.abspath(__file__)), 'voucher_pass_debug.log'),
         os.path.join(os.getenv('APPDATA', '.'), 'VoucherPass', 'voucher_pass_debug.log'),
@@ -205,9 +193,9 @@ def parse_tax_invoice_data(file_path):
     _log_debug(f"=== [parse_tax_invoice_data START] File: {file_path} ===")
     result = {
         'date': '',
-        'supply_amount': 0,
-        'vat': 0,
-        'total_amount': 0
+        'supply_amount': None,
+        'vat': None,
+        'total_amount': None
     }
     if not os.path.exists(file_path):
         _log_debug(f"ERROR: File does not exist: {file_path}")
@@ -246,6 +234,7 @@ def parse_tax_invoice_data(file_path):
                                         if row:
                                             row_str = " ".join([str(cell) for cell in row if cell is not None])
                                             full_text += "\n" + row_str
+                        break
                     except Exception as pe:
                         _log_debug(f"pdfplumber page table extract exception with pwd '{pwd}': {pe}")
                         continue
@@ -322,42 +311,15 @@ def parse_tax_invoice_data(file_path):
                         _log_debug(f"SUCCESS [Step 3-B Fulltext YYYY-MM-DD]: {result['date']}")
                         break
 
-    # 2. 공급가액(supply_amount) / 세액(vat) / 합계금액(total_amount) 추출
-    # 패턴 1: 작성일자 바로 뒤에 나오는 금액들 (예: 2026/08/11 2,100,000 210,000)
-    m_amt_seq = re.search(r'20[1-3][0-9][/\-.\s년]+\d{1,2}[/\-.\s월]+\d{1,2}[일\s]*\s+([1-9]\d{0,2}(?:,\d{3})+)\s+([0-9]\d{0,2}(?:,\d{3})*)', full_text)
-    if m_amt_seq:
-        s_amt = int(m_amt_seq.group(1).replace(',', ''))
-        v_amt = int(m_amt_seq.group(2).replace(',', ''))
-        if s_amt > 0:
-            result['supply_amount'] = s_amt
-            result['vat'] = v_amt
-            result['total_amount'] = s_amt + v_amt
-            _log_debug(f"SUCCESS [Amount Step 1 Date-Sequence]: supply={s_amt:,}, vat={v_amt:,}, total={s_amt+v_amt:,}")
-
-    # 패턴 2: 키워드 '공급가액' 뒤의 금액 추출
-    if result['supply_amount'] == 0:
-        kw_amt = re.search(r'(?:공\s*급\s*가\s*액)\s*[:\s]*([1-9]\d{0,2}(?:,\d{3})+)', full_text)
-        if kw_amt:
-            s_amt = int(kw_amt.group(1).replace(',', ''))
-            result['supply_amount'] = s_amt
-            result['vat'] = int(s_amt * 0.1)
-            result['total_amount'] = s_amt + result['vat']
-            _log_debug(f"SUCCESS [Amount Step 2 Keyword '공급가액']: supply={s_amt:,}")
-
-    # 패턴 3: 전체 금액 리스트에서 supply + vat = total 수학적 검증
-    if result['supply_amount'] == 0:
-        all_amounts = re.findall(r'([1-9]\d{0,2}(?:,\d{3})+)', full_text)
-        num_set = set([int(a.replace(',', '')) for a in all_amounts if 1000 <= int(a.replace(',', '')) <= 10000000000])
-        for a in sorted(num_set, reverse=True):
-            for v in num_set:
-                if (a + v) in num_set and (v == int(a * 0.1) or v == 0 or v == round(a * 0.1)):
-                    result['supply_amount'] = a
-                    result['vat'] = v
-                    result['total_amount'] = a + v
-                    _log_debug(f"SUCCESS [Amount Step 3 Math Verification]: supply={a:,}, vat={v:,}, total={a+v:,}")
-                    break
-            if result['supply_amount'] > 0:
-                break
+    amounts = extract_amounts(full_text)
+    result.update(supply_amount=amounts['amount'], vat=amounts['vat'],
+                  total_amount=amounts['total_amount'], warnings=amounts['warnings'])
+    if result['date']:
+        try:
+            date.fromisoformat(result['date'])
+        except ValueError:
+            result['date'] = ''
+            result['warnings'].append('유효하지 않은 작성일자')
 
     _log_debug(f"=== [parse_tax_invoice_data END] Result: {result} ===")
     return result
@@ -373,9 +335,9 @@ def parse_pr_pdf(pdf_path):
     extracted_data = {
         'pr_no': '',
         'pr_title': '',
-        'amount': 0,
-        'vat': 0,
-        'total_amount': 0,
+        'amount': None,
+        'vat': None,
+        'total_amount': None,
         'date': '',
         'supplier': ''
     }
@@ -402,34 +364,9 @@ def parse_pr_pdf(pdf_path):
     if subj_match:
         extracted_data['pr_title'] = subj_match.group(1).strip()
 
-    pr_no_str = extracted_data['pr_no']
-    candidates = []
-    
-    lines = full_text.split('\n')
-    for line in lines:
-        if pr_no_str and pr_no_str in line:
-            continue
-        
-        amounts = re.findall(r'(?:KRW|₩|총금액|공급가액|총약정금액|발주금액|Total)?\s*([1-9]\d{0,2}(?:,\d{3})+)', line)
-        for amt_str in amounts:
-            clean_num = int(amt_str.replace(',', ''))
-            if pr_no_str and str(clean_num) in pr_no_str:
-                continue
-            if len(str(clean_num)) >= 10:
-                continue
-            if 1000 <= clean_num <= 1000000000:
-                is_priority = any(k in line for k in ['KRW', '총약정금액', '발주금액', 'Total', '공급가액', '합계'])
-                candidates.append((clean_num, is_priority))
-
-    priority_candidates = [c[0] for c in candidates if c[1]]
-    if priority_candidates:
-        extracted_data['amount'] = max(priority_candidates)
-    elif candidates:
-        extracted_data['amount'] = max([c[0] for c in candidates])
-
-    if extracted_data['amount'] > 0:
-        extracted_data['vat'] = int(extracted_data['amount'] * 0.1)
-        extracted_data['total_amount'] = extracted_data['amount'] + extracted_data['vat']
+    extracted_data.update(extract_amounts(full_text))
+    if not full_text.strip():
+        extracted_data['warnings'].append('텍스트를 읽을 수 없습니다. 스캔/암호화 문서를 확인해 주세요.')
 
     # 거래처명 (Supplier) 추출
     def _clean_sup(s):
@@ -448,15 +385,40 @@ def parse_pr_pdf(pdf_path):
         return s.strip()
 
     sup_match = None
-    # 1. SUPPLIERS RECOMMENDED 테이블 패턴
-    idx_rec = full_text.find('SUPPLIERS')
-    if idx_rec != -1:
-        sub_rec = full_text[idx_rec:idx_rec + 400]
-        sup_match = re.search(r'1\s+([가-힣A-Za-z0-9㈜(주)\s\(\)._-]{2,30}?)(?=\s+[가-힣]{2,4}\s+\d|\s+010|\s+\d{9,12}|\s+[a-zA-Z0-9_.+-]+@|\s+PREPARED|\n|$)', sub_rec)
-        if sup_match:
-            cand = _clean_sup(sup_match.group(1))
+    
+    # 0. 발주서 (PO) - 2. 공급처(SUPPLIER) 섹션 추출 (우선순위 1)
+    section = re.search(r'2\s*\.\s*공\s*급\s*처\s*\(\s*SUPPLIER\s*\)', full_text, re.I)
+    idx_sup_sec = section.start() if section else -1
+    if idx_sup_sec != -1:
+        sub_sup = full_text[section.end():section.end() + 400]
+        sub_sup = re.split(r'\n\s*3\s*\.', sub_sup, maxsplit=1)[0]
+        sub_sup = re.sub(r'(?i)2\.\s*공급처\(SUPPLIER\)', '', sub_sup)
+        sub_sup = re.sub(r'(?i)COMPANY\s*NAME', '', sub_sup)
+        sub_sup = re.sub(r'(?i)DEPARTMENT', '', sub_sup)
+        sub_sup = re.sub(r'(?i)NAME', '', sub_sup)
+        sub_sup = re.sub(r'(?i)TITLE', '', sub_sup)
+        sub_sup = re.sub(r'(?i)TEL\.?', '', sub_sup)
+        sub_sup = re.sub(r'(?i)FAX\.?', '', sub_sup)
+        sub_sup = re.sub(r'(?i)E-mail', '', sub_sup)
+        
+        lines_left = [ln.strip() for ln in sub_sup.split('\n') if ln.strip()]
+        if lines_left:
+            first_line = lines_left[0]
+            parts = re.split(r'\s{2,}', first_line)
+            cand = _clean_sup(parts[0])
             if cand and cand not in ('Company', 'Name', 'No', 'Title'):
                 extracted_data['supplier'] = cand
+
+    if not extracted_data['supplier']:
+        # 1. SUPPLIERS RECOMMENDED 테이블 패턴
+        idx_rec = full_text.find('SUPPLIERS')
+        if idx_rec != -1:
+            sub_rec = full_text[idx_rec:idx_rec + 400]
+            sup_match = re.search(r'1\s+([가-힣A-Za-z0-9㈜(주)\s\(\)._-]{2,30}?)(?=\s+[가-힣]{2,4}\s+\d|\s+010|\s+\d{9,12}|\s+[a-zA-Z0-9_.+-]+@|\s+PREPARED|\n|$)', sub_rec)
+            if sup_match:
+                cand = _clean_sup(sup_match.group(1))
+                if cand and cand not in ('Company', 'Name', 'No', 'Title'):
+                    extracted_data['supplier'] = cand
 
     if not extracted_data['supplier']:
         # 2. Company / Vendor 명시적 필드 패턴
@@ -482,9 +444,9 @@ def classify_pdf_type(file_path):
     if 'nts_etaxinvoice' in fname or 'etaxinvoice' in fname:
         return 'tax'
 
-    if '발주' in fname or 'po' in fname or 'order' in fname:
+    if '발주' in fname or re.search(r'(?<![a-z])po(?=\d|[^a-z]|$)', fname) or 'order' in fname:
         return 'po'
-    if '구매요청' in fname or 'pr' in fname or 'requisition' in fname:
+    if '구매요청' in fname or re.search(r'(?<![a-z])pr(?=\d|[^a-z]|$)', fname) or 'requisition' in fname:
         return 'pr'
     if '명세서' in fname or '거래' in fname or 'spec' in fname:
         return 'spec'
@@ -510,7 +472,7 @@ def classify_pdf_type(file_path):
     if '계약서' in txt or '협약서' in txt or 'CONTRACT' in txt_upper:
         return 'contract'
 
-    return 'pr'
+    return 'unknown'
 
 def decrypt_pdf_to_temp(pdf_path, passwords=DEFAULT_PASSWORDS):
     if not HAS_PYPDF:
@@ -537,7 +499,7 @@ def decrypt_pdf_to_temp(pdf_path, passwords=DEFAULT_PASSWORDS):
         for page in reader.pages:
             writer.add_page(page)
 
-        temp_pdf = os.path.join(tempfile.gettempdir(), f"decrypted_{os.path.basename(pdf_path)}")
+        temp_pdf = temp_output(f'decrypted_{os.path.basename(pdf_path)}')
         with open(temp_pdf, 'wb') as f:
             writer.write(f)
 

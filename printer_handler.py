@@ -3,6 +3,47 @@ import sys
 import subprocess
 import tempfile
 from pypdf import PdfReader, PdfWriter
+from voucher_core import validate_pages
+from file_utils import temp_output
+
+
+def print_documents(paths, printer_name, contract_pages):
+    """Prepare the complete batch before submitting any irreversible print request."""
+    import shutil
+    import pdf_parser
+    prepared = []
+    for kind, path in paths.items():
+        if not path:
+            continue
+        if not os.path.isfile(path) or not path.lower().endswith('.pdf'):
+            raise ValueError(f'{kind}: PDF 파일 또는 변환 완료 여부를 확인해 주세요.')
+        snapshot = temp_output(os.path.basename(path))
+        shutil.copy2(path, snapshot)
+        target = pdf_parser.decrypt_pdf_to_temp(snapshot)
+        reader = PdfReader(target)
+        if not reader.pages:
+            raise ValueError(f'{kind}: PDF에 페이지가 없습니다.')
+        if kind == 'contract':
+            pages = validate_pages(contract_pages, len(reader.pages))
+            writer = PdfWriter()
+            for index in pages:
+                writer.add_page(reader.pages[index])
+            target = temp_output('contract_pages.pdf')
+            with open(target, 'wb') as stream:
+                writer.write(stream)
+        prepared.append((kind, target))
+    if not prepared:
+        raise ValueError('인쇄할 서류가 없습니다.')
+    submitted, failed = [], []
+    for kind, target in prepared:
+        try:
+            if print_pdf_file(target, printer_name):
+                submitted.append(kind)
+            else:
+                failed.append(f'{kind}: 인쇄 엔진 없음')
+        except Exception as exc:
+            failed.append(f'{kind}: {exc}')
+    return submitted, failed
 
 def get_installed_printers():
     printers = []
@@ -29,25 +70,18 @@ def print_pdf_file(pdf_path, printer_name=None, page_range=None):
 
     target_pdf = pdf_path
 
-    # 특정 페이지 슬라이싱 요구 시 pypdf 사용
-    if page_range is not None and len(page_range) > 0:
-        try:
-            reader = PdfReader(pdf_path)
-            writer = PdfWriter()
-            total_pages = len(reader.pages)
-            
-            valid_pages = [p for p in page_range if 0 <= p < total_pages]
-            if valid_pages:
-                for page_idx in valid_pages:
-                    writer.add_page(reader.pages[page_idx])
-                
-                temp_dir = tempfile.gettempdir()
-                sliced_pdf_path = os.path.join(temp_dir, f"sliced_{os.path.basename(pdf_path)}")
-                with open(sliced_pdf_path, "wb") as f_out:
-                    writer.write(f_out)
-                target_pdf = sliced_pdf_path
-        except Exception as e:
-            print(f"Page slicing error: {e}, falling back to full print")
+    if not pdf_path.lower().endswith('.pdf'):
+        raise ValueError('PDF 변환이 완료된 문서만 인쇄할 수 있습니다.')
+    # Validate the entire requested range; never substitute the original document.
+    if page_range is not None:
+        reader = PdfReader(pdf_path)
+        valid_pages = validate_pages(page_range, len(reader.pages))
+        writer = PdfWriter()
+        for page_idx in valid_pages:
+            writer.add_page(reader.pages[page_idx])
+        target_pdf = temp_output(f'sliced_{os.path.basename(pdf_path)}')
+        with open(target_pdf, 'wb') as stream:
+            writer.write(stream)
 
     # SumatraPDF.exe 다각 탐색
     candidate_paths = [
@@ -87,9 +121,11 @@ def print_pdf_file(pdf_path, printer_name=None, page_range=None):
             if res.returncode == 0:
                 return True
             else:
-                print(f"SumatraPDF exited with code {res.returncode}: {res.stderr}")
-        except Exception as e:
-            print(f"SumatraPDF print failed: {e}")
+                raise RuntimeError(f"SumatraPDF 인쇄 요청 실패: {res.returncode}")
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError("인쇄 요청 시간이 초과됐습니다. 중복 인쇄 방지를 위해 대체 출력을 중단했습니다. 프린터 대기열을 확인해 주세요.") from exc
+        except Exception as exc:
+            raise RuntimeError(f"인쇄 요청 실패: {exc}") from exc
 
     # 2. Windows ShellExecute / os.startfile Fallback
     if os.name == 'nt':
@@ -103,11 +139,7 @@ def print_pdf_file(pdf_path, printer_name=None, page_range=None):
             return True
         except Exception as e:
             print(f"ShellExecute print failed: {e}")
-            try:
-                os.startfile(target_pdf, "print")
-                return True
-            except Exception as e2:
-                print(f"os.startfile print failed: {e2}")
+            raise RuntimeError('선택한 프린터에 인쇄 요청을 전달하지 못했습니다.') from e
 
     return False
 

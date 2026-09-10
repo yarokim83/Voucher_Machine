@@ -1,70 +1,64 @@
-﻿import openpyxl
 import os
 import shutil
-from datetime import datetime
+import tempfile
+from pathlib import Path
+import openpyxl
+from file_utils import desktop_dir, safe_name
+
 
 def generate_voucher_excel(data, template_path=None):
-    if not template_path:
-        template_path = r"C:\Users\baewoong.kim\Desktop\고려제강(2025).xlsx"
-
-    if not os.path.exists(template_path):
-        raise FileNotFoundError(f"Voucher 템플릿 엑셀 파일을 찾을 수 없습니다: {template_path}")
-
+    if not template_path or not os.path.isfile(template_path):
+        raise FileNotFoundError('전표 Excel 템플릿을 선택해 주세요.')
+    amounts = [data.get(key) for key in ('amount', 'vat', 'total_amount')]
+    if any(value is None for value in amounts) or amounts[0] + amounts[1] != amounts[2]:
+        raise ValueError('공급가액·부가세·합계금액을 확인해 주세요.')
     wb = openpyxl.load_workbook(template_path)
-    ws = wb.active
+    try:
+        ws = wb.active
+        mapping = {'W6': 'pr_no', 'D9': 'pr_title', 'W9': 'amount', 'W16': 'vat',
+                   'W17': 'total_amount', 'A6': 'date', 'J6': 'supplier',
+                   'P32': 'total_amount', 'P33': 'amount', 'V34': 'vat'}
+        for cell, key in mapping.items():
+            value = data.get(key, '')
+            ws[cell] = value
+            if isinstance(value, str):
+                ws[cell].data_type = 's'
+        desktop = desktop_dir()
+        desktop.mkdir(parents=True, exist_ok=True)
+        fd, name = tempfile.mkstemp(prefix=f"Voucher_{safe_name(data.get('pr_no') or 'NO_PR')}_", suffix='.xlsx', dir=desktop)
+        os.close(fd)
+        try:
+            wb.save(name)
+        except Exception:
+            Path(name).unlink(missing_ok=True)
+            raise
+        return name
+    finally:
+        wb.close()
 
-    ws['W6'] = data.get('pr_no', '')
-    ws['D9'] = data.get('pr_title', '')
-    ws['W9'] = data.get('amount', 0)
-    ws['W16'] = data.get('vat', 0)
-    ws['W17'] = data.get('total_amount', 0)
-    ws['A6'] = data.get('date', '')
-    ws['J6'] = data.get('supplier', '')
-    
-    ws['P32'] = data.get('total_amount', 0)
-    ws['P33'] = data.get('amount', 0)
-    ws['V34'] = data.get('vat', 0)
 
-    pr_no = data.get('pr_no', 'NO_PR')
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    out_name = f"Voucher_{pr_no}_{timestamp}.xlsx"
-    desktop = os.path.join(os.path.expanduser('~'), 'Desktop')
-    out_path = os.path.join(desktop, out_name)
-    wb.save(out_path)
-    return out_path
-
-def archive_voucher_package(data, pdf_paths, excel_path=None):
-    """
-    [건별/업체별 자동 폴더 생성 보관소]
-    날짜_거래처명_PR번호 폴더 생성 후 PDF 4종 및 엑셀 파일 자동 정돈 보관
-    """
-    date_str = data.get('date', datetime.now().strftime('%Y-%m-%d'))
-    supplier_str = data.get('supplier', '거래처')
-    pr_no_str = data.get('pr_no', 'PR')
-
-    folder_name = f"{date_str}_{supplier_str}_{pr_no_str}"
-    base_vault = os.path.join(os.path.expanduser('~'), 'Desktop', 'Voucher_보관소')
-    target_dir = os.path.join(base_vault, folder_name)
-    os.makedirs(target_dir, exist_ok=True)
-
-    archived_files = []
-
-    # PDF 서류 복사 보관
-    for p in pdf_paths:
-        if p and os.path.exists(p):
-            fname = os.path.basename(p)
-            dest = os.path.join(target_dir, fname)
-            shutil.copy2(p, dest)
-            archived_files.append(dest)
-
-    # 엑셀 파일 보관
-    if excel_path and os.path.exists(excel_path):
-        fname = os.path.basename(excel_path)
-        dest = os.path.join(target_dir, fname)
-        shutil.copy2(excel_path, dest)
-        archived_files.append(dest)
-
-    return target_dir, archived_files
-
-if __name__ == '__main__':
-    print("excel_handler with auto-archiver ready")
+def archive_voucher_package(data, pdf_paths, excel_path=None, base_dir=None):
+    items = list(pdf_paths.items()) if isinstance(pdf_paths, dict) else [(str(i), p) for i, p in enumerate(pdf_paths, 1)]
+    if excel_path:
+        items.append(('voucher', excel_path))
+    items = [(kind, Path(path)) for kind, path in items if path]
+    if not items:
+        raise ValueError('보관할 서류가 없습니다.')
+    for _, path in items:
+        if not path.is_file():
+            raise FileNotFoundError(f'보관할 파일을 찾을 수 없습니다: {path.name}')
+    vault = Path(base_dir) if base_dir else desktop_dir() / 'Voucher_보관소'
+    vault.mkdir(parents=True, exist_ok=True)
+    label = '_'.join(safe_name(data.get(key) or fallback, fallback) for key, fallback in [('date', '날짜미확인'), ('supplier', '거래처미확인'), ('pr_no', 'PR미확인')])
+    target = Path(tempfile.mkdtemp(prefix=label[:120] + '_', dir=vault))
+    archived = []
+    try:
+        for index, (kind, path) in enumerate(items, 1):
+            dest = target / f'{index:02d}_{safe_name(kind)}_{safe_name(path.name)}'
+            shutil.copy2(path, dest)
+            archived.append(str(dest))
+    except Exception:
+        # target is the unique directory created above, never a caller-supplied path.
+        shutil.rmtree(target)
+        raise
+    return str(target), archived

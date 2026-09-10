@@ -1,0 +1,10 @@
+# Direct runtime versions from the existing Windows development installation.
+pdfplumber==0.11.10
+pypdf==6.15.0
+Pillow==12.3.0
+openpyxl==3.1.5
+tkinterdnd2==0.6.2
+selenium==4.47.0
+pystray==0.19.5
+pynput==1.8.1
+pywin32==310; sys_platform == "win32"

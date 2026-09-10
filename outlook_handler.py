@@ -1,9 +1,9 @@
 import os
 import glob
 import time
-import struct
 import tempfile
 import winreg
+from file_utils import temp_output
 
 try:
     import win32clipboard
@@ -36,8 +36,6 @@ def get_outlook_temp_dirs():
 def extract_files_from_clipboard():
     if not HAS_WIN32:
         return []
-    temp_dir = os.path.join(tempfile.gettempdir(), 'VoucherPass_Clipboard')
-    os.makedirs(temp_dir, exist_ok=True)
     saved_files = []
 
     try:
@@ -54,23 +52,7 @@ def extract_files_from_clipboard():
             if saved_files:
                 return saved_files
 
-        fgd_format = win32clipboard.RegisterClipboardFormat('FileGroupDescriptorW')
-        fc_format = win32clipboard.RegisterClipboardFormat('FileContents')
-
-        if win32clipboard.IsClipboardFormatAvailable(fgd_format) and win32clipboard.IsClipboardFormatAvailable(fc_format):
-            fgd_data = win32clipboard.GetClipboardData(fgd_format)
-            num_files = struct.unpack('I', fgd_data[0:4])[0]
-            for i in range(num_files):
-                offset = 4 + i * 592
-                fn_bytes = fgd_data[offset + 76 : offset + 76 + 520]
-                fn = fn_bytes.decode('utf-16le', errors='ignore').split(chr(0))[0]
-                if not fn:
-                    fn = f'outlook_attachment_{i+1}.html'
-                fc_data = win32clipboard.GetClipboardData(fc_format)
-                fp = os.path.join(temp_dir, fn)
-                with open(fp, 'wb') as f:
-                    f.write(fc_data if isinstance(fc_data, bytes) else fc_data.encode('utf-8'))
-                saved_files.append(fp)
+        # Outlook 가상 첨부파일은 F4 COM 가져오기를 사용합니다.
     except Exception:
         pass
     finally:
@@ -104,14 +86,12 @@ def extract_from_active_com_mail():
         if not atts or atts.Count == 0:
             return []
 
-        temp_dir = os.path.join(tempfile.gettempdir(), 'VoucherPass_Outlook')
-        os.makedirs(temp_dir, exist_ok=True)
         results = []
         for i in range(1, atts.Count + 1):
             att = atts.Item(i)
             fn = att.FileName
             if fn.lower().endswith(('.html', '.htm', '.pdf')):
-                fp = os.path.join(temp_dir, fn)
+                fp = temp_output(fn)
                 att.SaveAsFile(fp)
                 results.append(fp)
         return results
@@ -138,7 +118,6 @@ def fetch_latest_outlook_file(max_age_seconds=1200):
         newest_mtime, newest_fp = found[0]
         if now - newest_mtime <= max_age_seconds:
             return newest_fp
-        return newest_fp
     return None
 
 

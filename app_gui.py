@@ -21,6 +21,10 @@ import excel_handler
 import printer_handler
 import pdf_watcher
 import outlook_handler
+from voucher_core import DocumentState, parse_money, parse_pages, validate_pages
+from file_utils import desktop_dir, temp_output, safe_name
+from task_runner import TaskRunner
+from tax_converter import convert_tax_html
 
 
 class RoundedFrame(tk.Frame):
@@ -261,7 +265,7 @@ class CleanMinimalDropZone(RoundedFrame):
         self.file_var.trace_add("write", self._update_ui_state)
 
     def _browse_file(self, event=None):
-        path = filedialog.askopenfilename(filetypes=[("All Files", "*.*")])
+        path = filedialog.askopenfilename(filetypes=[("문서", "*.pdf *.html *.htm")])
         if path:
             self.set_file(path)
 
@@ -310,9 +314,14 @@ class CleanMinimalDropZone(RoundedFrame):
         self._update_ui_state()
 
     def set_file(self, path):
+        allowed = ('.pdf', '.html', '.htm') if self.num_str == '1' else ('.pdf',)
+        if not os.path.isfile(path) or not path.lower().endswith(allowed):
+            messagebox.showwarning('파일 형식 확인', '이 영역에서 지원하는 문서 파일을 선택해 주세요.')
+            return False
         self.file_var.set(path)
         if self.on_file_selected:
             self.on_file_selected(path)
+        return True
 
     def _update_ui_state(self, *args):
         path = self.file_var.get()
@@ -324,13 +333,13 @@ class CleanMinimalDropZone(RoundedFrame):
             self.title_row.config(bg=bg_color)
             self.lbl_title.config(bg=bg_color, fg="#1C2536")
             self.lbl_tag.config(bg=bg_color, fg="#1F9D63")
-            self.lbl_status.config(text=f"{fname} 업로드 완료", fg="#1F9D63", font=("Malgun Gothic", 7, "bold"), bg=bg_color)
+            self.lbl_status.config(text=f"{fname} 등록됨", fg="#1F9D63", font=("Malgun Gothic", 7, "bold"), bg=bg_color)
             self.lbl_chip.outer_bg = bg_color
             self.lbl_chip.redraw()
             self.lbl_num.set_content(bg_color="#1F9D63", fg_color="#FFFFFF")
             self.lbl_num.outer_bg = bg_color
             self.lbl_num.redraw()
-            self.lbl_badge.set_content(text="완료", bg_color="#1F9D63", fg_color="#FFFFFF")
+            self.lbl_badge.set_content(text="등록", bg_color="#1F9D63", fg_color="#FFFFFF")
             self.lbl_badge.outer_bg = bg_color
             self.lbl_badge.redraw()
         else:
@@ -356,10 +365,14 @@ class CleanMinimalDropZone(RoundedFrame):
 
 class VoucherPassApp:
     """
-    VoucherPass v6.0 Folder Watcher & Auto PDF Date Extractor Engine
+    VoucherPass v8.8.0 document collection and validation
     """
     def __init__(self, root):
         self.root = root
+        self.tasks = TaskRunner(root)
+        self.documents = DocumentState()
+        self._last_discrepancy = None
+        self._closed = False
         self.root.title("Voucher Pass")
         self.root.geometry("440x720+1060+30")
         self.root.minsize(440, 720)
@@ -392,7 +405,7 @@ class VoucherPassApp:
         self.contract_pdf_path = tk.StringVar()
         self.contract_page = tk.StringVar(value="1")
 
-        self.template_path = tk.StringVar(value=r"C:\Users\baewoong.kim\Desktop\고려제강(2025).xlsx")
+        self.template_path = tk.StringVar()
         self.selected_printer = tk.StringVar()
 
         self.pr_no_var = tk.StringVar()
@@ -404,10 +417,10 @@ class VoucherPassApp:
         self.supplier_var = tk.StringVar()
 
         # PR 및 세금계산서 공급가액 불일치 검증용 상태 변수
-        self.pr_supply_amount = 0
-        self.tax_supply_amount = 0
+        self.pr_supply_amount = None
+        self.tax_supply_amount = None
 
-        self.auto_watch_enabled = tk.BooleanVar(value=True)
+        self.auto_watch_enabled = tk.BooleanVar(value=False)
         self.folder_watcher = pdf_watcher.DownloadFolderWatcher(self.handle_auto_detected_pdf)
 
         self._build_widget_layout()
@@ -419,6 +432,9 @@ class VoucherPassApp:
         self._setup_global_hotkey()
 
         # F4: 아웃룩 첨부파일 1클릭 가져오기, Ctrl+V: 클립보드 첨부파일 붙여넣기
+        self.root.bind("<F6>", lambda e: self.generate_excel_action())
+        self.root.bind("<F7>", lambda e: self.save_sliced_contract_pdf())
+        self.root.protocol("WM_DELETE_WINDOW", self.close_app)
         self.root.bind("<F4>", lambda e: self.fetch_outlook_action())
         self.root.bind("<Control-v>", lambda e: self.paste_from_clipboard_action())
 
@@ -454,7 +470,7 @@ class VoucherPassApp:
             sw = self.root.winfo_screenwidth()
             sh = self.root.winfo_screenheight()
 
-            w, h = 390, 645
+            w, h = 440, 720
             x = max(10, min(mx - 20, sw - w - 10))
             y = max(10, min(my - 20, sh - h - 40))
 
@@ -485,12 +501,11 @@ class VoucherPassApp:
         try:
             import winreg
             exe_path = sys.executable if getattr(sys, 'frozen', False) else os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dist', 'VoucherPass.exe')
-            if not os.path.exists(exe_path):
-                exe_path = f'"{sys.executable}" "{os.path.abspath(sys.argv[0])}"'
+            command = f'"{exe_path}"' if os.path.exists(exe_path) else f'"{sys.executable}" "{os.path.abspath(sys.argv[0])}"'
 
             key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
             with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_SET_VALUE) as key:
-                winreg.SetValueEx(key, "VoucherPass", 0, winreg.REG_SZ, f'"{exe_path}"')
+                winreg.SetValueEx(key, "VoucherPass", 0, winreg.REG_SZ, command)
             self.set_live_status("🚀 윈도우 시작프로그램에 VoucherPass가 등록되었습니다!", type="success")
         except Exception as e:
             print(f"Startup registry error: {e}")
@@ -511,6 +526,7 @@ class VoucherPassApp:
     def _get_icon_file(self, filename):
         base_dir = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
         candidates = [
+            os.path.join(base_dir, 'assets', filename),
             os.path.join(base_dir, 'dist', filename),
             os.path.join(base_dir, filename),
             os.path.join(os.path.dirname(sys.executable), 'dist', filename),
@@ -548,22 +564,22 @@ class VoucherPassApp:
                     image = Image.new('RGB', (64, 64), color=(37, 99, 235))
 
                 def _on_toggle(icon, item):
-                    self.root.after(0, self.popup_at_cursor)
+                    self.tasks.call_soon(self.popup_at_cursor)
 
                 def _toggle_startup(icon, item):
                     if self.is_startup_registered():
-                        self.unregister_startup_registry()
+                        self.tasks.call_soon(self.unregister_startup_registry)
                     else:
-                        self.register_startup_registry()
+                        self.tasks.call_soon(self.register_startup_registry)
 
                 def _on_exit(icon, item):
                     icon.stop()
-                    self.root.after(0, self.root.destroy)
+                    self.tasks.call_soon(self.close_app)
 
                 menu = pystray.Menu(
                     pystray.MenuItem("⚡ 위젯 열기/숨기기 (Ctrl+Shift+V / 마우스 위치)", _on_toggle, default=True),
                     pystray.MenuItem("🚀 시작프로그램 자동등록", _toggle_startup, checked=lambda item: self.is_startup_registered()),
-                    pystray.MenuItem("🖥️ 바탕화면 바로가기 생성", lambda icon, item: self.toggle_desktop_shortcut(), checked=lambda item: self.is_desktop_shortcut_existing()),
+                    pystray.MenuItem("🖥️ 바탕화면 바로가기 생성", lambda icon, item: self.tasks.call_soon(self.toggle_desktop_shortcut), checked=lambda item: self.is_desktop_shortcut_existing()),
                     pystray.MenuItem("✕ 종료", _on_exit)
                 )
 
@@ -583,7 +599,7 @@ class VoucherPassApp:
                 from pynput import keyboard
 
                 def _on_trigger():
-                    self.root.after(0, self.popup_at_cursor)
+                    self.tasks.call_soon(self.popup_at_cursor)
 
                 with keyboard.GlobalHotKeys({
                     '<ctrl>+<shift>+v': _on_trigger,
@@ -605,15 +621,14 @@ class VoucherPassApp:
             return
 
         page_str = self.contract_page.get().strip()
-        page_indices, label_str = self._parse_contract_pages(page_str)
-
         try:
+            page_indices, label_str = self._parse_contract_pages(page_str)
             from pypdf import PdfReader, PdfWriter
             reader = PdfReader(contract_pdf)
             writer = PdfWriter()
             total_pages = len(reader.pages)
 
-            valid_pages = [p for p in page_indices if 0 <= p < total_pages]
+            valid_pages = validate_pages(page_indices, total_pages)
             if not valid_pages:
                 self.set_live_status(f"⚠️ 유효하지 않은 페이지 범위입니다. (총 {total_pages}페이지)", type="error")
                 return
@@ -621,21 +636,23 @@ class VoucherPassApp:
             for p in valid_pages:
                 writer.add_page(reader.pages[p])
 
-            desktop = os.path.join(os.path.expanduser('~'), 'Desktop')
+            desktop = str(desktop_dir())
             out_name = f"계약서_{label_str}p.pdf"
-            out_path = os.path.join(desktop, out_name)
+            import tempfile
+            fd, out_path = tempfile.mkstemp(prefix=safe_name(f'계약서_{label_str}p')[:60] + '_', suffix='.pdf', dir=desktop)
+            os.close(fd)
 
             with open(out_path, 'wb') as f_out:
                 writer.write(f_out)
 
-            self.set_live_status(f"🎉 업체 계약서 [{label_str}p] ({len(valid_pages)}페이지) 추출 저장 완료! 📂 {out_name}", type="success")
+            self.set_live_status(f"🎉 업체 계약서 [{label_str}p] ({len(valid_pages)}페이지) 추출 저장 완료! 📂 {os.path.basename(out_path)}", type="success")
         except Exception as e:
             self.set_live_status(f"⚠️ 계약서 페이지 추출 오류: {e}", type="error")
 
     def is_desktop_shortcut_existing(self):
         """바탕화면에 VoucherPass.lnk 바로가기 존재 여부 확인"""
         try:
-            desktop = os.path.join(os.path.expanduser('~'), 'Desktop')
+            desktop = str(desktop_dir())
             lnk_path = os.path.join(desktop, 'VoucherPass.lnk')
             return os.path.exists(lnk_path)
         except Exception:
@@ -644,7 +661,7 @@ class VoucherPassApp:
     def delete_desktop_shortcut(self):
         """바탕화면 바로가기 삭제"""
         try:
-            desktop = os.path.join(os.path.expanduser('~'), 'Desktop')
+            desktop = str(desktop_dir())
             lnk_path = os.path.join(desktop, 'VoucherPass.lnk')
             if os.path.exists(lnk_path):
                 os.remove(lnk_path)
@@ -665,7 +682,7 @@ class VoucherPassApp:
         """
         try:
             exe_path = sys.executable if getattr(sys, 'frozen', False) else os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dist', 'VoucherPass.exe')
-            desktop = os.path.join(os.path.expanduser('~'), 'Desktop')
+            desktop = str(desktop_dir())
             lnk_path = os.path.join(desktop, 'VoucherPass.lnk')
 
             vbs_script = f'''
@@ -677,11 +694,11 @@ shortcut.Description = "VoucherPass Tax & PR Extractor"
 shortcut.WindowStyle = 1
 shortcut.Save
 '''
-            vbs_file = os.path.join(os.environ.get('TEMP', '.'), 'create_lnk.vbs')
-            with open(vbs_file, 'w', encoding='utf-8') as f:
+            vbs_file = temp_output('create_lnk.vbs')
+            with open(vbs_file, 'w', encoding='utf-16') as f:
                 f.write(vbs_script)
 
-            subprocess.run(['cscript', '//Nologo', vbs_file], check=True)
+            subprocess.run(['cscript', '//Nologo', vbs_file], check=True, creationflags=subprocess.CREATE_NO_WINDOW)
             self.set_live_status("🖥️ 바탕화면에 VoucherPass.lnk 바로가기가 생성되었습니다!", type="success")
         except Exception as e:
             print(f"Shortcut creation error: {e}")
@@ -728,17 +745,21 @@ shortcut.Save
         lbl_logo.bind("<Button-1>", self._click_title)
         lbl_logo.bind("<B1-Motion>", self._drag_title)
 
-        ver_b = RoundedBadge(hdr, text="v8.7.6", bg_color="#26407F", fg_color="#FFFFFF", font=("Malgun Gothic", 8, "bold"), radius=6, width=46, height=20, outer_bg="#3457A8")
+        ver_b = RoundedBadge(hdr, text="v8.8.0", bg_color="#26407F", fg_color="#FFFFFF", font=("Malgun Gothic", 8, "bold"), radius=6, width=46, height=20, outer_bg="#3457A8")
         ver_b.pack(side="left", padx=(6, 0))
 
         btn_outlook = RoundedBadge(hdr, text="📬 아웃룩", bg_color="#4F46E5", fg_color="#FFFFFF", font=("Malgun Gothic", 8, "bold"), radius=6, width=62, height=20, outer_bg="#3457A8", cursor="hand2")
         btn_outlook.pack(side="left", padx=(6, 0))
         btn_outlook.bind("<Button-1>", lambda e: self.fetch_outlook_action())
+        
+        btn_reset = RoundedBadge(hdr, text="🔄 리셋", bg_color="#E02424", fg_color="#FFFFFF", font=("Malgun Gothic", 8, "bold"), radius=6, width=54, height=20, outer_bg="#3457A8", cursor="hand2")
+        btn_reset.pack(side="left", padx=(6, 0))
+        btn_reset.bind("<Button-1>", lambda e: self.reset_all_data())
 
         # 우측 창 제어 미니 버튼 및 도넛 프로그레스 링
         btn_close = tk.Label(hdr, text="●", font=("Arial", 10), bg="#3457A8", fg="#FCA5A5", cursor="hand2")
         btn_close.pack(side="right", padx=(4, 0))
-        btn_close.bind("<Button-1>", lambda e: self.root.destroy())
+        btn_close.bind("<Button-1>", lambda e: self.close_app())
 
         btn_min = tk.Label(hdr, text="●", font=("Arial", 10), bg="#3457A8", fg="#FDE047", cursor="hand2")
         btn_min.pack(side="right", padx=(4, 0))
@@ -772,14 +793,14 @@ shortcut.Save
         self.drop_pr = CleanMinimalDropZone(
             drop_container, num_str="3", title="PR Print (구매요청서)", tag_str="· PDF",
             chip_text="PR", chip_bg="#8B5FD8", file_var=self.pr_pdf_path,
-            on_file_selected=self.parse_uploaded_pdf, on_state_changed=self._update_progress_summary
+            on_file_selected=lambda path: self.parse_uploaded_pdf(path, 'pr'), on_state_changed=self._update_progress_summary
         )
         self.drop_pr.pack(fill="x", pady=1.5)
 
         self.drop_po = CleanMinimalDropZone(
             drop_container, num_str="4", title="발주서 (PO)", tag_str="· PDF",
             chip_text="PO", chip_bg="#E08C2B", file_var=self.po_pdf_path,
-            on_file_selected=self.parse_uploaded_pdf, on_state_changed=self._update_progress_summary
+            on_file_selected=lambda path: self.parse_uploaded_pdf(path, 'po'), on_state_changed=self._update_progress_summary
         )
         self.drop_po.pack(fill="x", pady=1.5)
 
@@ -883,6 +904,7 @@ shortcut.Save
         box_vat.pack(fill="x", pady=(1, 0))
         self.e_vat = tk.Entry(box_vat, textvariable=self.vat_var, font=("Consolas", 10, "bold"), bg="#F5F8FF", fg="#26407F", justify="right", relief="flat", bd=0)
         self.e_vat.pack(fill="x")
+        self.e_vat.bind("<KeyRelease>", self._recalc_amounts)
 
         # 합계금액 (우측 1열 차지: 골드 라운드 카드)
         f_c2_r3 = RoundedFrame(grid_f, radius=8, bg_color="#FFF9EC", border_color="#F0A531", outer_bg="#FFFFFF", padx=6, pady=2)
@@ -906,7 +928,7 @@ shortcut.Save
         toast_box.pack(fill="x", pady=(2, 3))
 
         self.lbl_live_status = tk.Label(
-            toast_box, text="🖥️ 바탕화면에 VoucherPass.lnk 바로가기가 생성되었습니다!",
+            toast_box, text="서류를 등록해 주세요. F4: 아웃룩 가져오기",
             font=("Malgun Gothic", 8, "bold"), bg="#E6F7EE", fg="#1F9D63", anchor="w"
         )
         self.lbl_live_status.pack(fill="x")
@@ -956,117 +978,123 @@ shortcut.Save
                 pass
         self.root.after(300, self._start_folder_watch_timer)
 
-    def handle_auto_detected_pdf(self, pdf_path):
-        """
-        지정 폴더(다운로드/바탕화면)에 새로운 PDF가 감지되면 자동으로 파싱 및 분류
-        """
-        if not pdf_path or not os.path.exists(pdf_path):
-            return
+    def handle_auto_detected_pdf(self, pdf_path, pdf_type=None):
+        if not pdf_path or not os.path.isfile(pdf_path):
+            return False
+        if pdf_type is None:
+            self.tasks.submit('classify:' + pdf_path,
+                lambda: pdf_parser.classify_pdf_type(pdf_path),
+                lambda kind: self.handle_auto_detected_pdf(pdf_path, kind),
+                lambda error: self.set_live_status(error, type='error'))
+            return False
+        if pdf_type not in ('tax', 'pr', 'po', 'spec', 'contract'):
+            self.set_live_status(f'⚠️ 미분류: {os.path.basename(pdf_path)} — 문서 칸에 직접 등록해 주세요.', type='error')
+            return False
+        var = getattr(self, pdf_type + '_pdf_path')
+        if var.get():
+            self.set_live_status(f'⚠️ {pdf_type.upper()} 칸이 사용 중입니다. 새 파일은 직접 선택해 주세요.', type='error')
+            return False
+        return getattr(self, 'drop_' + pdf_type).set_file(pdf_path)
 
-        pdf_type = pdf_parser.classify_pdf_type(pdf_path)
-        if pdf_type == 'tax' or '세금' in os.path.basename(pdf_path) or '조회' in os.path.basename(pdf_path):
-            self.drop_tax.set_file(pdf_path)
-            self.parse_tax_invoice_uploaded(pdf_path)
-        elif pdf_type == 'pr':
-            self.drop_pr.set_file(pdf_path)
-            self.parse_uploaded_pdf(pdf_path)
-        elif pdf_type == 'po':
-            self.drop_po.set_file(pdf_path)
-            self.parse_uploaded_pdf(pdf_path)
-        elif pdf_type == 'spec':
-            self.drop_spec.set_file(pdf_path)
-        elif pdf_type == 'contract':
-            self.drop_contract.set_file(pdf_path)
+    def reset_all_data(self):
+        """업로드된 모든 자료와 입력된 데이터(텍스트박스)를 초기화"""
+        if self.tasks.busy & {'print', 'archive', 'excel'}:
+            self.set_live_status('인쇄·저장 처리 중입니다. 완료 후 초기화해 주세요.', type='info')
+            return
+        self.tasks.invalidate()
+        self.documents.clear()
+        self._last_discrepancy = None
+        self.pr_pdf_path.set("")
+        self.po_pdf_path.set("")
+        self.spec_pdf_path.set("")
+        self.tax_pdf_path.set("")
+        self.contract_pdf_path.set("")
+        self.contract_page.set("1")
+
+        self.pr_no_var.set("")
+        self.pr_title_var.set("")
+        self.amount_var.set("")
+        self.vat_var.set("")
+        self.total_amount_var.set("")
+        self.date_var.set("")
+        self.supplier_var.set("")
+        
+        self.pr_supply_amount = None
+        self.tax_supply_amount = None
+
+        
+        if hasattr(self, 'txt_pr_title'):
+            self.txt_pr_title.delete("1.0", "end")
+            
+        self._update_progress_summary()
+        self.set_live_status("🔄 모든 데이터가 초기화되었습니다.", type="info")
 
     def fetch_outlook_action(self):
-        """아웃룩에서 세금계산서/명세서 첨부파일을 1클릭으로 자동 추출 및 로드"""
-        self.set_live_status("⏳ 아웃룩 연동 중... (메일에서 첨부파일을 추출하고 있습니다)", type="info")
-        self.root.update()
-
-        import threading
-        def _worker():
-            files, msg = outlook_handler.fetch_outlook_attachments()
-            self.root.after(0, self._on_fetch_outlook_done, files, msg)
-
-        threading.Thread(target=_worker, daemon=True).start()
+        def work():
+            files, message = outlook_handler.fetch_outlook_attachments()
+            return [(path, pdf_parser.classify_pdf_type(path)) for path in files], message
+        if self.tasks.submit('outlook', work,
+                lambda result: self._on_fetch_outlook_done(*result),
+                lambda error: self.set_live_status(f'아웃룩 오류: {error}', type='error')):
+            self.set_live_status('⏳ 아웃룩 첨부파일 수집·분류 중...', type='info')
 
     def _on_fetch_outlook_done(self, files, msg):
-        if files:
-            self.set_live_status("🔄 첨부파일 다운로드 완료. 서류 분류 및 처리 중...", type="info")
-            loaded_names = []
-            for fp in files:
-                if os.path.exists(fp):
-                    self.handle_auto_detected_pdf(fp)
-                    loaded_names.append(os.path.basename(fp))
-            if loaded_names and hasattr(self, 'lbl_live_status'):
-                self.set_live_status(f"📬 아웃룩 [{', '.join(loaded_names)}] 가져오기 완료!", type="success")
-        else:
-            self.set_live_status("⚠️ 아웃룩 연동 실패", type="error")
-            messagebox.showinfo("아웃룩 첨부파일 가져오기", msg)
+        if not files:
+            self.set_live_status('⚠️ 아웃룩 연동 실패', type='error')
+            messagebox.showinfo('아웃룩 첨부파일 가져오기', msg)
+            return
+        rejected = []
+        for path, kind in files:
+            if not self.handle_auto_detected_pdf(path, kind):
+                rejected.append(os.path.basename(path))
+        if rejected:
+            messagebox.showwarning('등록 확인 필요', '미분류 또는 이미 사용 중인 문서 칸: ' + ', '.join(rejected))
 
     def paste_from_clipboard_action(self):
-        """클립보드에 복사된 아웃룩 첨부파일 또는 파일 경로를 자동 추출 및 로드"""
-        files = outlook_handler.extract_files_from_clipboard()
-        if files:
-            for fp in files:
-                if os.path.exists(fp):
-                    fname = os.path.basename(fp)
-                    self.handle_auto_detected_pdf(fp)
-                    if hasattr(self, 'lbl_live_status'):
-                        self.lbl_live_status.config(text=f"📋 클립보드 [{fname}] 로드 완료!")
-                    break
+        # Ordinary text paste must not start COM work or overwrite registered files.
+        for path in outlook_handler.extract_files_from_clipboard():
+            self.handle_auto_detected_pdf(path)
 
     def generate_excel_action(self):
-        data = self._get_form_data()
-        if not data.get('pr_no') and not data.get('pr_title') and not data.get('amount'):
-            messagebox.showwarning("엑셀 생성 실패", "기록할 데이터가 없습니다. PDF 서류를 먼저 업로드해 주세요.")
+        if self.tasks.busy & {'pr', 'po', 'tax', 'outlook'}:
+            self.set_live_status('문서 분석 완료 후 저장해 주세요.', type='info')
             return
-
-        # 공급가액 불일치 상태일 경우 사용자 확인 절차
-        pr_amt = self.pr_supply_amount
-        tax_amt = self.tax_supply_amount
-        if pr_amt > 0 and tax_amt > 0 and pr_amt != tax_amt:
-            diff = abs(pr_amt - tax_amt)
-            confirm = messagebox.askyesno(
-                "⚠️ 공급가액 불일치 확인",
-                f"PR 구매요청서 공급가액({pr_amt:,}원)과 세금계산서 공급가액({tax_amt:,}원)이 일치하지 않습니다!\n"
-                f"(차액: {diff:,}원)\n\n"
-                f"현재 입력된 공급가액({data.get('amount', 0):,}원) 기준으로 전표 엑셀을 계속 생성하시겠습니까?"
-            )
-            if not confirm:
-                return
-
         try:
-            tmpl_path = self.template_path.get()
-            out_excel = excel_handler.generate_voucher_excel(data, template_path=tmpl_path)
-            res = messagebox.askyesno("📊 엑셀 기록 저장 완료", f"고려제강 엑셀 템플릿에 데이터가 정상 기록되었습니다!\n\n📄 엑셀 파일: {out_excel}\n\n지금 해당 엑셀 파일을 열어보시겠습니까?")
-            if res:
-                os.startfile(out_excel)
-        except Exception as e:
-            messagebox.showerror("엑셀 저장 오류", f"엑셀 생성 중 오류가 발생했습니다:\n{e}")
+            data = self._get_form_data()
+            amounts = [data[key] for key in ('amount', 'vat', 'total_amount')]
+            if any(value is None for value in amounts) or amounts[0] + amounts[1] != amounts[2]:
+                raise ValueError('공급가액·부가세·합계금액을 확인해 주세요.')
+            if self.pr_supply_amount is not None and self.tax_supply_amount is not None and self.pr_supply_amount != self.tax_supply_amount:
+                if not messagebox.askyesno('원본 금액 불일치', '원본 PR과 세금계산서의 금액이 다릅니다. 현재 입력값으로 저장하시겠습니까?'):
+                    return
+            template = self.template_path.get()
+            if not template or not os.path.isfile(template):
+                template = filedialog.askopenfilename(title='전표 Excel 템플릿 선택', filetypes=[('Excel', '*.xlsx')])
+                if not template:
+                    return
+                self.template_path.set(template)
+            self.tasks.submit('excel', lambda: excel_handler.generate_voucher_excel(data, template),
+                lambda path: self.set_live_status(f'엑셀 저장 완료: {os.path.basename(path)}', type='success'),
+                lambda error: self.set_live_status(f'엑셀 저장 실패: {error}', type='error'))
+        except ValueError as error:
+            self.set_live_status(str(error), type='error')
 
     def archive_voucher_files(self):
-        data = self._get_form_data()
-        pdf_paths = [
-            self.pr_pdf_path.get(),
-            self.po_pdf_path.get(),
-            self.spec_pdf_path.get(),
-            self.tax_pdf_path.get(),
-            self.contract_pdf_path.get()
-        ]
-
-        if not any(pdf_paths):
-            messagebox.showwarning("보관 실패", "정리할 PDF 서류가 없습니다.")
+        if self.tasks.busy & {'pr', 'po', 'tax', 'outlook'}:
+            self.set_live_status('문서 분석·변환 완료 후 보관해 주세요.', type='info')
             return
-
         try:
-            target_dir, files = excel_handler.archive_voucher_package(data, pdf_paths)
-            res = messagebox.askyesno("자동 정리 보관 완료", f"다음 보관소 폴더가 자동 생성되고 서류가 정돈되었습니다!\n\n📂 위치: {target_dir}\n\n지금 해당 폴더를 탐색기로 열어보시겠습니까?")
-            if res:
-                os.startfile(target_dir)
-
-        except Exception as e:
-            messagebox.showerror("보관 오류", f"건별 폴더 정리 중 오류 발생:\n{e}")
+            data = self._get_form_data()
+            paths = {kind: getattr(self, kind + '_pdf_path').get() for kind in ('tax', 'spec', 'pr', 'po', 'contract')}
+            def done(result):
+                target, files = result
+                self.set_live_status(f'서류 {len(files)}개 보관 완료', type='success')
+                if messagebox.askyesno('자동 보관 완료', f'{target}\n\n보관 폴더를 여시겠습니까?'):
+                    os.startfile(target)
+            self.tasks.submit('archive', lambda: excel_handler.archive_voucher_package(data, paths), done,
+                lambda error: self.set_live_status(f'보관 실패: {error}', type='error'))
+        except ValueError as error:
+            self.set_live_status(str(error), type='error')
 
     def copy_to_clipboard(self, text, label_name):
         if not text:
@@ -1087,6 +1115,15 @@ shortcut.Save
             self.set_live_status("⚠️ 복사할 데이터 항목이 없습니다. 서류를 먼저 올려주세요.", type="error")
             return
 
+        if not all((d, t, a)):
+            self.set_live_status('작성일자·제목·공급가액을 모두 확인해 주세요.', type='error')
+            return
+        try:
+            parse_money(a)
+        except ValueError as error:
+            self.set_live_status(str(error), type='error')
+            return
+        t = ' '.join(t.splitlines())
         combined_text = f"{d}\n{t}\n{a}"
         self.root.clipboard_clear()
         self.root.clipboard_append(combined_text)
@@ -1138,338 +1175,72 @@ shortcut.Save
         self.lbl_live_status.master.config(bg=bg_col)
         self.lbl_live_status.config(text=msg, bg=bg_col, fg=fg_col)
 
-    def parse_uploaded_pdf(self, pr_path=None):
-        if not pr_path:
-            pr_path = self.pr_pdf_path.get() or self.po_pdf_path.get()
-
-        if not pr_path or not os.path.exists(pr_path):
+    def parse_uploaded_pdf(self, pr_path=None, kind='pr'):
+        path = pr_path or getattr(self, kind + '_pdf_path').get()
+        if not path or not os.path.isfile(path):
             return
+        self.documents.replace(kind, {})
+        self._refresh_form()
+        self.set_live_status(f'⏳ {kind.upper()} 분석 중...', type='info')
+        self.tasks.submit(kind, lambda: pdf_parser.parse_pr_pdf(path),
+            lambda data: self._apply_document(kind, data),
+            lambda error: self.set_live_status(f'{kind.upper()} 분석 실패: {error}', type='error'), replace=True)
 
-        try:
-            data = pdf_parser.parse_pr_pdf(pr_path)
-            self.pr_no_var.set(data.get('pr_no', ''))
-            self.pr_title_var.set(data.get('pr_title', ''))
-            
-            amt = data.get('amount', 0)
-            self.pr_supply_amount = amt
-            self.amount_var.set(f"{amt:,}" if amt else "0")
-            
-            vat = data.get('vat', 0)
-            self.vat_var.set(f"{vat:,}" if vat else "0")
-            
-            tot = data.get('total_amount', 0)
-            self.total_amount_var.set(f"{tot:,}" if tot else "0")
-            
-            if not self.date_var.get() and data.get('date'):
-                self.date_var.set(data.get('date', ''))
+    def _refresh_form(self):
+        data = self.documents.form()
+        for key, value in data.items():
+            var = getattr(self, key + '_var')
+            var.set('' if value is None else f'{value:,}' if isinstance(value, int) else value)
+        self.pr_supply_amount = self.documents.supply('pr')
+        self.tax_supply_amount = self.documents.supply('tax')
 
-            self.supplier_var.set(data.get('supplier', ''))
-
-            if hasattr(self, 'txt_pr_title'):
-                self._shake_widget(self.txt_pr_title, highlight_bg="#BAE6FD")
-            if hasattr(self, 'e_amt'):
-                self._shake_widget(self.e_amt, highlight_bg="#93C5FD")
-
-            self.set_live_status(f"🚀 PR 서류 Title & 공급가액 {amt:,}원 추출 획득 완료! 💎", type="success")
-            
-            # PR 파싱 후 세금계산서 공급가액과 일치 여부 즉시 검증
-            self._check_amount_discrepancy()
-        except Exception as e:
-            self.set_live_status(f"⚠️ PR 서류 파싱 실패: {e}", type="error")
-
-    def parse_tax_invoice_uploaded(self, tax_path=None):
-        """
-        1) HTML/PDF 파일 업로드 감지
-        2) HTML일 경우 자동 비밀번호 입력 및 지정 폴더 PDF 저장
-        3) 저장된 PDF 파일에서 작성일자 및 공급가액 자동 파싱
-        """
-        if not tax_path:
-            tax_path = self.tax_pdf_path.get()
-
-        pdf_parser._log_debug(f"parse_tax_invoice_uploaded called with: {tax_path}")
-
-        if not tax_path or not os.path.exists(tax_path):
-            pdf_parser._log_debug(f"parse_tax_invoice_uploaded: File missing or invalid: {tax_path}")
-            return
-
-        # Step 1 & 2: HTML 세금계산서일 경우 HTML 텍스트에서 즉시 작성일자 1차 파싱 + 자동 해제 & PDF 저장 파이프라인 가동
-        if pdf_parser._is_html_file(tax_path):
-            pdf_parser._log_debug("Detected HTML file. Attempting immediate HTML text data parsing...")
-            try:
-                html_data = pdf_parser.parse_tax_invoice_data(tax_path)
-                pdf_parser._log_debug(f"Immediate HTML data parsing result: {html_data}")
-                if html_data.get('date'):
-                    self.date_var.set(html_data['date'])
-                    if hasattr(self, 'e_date'):
-                        self._shake_widget(self.e_date, highlight_bg="#FEF08A")
-                    self.set_live_status(f"🎉 HTML 작성일자 [{html_data['date']}] 즉시 획득 성공! ✨", type="success")
-                if html_data.get('supply_amount', 0) > 0:
-                    self.tax_supply_amount = html_data['supply_amount']
-                    self._check_amount_discrepancy()
-            except Exception as e_html:
-                pdf_parser._log_debug(f"Immediate HTML date parsing exception: {e_html}")
-
-            pdf_parser._log_debug("Triggering auto_unlock_and_save_pdf for PDF conversion...")
-            self.auto_unlock_and_save_pdf(tax_path)
-            return
-
-        # Step 3: PDF 파일에서 작성일자 및 공급가액 파싱
-        try:
-            tax_data = pdf_parser.parse_tax_invoice_data(tax_path)
-            pdf_parser._log_debug(f"parse_tax_invoice_data result for PDF: {tax_data}")
-            self._apply_tax_data(tax_data)
-        except Exception as e:
-            pdf_parser._log_debug(f"parse_tax_invoice_uploaded exception: {e}")
-            self.set_live_status(f"⚠️ 파싱 오류: {e}", type="error")
-
-    def auto_unlock_and_save_pdf(self, html_path):
-        """Selenium headless Edge + CDP Page.printToPDF 방식으로
-        NTS 세금계산서 HTML을 비밀번호 복호화 후 PDF로 변환.
-        브라우저 종류/해상도/프린터 설정에 완전 독립적."""
-        import threading, time, tempfile
-
-        def _worker():
-            driver = None
-            try:
-                from selenium import webdriver
-                from selenium.webdriver.edge.options import Options
-                from selenium.webdriver.common.by import By
-                import base64
-
-                pdf_parser._log_debug(f"[auto_unlock] Selenium headless 시작: {html_path}")
-                self.root.after(0, lambda: self.set_live_status("🔐 세금계산서 복호화 중...", type="info"))
-
-                # Step 1: headless Edge 브라우저 실행 (A4 세로 비율에 맞게 충분한 윈도우 크기 지정)
-                options = Options()
-                options.add_argument('--headless=new')
-                options.add_argument('--disable-gpu')
-                options.add_argument('--no-sandbox')
-                options.add_argument('--window-size=1200,1600')
-                driver = webdriver.Edge(options=options)
-
-                # Step 2: HTML 파일 열기
-                file_uri = 'file:///' + html_path.replace('\\', '/').replace(' ', '%20')
-                pdf_parser._log_debug(f"[auto_unlock 1단계] HTML 열기: {file_uri}")
-                driver.get(file_uri)
-
-                # Step 3: 비밀번호 입력 (동적 감지: 0.05초 간격 실시간 대기)
-                pdf_parser._log_debug("[auto_unlock 2단계] 비밀번호(6068625399) 동적 감지 및 입력...")
-                pwd_input = None
-                for _ in range(30):
-                    inputs = driver.find_elements(By.CSS_SELECTOR, 'input[type=password], input[type=text]')
-                    for inp in inputs:
-                        if inp.is_displayed() and inp.get_attribute('type') in ('password', 'text'):
-                            pwd_input = inp
-                            break
-                    if pwd_input:
-                        break
-                    time.sleep(0.05)
-
-                if not pwd_input:
-                    pdf_parser._log_debug("[auto_unlock ERROR] 비밀번호 입력란을 찾지 못했습니다.")
-                    self.root.after(0, lambda: self.set_live_status("⚠️ 비밀번호 입력란 미발견", type="error"))
-                    return
-
-                pwd_input.clear()
-                pwd_input.send_keys('6068625399')
-
-                # Step 4: 확인 버튼 클릭
-                pdf_parser._log_debug("[auto_unlock 3단계] 확인 버튼 클릭...")
-                buttons = driver.find_elements(By.CSS_SELECTOR, 'button, input[type=button], input[type=submit], a[onclick]')
-                clicked = False
-                for btn in buttons:
-                    if btn.is_displayed():
-                        onclick = btn.get_attribute('onclick') or ''
-                        text = btn.text or ''
-                        if 'Cri' in onclick or 'InputPwd' in onclick or '확인' in text:
-                            btn.click()
-                            clicked = True
-                            pdf_parser._log_debug(f"[auto_unlock 3단계] 클릭됨: text='{text}', onclick='{onclick[:50]}'")
-                            break
-                if not clicked:
-                    for btn in buttons:
-                        if btn.is_displayed():
-                            btn.click()
-                            clicked = True
-                            break
-
-                # Step 5: 세금계산서 렌더링 동적 대기 (iframe 내용 로드 즉시 진행)
-                pdf_parser._log_debug("[auto_unlock 4단계] 세금계산서 본문 동적 렌더링 대기...")
-                self.root.after(0, lambda: self.set_live_status("📄 세금계산서 렌더링 중...", type="info"))
-                for _ in range(40):
-                    is_ready = driver.execute_script("""
-                        var ifr = document.getElementById('CriMsgPosition');
-                        if (ifr) {
-                            var ifrDoc = ifr.contentDocument || ifr.contentWindow.document;
-                            if (ifrDoc && ifrDoc.body && ifrDoc.body.innerText.length > 30) return true;
-                        }
-                        return false;
-                    """)
-                    if is_ready:
-                        break
-                    time.sleep(0.05)
-
-                # Step 6: 인쇄 UI 정리 (상단 '인쇄/첨부보기' 툴바 및 비밀번호 대화상자 숨김, iframe 높이 자동 확장 및 스크롤바 제거)
-                try:
-                    driver.execute_script("""
-                        // 상단 버튼바 및 팝업 대화상자 숨김
-                        var btnBar = document.getElementById('CriBtnPosition');
-                        if (btnBar) btnBar.style.display = 'none';
-                        var pwdDlg = document.getElementById('idPcPwdDlg');
-                        if (pwdDlg) pwdDlg.style.display = 'none';
-                        var mobDlg = document.getElementById('idMobilePwdDlg');
-                        if (mobDlg) mobDlg.style.display = 'none';
-                        
-                        // 세금계산서 본문 iframe(CriMsgPosition) 높이를 내부 문서 전체 높이로 확장하고 스크롤바 제거
-                        var ifr = document.getElementById('CriMsgPosition');
-                        if (ifr) {
-                            var ifrDoc = ifr.contentDocument || ifr.contentWindow.document;
-                            if (ifrDoc && ifrDoc.body) {
-                                var fullHeight = ifrDoc.body.scrollHeight || ifrDoc.documentElement.scrollHeight;
-                                ifr.style.height = (fullHeight + 30) + 'px';
-                                ifr.height = (fullHeight + 30) + 'px';
-                                ifr.style.overflow = 'hidden';
-                                ifrDoc.body.style.overflow = 'hidden';
-                            }
-                        }
-                    """)
-                    driver.execute_cdp_cmd('Emulation.setEmulatedMedia', {'media': 'print'})
-                except Exception as e_em:
-                    pdf_parser._log_debug(f"[auto_unlock 4단계] UI 정리/미디어 설정 보조 예외: {e_em}")
-
-                # Step 7: CDP Page.printToPDF로 온전한 A4 세금계산서 PDF 생성 (하단 잘림 방지 scale: 0.95)
-                pdf_parser._log_debug("[auto_unlock 5단계] CDP Page.printToPDF 호출 (scale=0.95, A4 완벽 비율)...")
-                self.root.after(0, lambda: self.set_live_status("🖨️ PDF 생성 중...", type="info"))
-
-                params = {
-                    'landscape': False,
-                    'displayHeaderFooter': False,
-                    'printBackground': True,
-                    'preferCSSPageSize': False,
-                    'paperWidth': 8.27,
-                    'paperHeight': 11.69,
-                    'marginTop': 0.15,
-                    'marginBottom': 0.15,
-                    'marginLeft': 0.15,
-                    'marginRight': 0.15,
-                    'scale': 0.95
-                }
-                result = driver.execute_cdp_cmd('Page.printToPDF', params)
-
-                # Step 8: PDF 파일 저장
-                tempdir = tempfile.gettempdir()
-                expected_pdf_path = os.path.join(tempdir, f"NTS_eTaxInvoice_{int(time.time())}.pdf")
-                with open(expected_pdf_path, 'wb') as f:
-                    f.write(base64.b64decode(result['data']))
-
-                pdf_size = os.path.getsize(expected_pdf_path)
-                pdf_parser._log_debug(f"[auto_unlock SUCCESS] PDF 저장 완료: {expected_pdf_path} ({pdf_size} bytes)")
-
-                if pdf_size > 0:
-                    self.root.after(0, lambda: self.root.lift())
-                    self.root.after(0, lambda p=expected_pdf_path: self._on_new_tax_pdf_saved(p))
-                else:
-                    pdf_parser._log_debug("[auto_unlock ERROR] PDF 파일 크기가 0입니다.")
-                    self.root.after(0, lambda: self.set_live_status("⚠️ PDF 생성 실패 (0 bytes)", type="error"))
-
-            except Exception as e:
-                pdf_parser._log_debug(f"[auto_unlock ERROR] Exception: {e}")
-                print(f"Auto unlock & save PDF error: {e}")
-                self.root.after(0, lambda: self.root.lift())
-                self.root.after(0, lambda: self.set_live_status(f"⚠️ PDF 변환 오류: {e}", type="error"))
-
-            finally:
-                if driver:
-                    try:
-                        driver.quit()
-                    except Exception:
-                        pass
-
-        threading.Thread(target=_worker, daemon=True).start()
-
-    def _on_new_tax_pdf_saved(self, pdf_path):
-        if not pdf_path or not os.path.exists(pdf_path):
-            pdf_parser._log_debug(f"_on_new_tax_pdf_saved: Invalid path: {pdf_path}")
-            return
-
-        def _parse_job():
-            import time
-            pdf_parser._log_debug(f"_on_new_tax_pdf_saved parse job started for: {pdf_path}")
-            # 0.05초 단위 초고속 파일 안정화 대기
-            for _ in range(10):
-                try:
-                    if os.path.getsize(pdf_path) > 100:
-                        break
-                except Exception:
-                    pass
-                time.sleep(0.05)
-
-            self.drop_tax.set_file(pdf_path)
-
-            tax_data = pdf_parser.parse_tax_invoice_data(pdf_path)
-            if not tax_data.get('date'):
-                time.sleep(0.1)
-                pdf_parser._log_debug("Retrying parse_tax_invoice_data second attempt...")
-                tax_data = pdf_parser.parse_tax_invoice_data(pdf_path)
-
-            pdf_parser._log_debug(f"_on_new_tax_pdf_saved final tax_data: {tax_data}")
-            if tax_data.get('date') or tax_data.get('supply_amount', 0) > 0:
-                self.root.after(0, lambda d=tax_data: self._apply_tax_data(d))
-            else:
-                self.root.after(0, lambda: messagebox.showwarning("작성일자 미추출", f"저장된 PDF 세금계산서 [{os.path.basename(pdf_path)}] 에서 작성일자를 발견하지 못했습니다.\n\n(자세한 원인은 voucher_pass_debug.log 파일을 참고하세요)"))
-
-        threading.Thread(target=_parse_job, daemon=True).start()
-
-    def _apply_tax_data(self, tax_data):
-        """세금계산서에서 파싱된 작성일자 및 공급가액을 적용하고 금액 일치 여부를 검증"""
-        tax_date = tax_data.get('date', '')
-        tax_amt = tax_data.get('supply_amount', 0)
-
-        if tax_date:
-            self.date_var.set(tax_date)
-            if hasattr(self, 'e_date'):
-                self._shake_widget(self.e_date, highlight_bg="#FEF08A")
-            self.set_live_status(f"🎉 작성일자 [{tax_date}] 자동 획득 성공! ✨", type="success")
-
-        if tax_amt > 0:
-            self.tax_supply_amount = tax_amt
-
-        # PR 구매요청서와 세금계산서의 공급가액 비교 검증
+    def _apply_document(self, kind, data):
+        self.documents.replace(kind, data)
+        self._refresh_form()
+        missing = not data.get('date') if kind == 'tax' else not data.get('pr_no') or not data.get('pr_title')
+        warnings = data.get('warnings', [])
+        self.set_live_status(f'{kind.upper()} 분석: ' + ('확인 필요 — ' + '; '.join(warnings or ['일부 항목 미추출']) if warnings or missing else '추출 완료'),
+                             type='error' if warnings or missing else 'success')
         self._check_amount_discrepancy()
 
+    def parse_tax_invoice_uploaded(self, tax_path=None):
+        path = tax_path or self.tax_pdf_path.get()
+        if not path or not os.path.isfile(path):
+            return
+        self.documents.replace('tax', {})
+        self._refresh_form()
+        if pdf_parser._is_html_file(path):
+            self.auto_unlock_and_save_pdf(path)
+            return
+        self.set_live_status('⏳ 세금계산서 분석 중...', type='info')
+        self.tasks.submit('tax', lambda: pdf_parser.parse_tax_invoice_data(path), self._apply_tax_data,
+            lambda error: self.set_live_status(f'세금계산서 분석 실패: {error}', type='error'), replace=True)
+
+    def auto_unlock_and_save_pdf(self, html_path):
+        self.set_live_status('⏳ 세금계산서 복호화·PDF 변환 중...', type='info')
+        self.tasks.submit('tax', lambda: convert_tax_html(html_path),
+            lambda result: self._on_new_tax_pdf_saved(*result),
+            lambda error: self.set_live_status(f'PDF 변환 실패: {error}', type='error'), replace=True)
+
+    def _on_new_tax_pdf_saved(self, pdf_path, tax_data):
+        # Called by TaskRunner on the Tk main thread. Do not parse again.
+        self.tax_pdf_path.set(pdf_path)
+        self._apply_tax_data(tax_data)
+
+    def _apply_tax_data(self, tax_data):
+        self._apply_document('tax', tax_data)
+
     def _check_amount_discrepancy(self):
-        """
-        PR 구매요청서의 공급가액과 세금계산서의 공급가액을 비교하여
-        차이가 있을 경우 경고 알림 팝업 및 상태바/위젯 강조 표시
-        """
-        pr_amt = self.pr_supply_amount
-        tax_amt = self.tax_supply_amount
-
-        # 두 서류의 공급가액이 모두 파싱되었을 때 검증 수행
-        if pr_amt > 0 and tax_amt > 0:
-            if pr_amt != tax_amt:
-                diff = abs(pr_amt - tax_amt)
-                pdf_parser._log_debug(f"[금액 불일치 감지] PR 공급가액: {pr_amt:,}원 != 세금계산서 공급가액: {tax_amt:,}원 (차액: {diff:,}원)")
-                
-                # 1. 라이브 상태바에 붉은색 경고 표시
-                self.set_live_status(f"⚠️ [공급가액 불일치] PR({pr_amt:,}원) ≠ 세금({tax_amt:,}원) [차액: {diff:,}원]", type="error")
-                
-                # 2. 공급가액 입력 위젯 붉은색 쉐이크 애니메이션
-                if hasattr(self, 'e_amt'):
-                    self._shake_widget(self.e_amt, highlight_bg="#FCA5A5")
-
-                # 3. 경고 팝업 띄움 (모달)
-                messagebox.showwarning(
-                    "⚠️ 공급가액 불일치 경고",
-                    f"구매요청서(PR)와 세금계산서의 공급가액이 일치하지 않습니다!\n\n"
-                    f"• PR 구매요청서: {pr_amt:,} 원\n"
-                    f"• 세금계산서:     {tax_amt:,} 원\n"
-                    f"• 차액 (불일치):  {diff:,} 원\n\n"
-                    f"금액을 확인하고 수정해 주세요!"
-                )
-            else:
-                pdf_parser._log_debug(f"[금액 일치 검증 완료] {pr_amt:,}원")
-                self.set_live_status(f"✅ 공급가액 일치 검증 완료 ({pr_amt:,}원) 🎯", type="success")
+        pr_amt, tax_amt = self.pr_supply_amount, self.tax_supply_amount
+        pair = (pr_amt, tax_amt)
+        if pair == self._last_discrepancy:
+            return
+        self._last_discrepancy = pair
+        if pr_amt is None or tax_amt is None:
+            return
+        if pr_amt != tax_amt:
+            self.set_live_status(f'⚠️ 원본 공급가액 불일치: PR {pr_amt:,} / 세금 {tax_amt:,}', type='error')
+            messagebox.showwarning('공급가액 불일치', f'원본 PR: {pr_amt:,}원 / 원본 세금계산서: {tax_amt:,}원\n입력값을 수정해도 원본 비교값은 유지됩니다.')
 
     def _shake_widget(self, widget, highlight_bg="#FEF08A"):
         """
@@ -1505,140 +1276,51 @@ shortcut.Save
             pass
 
     def _recalc_amounts(self, event=None):
-        raw = self.amount_var.get().replace(',', '').strip()
-        if raw.isdigit():
-            amt = int(raw)
-            vat = int(amt * 0.1)
-            tot = amt + vat
-            self.vat_var.set(f"{vat:,}")
-            self.total_amount_var.set(f"{tot:,}")
-            self.pr_supply_amount = amt
-            self._check_amount_discrepancy()
+        try:
+            amount = parse_money(self.amount_var.get())
+            vat = parse_money(self.vat_var.get())
+            self.total_amount_var.set(f'{amount + vat:,}' if amount is not None and vat is not None else '')
+        except ValueError:
+            self.total_amount_var.set('')
 
     def _parse_contract_pages(self, page_str):
-        pages = set()
-        cleaned = page_str.strip()
-        if not cleaned:
-            return [0], "1"
-        
-        parts = cleaned.split(',')
-        for part in parts:
-            part = part.strip()
-            if '-' in part:
-                sub = part.split('-')
-                if len(sub) == 2 and sub[0].strip().isdigit() and sub[1].strip().isdigit():
-                    start = int(sub[0].strip())
-                    end = int(sub[1].strip())
-                    for p in range(min(start, end), max(start, end) + 1):
-                        if p >= 1:
-                            pages.add(p - 1)
-            elif part.isdigit():
-                p = int(part)
-                if p >= 1:
-                    pages.add(p - 1)
-
-        sorted_pages = sorted(list(pages))
-        if not sorted_pages:
-            sorted_pages = [0]
-
-        return sorted_pages, cleaned
+        return parse_pages(page_str)
 
     def _get_form_data(self):
-        def _to_int(val_str):
-            cleaned = val_str.replace(',', '').strip()
-            return int(cleaned) if cleaned.isdigit() else 0
+        data = {key: getattr(self, key + '_var').get().strip() for key in
+                ('pr_no', 'pr_title', 'amount', 'vat', 'total_amount', 'date', 'supplier')}
+        for key in ('amount', 'vat', 'total_amount'):
+            data[key] = parse_money(data[key])
+        return data
 
-        return {
-            'pr_no': self.pr_no_var.get().strip(),
-            'pr_title': self.pr_title_var.get().strip(),
-            'amount': _to_int(self.amount_var.get()),
-            'vat': _to_int(self.vat_var.get()),
-            'total_amount': _to_int(self.total_amount_var.get()),
-            'date': self.date_var.get().strip(),
-            'supplier': self.supplier_var.get().strip(),
-        }
+    def close_app(self):
+        if self._closed:
+            return
+        self._closed = True
+        self.tasks.close()
+        if hasattr(self, 'tray_icon'):
+            self.tray_icon.stop()
+        self.root.destroy()
 
     def print_pdf_documents_only(self):
-        printer = self.selected_printer.get()
-        printed_list = []
-        failed_list = []
-
+        if self.tasks.busy & {'pr', 'po', 'tax', 'outlook'}:
+            self.set_live_status('문서 분석·변환이 끝난 후 인쇄해 주세요.', type='info')
+            return
         try:
-            if self.tax_pdf_path.get() and os.path.exists(self.tax_pdf_path.get()):
-                try:
-                    dec_pdf = pdf_parser.decrypt_pdf_to_temp(self.tax_pdf_path.get())
-                    ok = printer_handler.print_pdf_file(dec_pdf, printer_name=printer)
-                    if ok:
-                        printed_list.append("① 전자 세금계산서 PDF")
-                    else:
-                        failed_list.append("① 전자 세금계산서 PDF")
-                except Exception as e1:
-                    print(f"Tax print error: {e1}")
-                    failed_list.append("① 전자 세금계산서 PDF")
-
-            if self.spec_pdf_path.get() and os.path.exists(self.spec_pdf_path.get()):
-                try:
-                    ok = printer_handler.print_pdf_file(self.spec_pdf_path.get(), printer_name=printer)
-                    if ok:
-                        printed_list.append("② 거래명세서 PDF")
-                    else:
-                        failed_list.append("② 거래명세서 PDF")
-                except Exception as e2:
-                    print(f"Spec print error: {e2}")
-                    failed_list.append("② 거래명세서 PDF")
-
-            if self.pr_pdf_path.get() and os.path.exists(self.pr_pdf_path.get()):
-                try:
-                    ok = printer_handler.print_pdf_file(self.pr_pdf_path.get(), printer_name=printer)
-                    if ok:
-                        printed_list.append("③ PR Print PDF (구매요청서)")
-                    else:
-                        failed_list.append("③ PR Print PDF (구매요청서)")
-                except Exception as e3:
-                    print(f"PR print error: {e3}")
-                    failed_list.append("③ PR Print PDF (구매요청서)")
-
-            if self.po_pdf_path.get() and os.path.exists(self.po_pdf_path.get()):
-                try:
-                    ok = printer_handler.print_pdf_file(self.po_pdf_path.get(), printer_name=printer)
-                    if ok:
-                        printed_list.append("④ 발주서 (PO) PDF")
-                    else:
-                        failed_list.append("④ 발주서 (PO) PDF")
-                except Exception as e4:
-                    print(f"PO print error: {e4}")
-                    failed_list.append("④ 발주서 (PO) PDF")
-
-            if self.contract_pdf_path.get() and os.path.exists(self.contract_pdf_path.get()):
-                try:
-                    page_str = self.contract_page.get().strip()
-                    page_indices, label_str = self._parse_contract_pages(page_str)
-                    ok = printer_handler.print_pdf_file(self.contract_pdf_path.get(), printer_name=printer, page_range=page_indices)
-                    if ok:
-                        printed_list.append(f"⑤ 업체 계약서 PDF ({label_str} 페이지)")
-                    else:
-                        failed_list.append(f"⑤ 업체 계약서 PDF ({label_str} 페이지)")
-                except Exception as e5:
-                    print(f"Contract print error: {e5}")
-                    failed_list.append(f"⑤ 업체 계약서 PDF ({label_str} 페이지)")
-
-            if not printed_list and not failed_list:
-                self.set_live_status("⚠️ 인쇄할 PDF 서류가 업로드되지 않았습니다.", type="error")
-                return
-
-            if printed_list:
-                summary = ", ".join(printed_list)
-                if failed_list:
-                    fail_summary = ", ".join(failed_list)
-                    self.set_live_status(f"⚠️ 일부 인쇄 성공 [{summary}], 실패 [{fail_summary}] (프린터: {printer})", type="error")
-                else:
-                    self.set_live_status(f"🖨️ 서류 일괄 인쇄 요청 완료: [{summary}] (프린터: {printer})", type="success")
-            else:
-                fail_summary = ", ".join(failed_list)
-                self.set_live_status(f"⚠️ 인쇄 실패: [{fail_summary}] (프린터: {printer})", type="error")
-
-        except Exception as e:
-            self.set_live_status(f"⚠️ 인쇄 오류: {e}", type="error")
+            paths = {kind: getattr(self, kind + '_pdf_path').get() for kind in ('tax', 'spec', 'pr', 'po', 'contract')}
+            pages, label = self._parse_contract_pages(self.contract_page.get()) if paths['contract'] else (None, '')
+            printer = self.selected_printer.get()
+            def done(result):
+                submitted, failed = result
+                self.set_live_status('인쇄 요청: ' + ', '.join(submitted) + (' / 실패: ' + '; '.join(failed) if failed else ''),
+                                     type='error' if failed else 'success')
+                if failed:
+                    messagebox.showwarning('인쇄 요청 확인', '\n'.join(failed))
+            if self.tasks.submit('print', lambda: printer_handler.print_documents(paths, printer, pages), done,
+                                 lambda error: self.set_live_status(f'인쇄 중단: {error}', type='error')):
+                self.set_live_status('⏳ 서류 검증·인쇄 요청 중...', type='info')
+        except ValueError as error:
+            self.set_live_status(str(error), type='error')
 
 def main():
     if HAS_DND:

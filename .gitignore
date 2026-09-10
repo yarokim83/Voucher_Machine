@@ -1,7 +1,10 @@
-﻿build/
-dist/*.exe
+__pycache__/
+*.py[cod]
+.venv/
+build/
+dist/
 *.pkg
 *.pyz
-*.spec
-installer_runner.py
-make_installer.py
+*.log
+scratch_*.txt
+.pytest_cache/
