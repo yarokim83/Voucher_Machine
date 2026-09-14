@@ -5,7 +5,7 @@ import base64
 import time
 import html
 from datetime import date
-from voucher_core import extract_amounts
+from voucher_core import extract_amounts, extract_purchase_amounts
 from file_utils import temp_output
 
 try:
@@ -328,6 +328,39 @@ def parse_tax_invoice_date(file_path):
     data = parse_tax_invoice_data(file_path)
     return data.get('date', '')
 
+def _supplier_from_tables(tables):
+    """Company is a separate column from person, phone and fax in PR/PO forms."""
+    for table in tables:
+        for row_index, row in enumerate(table):
+            for column, cell in enumerate(row):
+                lines = str(cell or '').strip().splitlines()
+                if not lines or not re.fullmatch(r'COMPANY(?:\s+NAME)?', lines[0].strip(), re.I):
+                    continue
+                if len(lines) > 1 and lines[1].strip():
+                    return lines[1].strip()
+                for next_row in table[row_index + 1:]:
+                    value = next_row[column] if column < len(next_row) else None
+                    if value and str(value).strip():
+                        return str(value).strip()
+    return ''
+
+
+def _read_purchase_supplier(pdf_path):
+    if not HAS_PDFPLUMBER:
+        return ''
+    for pwd in DEFAULT_PASSWORDS:
+        try:
+            with pdfplumber.open(pdf_path, password=pwd) as pdf:
+                for page in pdf.pages:
+                    supplier = _supplier_from_tables(page.extract_tables())
+                    if supplier:
+                        return supplier
+            return ''
+        except Exception:
+            continue
+    return ''
+
+
 def parse_pr_pdf(pdf_path):
     if not os.path.exists(pdf_path):
         raise FileNotFoundError(f"PDF 파일을 찾을 수 없습니다: {pdf_path}")
@@ -364,7 +397,7 @@ def parse_pr_pdf(pdf_path):
     if subj_match:
         extracted_data['pr_title'] = subj_match.group(1).strip()
 
-    extracted_data.update(extract_amounts(full_text))
+    extracted_data.update(extract_purchase_amounts(full_text))
     if not full_text.strip():
         extracted_data['warnings'].append('텍스트를 읽을 수 없습니다. 스캔/암호화 문서를 확인해 주세요.')
 
@@ -375,7 +408,9 @@ def parse_pr_pdf(pdf_path):
         s = re.sub(r'[\r\n\t]+', ' ', s)
         s = re.sub(r'\s*\(\s*', '(', s)
         s = re.sub(r'\s*\)\s*', ')', s)
-        s = re.sub(r'^\d+[\s.]*', '', s)
+        s = re.sub(r'^\d+[\s.]+', '', s)
+        # Remove flattened contact columns, not digits within company names.
+        s = re.split(r'\s+(?:(?:TEL|FAX)\.?\s*[:：]?\s*)?(?:\+82[\s-]*)?0\d{1,2}[\s-]+\d{3,4}[\s-]+\d{4}\b', s, maxsplit=1, flags=re.I)[0]
         s = re.sub(r'\s+\d{9,12}.*$', '', s)
         s = re.sub(r'\s+010.*$', '', s)
         s = re.sub(r'\s+[a-zA-Z0-9_.+-]+@.*$', '', s)
@@ -434,6 +469,9 @@ def parse_pr_pdf(pdf_path):
         if sup_match:
             extracted_data['supplier'] = _clean_sup(sup_match.group(1))
 
+    table_supplier = _read_purchase_supplier(pdf_path)
+    if table_supplier:
+        extracted_data['supplier'] = _clean_sup(table_supplier)
     return extracted_data
 
 def classify_pdf_type(file_path):

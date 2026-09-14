@@ -365,7 +365,7 @@ class CleanMinimalDropZone(RoundedFrame):
 
 class VoucherPassApp:
     """
-    VoucherPass v8.8.0 document collection and validation
+    VoucherPass v8.8.1 document collection and validation
     """
     def __init__(self, root):
         self.root = root
@@ -745,7 +745,7 @@ shortcut.Save
         lbl_logo.bind("<Button-1>", self._click_title)
         lbl_logo.bind("<B1-Motion>", self._drag_title)
 
-        ver_b = RoundedBadge(hdr, text="v8.8.0", bg_color="#26407F", fg_color="#FFFFFF", font=("Malgun Gothic", 8, "bold"), radius=6, width=46, height=20, outer_bg="#3457A8")
+        ver_b = RoundedBadge(hdr, text="v8.8.1", bg_color="#26407F", fg_color="#FFFFFF", font=("Malgun Gothic", 8, "bold"), radius=6, width=46, height=20, outer_bg="#3457A8")
         ver_b.pack(side="left", padx=(6, 0))
 
         btn_outlook = RoundedBadge(hdr, text="📬 아웃룩", bg_color="#4F46E5", fg_color="#FFFFFF", font=("Malgun Gothic", 8, "bold"), radius=6, width=62, height=20, outer_bg="#3457A8", cursor="hand2")
@@ -899,7 +899,8 @@ shortcut.Save
         # Row 3: 부가세 (좌) | 합계금액 (우측 골드 카드 - 세로 공간 최적화)
         f_c1_r3 = tk.Frame(grid_f, bg="#FFFFFF")
         f_c1_r3.grid(row=3, column=0, sticky="ew", padx=3, pady=1.5)
-        tk.Label(f_c1_r3, text="• 부가세", **lbl_s).pack(anchor="w")
+        self.lbl_vat = tk.Label(f_c1_r3, text="• 부가세", **lbl_s)
+        self.lbl_vat.pack(anchor="w")
         box_vat = RoundedFrame(f_c1_r3, radius=5, bg_color="#F5F8FF", border_color="#CBD5E1", outer_bg="#FFFFFF", padx=5, pady=2)
         box_vat.pack(fill="x", pady=(1, 0))
         self.e_vat = tk.Entry(box_vat, textvariable=self.vat_var, font=("Consolas", 10, "bold"), bg="#F5F8FF", fg="#26407F", justify="right", relief="flat", bd=0)
@@ -1022,7 +1023,8 @@ shortcut.Save
         self.pr_supply_amount = None
         self.tax_supply_amount = None
 
-        
+        self.lbl_vat.config(text='• 부가세')
+
         if hasattr(self, 'txt_pr_title'):
             self.txt_pr_title.delete("1.0", "end")
             
@@ -1193,6 +1195,10 @@ shortcut.Save
             var.set('' if value is None else f'{value:,}' if isinstance(value, int) else value)
         self.pr_supply_amount = self.documents.supply('pr')
         self.tax_supply_amount = self.documents.supply('tax')
+        docs = self.documents.documents
+        owner = docs.get('pr', {}) if 'pr' in docs else docs.get('tax', {}) if 'tax' in docs else docs.get('po', {})
+        label = f"• 부가세 ({owner['vat_rate_percent']:g}% 계산)" if owner.get('vat_source') == 'calculated' else '• 부가세'
+        self.lbl_vat.config(text=label)
 
     def _apply_document(self, kind, data):
         self.documents.replace(kind, data)
@@ -1201,6 +1207,8 @@ shortcut.Save
         warnings = data.get('warnings', [])
         self.set_live_status(f'{kind.upper()} 분석: ' + ('확인 필요 — ' + '; '.join(warnings or ['일부 항목 미추출']) if warnings or missing else '추출 완료'),
                              type='error' if warnings or missing else 'success')
+        if data.get('vat_source') == 'calculated' and not warnings:
+            self.set_live_status(f"{kind.upper()} 공급가액 추출 · 부가세 {data['vat_rate_percent']:g}% 계산", type='info')
         self._check_amount_discrepancy()
 
     def parse_tax_invoice_uploaded(self, tax_path=None):
@@ -1276,6 +1284,7 @@ shortcut.Save
             pass
 
     def _recalc_amounts(self, event=None):
+        self.lbl_vat.config(text='• 부가세 (입력값)')
         try:
             amount = parse_money(self.amount_var.get())
             vat = parse_money(self.vat_var.get())

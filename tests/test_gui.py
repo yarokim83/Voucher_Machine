@@ -60,6 +60,15 @@ class GuiTests(unittest.TestCase):
             self.app.drop_po.on_file_selected('b.pdf')
         self.assertEqual([call.args for call in parse.call_args_list], [('a.pdf', 'pr'), ('b.pdf', 'po')])
 
+    def test_calculated_vat_label_and_reset(self):
+        self.app.documents.replace('pr', dict(amount=1500000, vat=150000, total_amount=1650000,
+                                              vat_source='calculated', vat_rate_percent=10))
+        self.app._refresh_form()
+        self.assertEqual(self.app.vat_var.get(), '150,000')
+        self.assertIn('10% 계산', self.app.lbl_vat.cget('text'))
+        self.app.reset_all_data()
+        self.assertEqual(self.app.lbl_vat.cget('text'), '• 부가세')
+
 
 if __name__ == '__main__':
     unittest.main()

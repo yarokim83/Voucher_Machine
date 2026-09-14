@@ -1,5 +1,6 @@
 """UI-independent document state, amount parsing, and page validation."""
 import re
+from decimal import Decimal
 from dataclasses import dataclass, field
 
 
@@ -51,7 +52,76 @@ def extract_amounts(text):
     if any(value is None for value in (a, v, t)):
         warnings.append('금액 미추출: 원문 확인 필요')
     result['warnings'] = warnings
+    result['explicit_fields'] = tuple(key for key, values in candidates.items() if len(values) == 1)
     return result
+
+
+def extract_purchase_amounts(text):
+    """Read the last Total column of a KRW, VAT-exclusive purchase table.
+
+    This rule is deliberately separate from invoice parsing: an exclusive Total
+    is a net amount, and two monetary columns are unit-price and extended totals.
+    VAT not printed in the document is a labeled calculation, never an extraction.
+    """
+    result = extract_amounts(text)
+    if not re.search(r'PURCHASE\s+REQUISITION|PURCHAS(?:E|ING)\s+ORDER', text, re.I):
+        return result
+    section = re.search(r'CONTRACT\s+LIST|ORDER\s+LIST', text, re.I)
+    if not section:
+        return result
+    # A PO may print the currency/tax basis immediately above ORDER LIST.
+    line_start = text.rfind('\n', 0, section.start())
+    start = text.rfind('\n', 0, max(0, line_start))
+    table = text[max(0, start):]
+    end = re.search(r'\n\s*(?:⊙|4\s*\.\s*계약\s*조건|TERMS\s+AND\s+CONDITIONS)', text[section.end():], re.I)
+    if end:
+        table = text[max(0, start):section.end() + end.start()]
+    if not re.search(r'Unit\s*:\s*KRW\s*/\s*Excluding\s+VAT', table, re.I):
+        return result
+    lines = table.splitlines()
+    totals = set()
+    for index, line in enumerate(lines):
+        total = re.match(r'^\s*Total\b(.*)$', line, re.I)
+        if not total:
+            continue
+        # Currency and values can wrap onto separate lines in browser PDFs.
+        for row in [total[1]] + lines[index + 1:index + 4]:
+            cleaned = re.sub(r'\bKRW\b|₩|원|\|', ' ', row, flags=re.I).strip()
+            if not cleaned:
+                continue
+            tokens = cleaned.split()
+            if len(tokens) in (1, 2) and all(re.fullmatch(r'[+-]?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.00)?', token) for token in tokens):
+                totals.add(int(Decimal(tokens[-1].replace(',', ''))))
+            # Never scan past a non-currency row into item/budget numbers.
+            break
+    if not totals:
+        return result
+    if len(totals) != 1:
+        return dict(amount=None, vat=None, total_amount=None,
+                    warnings=['구매 목록에 서로 다른 Total 금액이 있습니다. 원문 확인 필요'])
+    amount = totals.pop()
+    if 'amount' in result['explicit_fields'] and result['amount'] != amount:
+        return dict(amount=None, vat=None, total_amount=None,
+                    warnings=['명시된 공급가액과 구매 목록 Total이 다릅니다. 원문 확인 필요'])
+    # The template's Total excludes tax. Discard the generic gross-total label.
+    vat = result['vat'] if 'vat' in result['explicit_fields'] else None
+    data = dict(amount=amount, vat=vat, total_amount=None,
+                amount_source='purchase_table_total_excluding_vat', warnings=[])
+    if any(warning.startswith(('amount:', 'vat:')) for warning in result['warnings']):
+        data['warnings'].append('명시된 금액에 서로 다른 후보가 있습니다. 원문 확인 필요')
+        return data
+    if vat is None:
+        rates = {Decimal(rate) for rate in re.findall(r'\bVAT\s*(?:rate\s*)?[:=]?\s*(\d+(?:\.\d+)?)\s*%', text, re.I)}
+        if len(rates) > 1 or any(rate < 0 or rate > 100 for rate in rates) or re.search(r'면세|영세율|VAT\s*exempt', text, re.I):
+            data['warnings'].append('부가세율 확인 필요: 부가세를 직접 입력해 주세요.')
+            return data
+        rate = next(iter(rates)) if rates else Decimal('10')
+        vat = int(Decimal(amount) * rate / 100)
+        data.update(vat=vat, vat_source='calculated', vat_rate_percent=float(rate))
+    else:
+        data['vat_source'] = 'extracted'
+    data['total_amount'] = amount + vat
+    return data
 
 
 def parse_money(value):
