@@ -1,4 +1,4 @@
-# VoucherPass v8.8.1
+# VoucherPass v8.8.2
 
 Windows용 증빙 서류 등록·추출·인쇄·보관 도구입니다. 내부 시스템에 직접 업로드하거나 거래 건을 자동 확정하는 기능은 포함하지 않습니다.
 
@@ -45,11 +45,13 @@ py -3.12 -m venv .venv
 .\.venv\Scripts\python make_installer.py
 ```
 
-`make_installer.py`는 두 spec을 순서대로 clean 빌드합니다. 결과는 `dist/v8.8.1/VoucherPass.exe`, `dist/v8.8.1/VoucherPass_Setup.exe`입니다. 캐시는 `build/v8.8.1/`에 저장하며 이전 버전 파일과 분리합니다. `assets/` 아이콘과 `bin/SumatraPDF.exe`가 필요하며 특정 사용자 절대경로는 사용하지 않습니다.
+`make_installer.py`는 두 spec을 순서대로 clean 빌드합니다. 결과는 `dist/v8.8.2/VoucherPass.exe`, `dist/v8.8.2/VoucherPass_Setup.exe`입니다. 캐시는 `build/v8.8.2/`에 저장하며 이전 버전 파일과 분리합니다. `assets/` 아이콘과 `bin/SumatraPDF.exe`가 필요하며 특정 사용자 절대경로는 사용하지 않습니다.
 
 설치 프로그램은 기존과 동일하게 Public/VoucherPass에 설치하고 현재 사용자 바로가기·시작프로그램을 등록합니다. 기존 프로그램을 종료한 후 업데이트합니다.
 
-디버그 로그는 기본 꺼짐입니다. 필요한 경우 `VOUCHERPASS_DEBUG=1`을 설정하며, 업무 정보가 포함될 수 있으므로 공유 전 내용을 확인합니다. 로그·임시파일·신규 빌드 출력은 Git에서 제외합니다. GitHub 용량 제한을 초과한 기존 dist/VoucherPass.exe와 build/VoucherPass/VoucherPass.pkg는 Git 추적에서 제외했으며 실제 로컬 파일은 유지합니다. 정리 전 이력은 로컬 codex/local-backup-v8.8.0 브랜치에 보존합니다.
+세금계산서 변환 진단 로그는 `%APPDATA%\VoucherPass\tax_conversion.log`에 항상 기록됩니다(1MB × 최대 4개). 실패 화면의 진단 ID로 해당 실행을 찾을 수 있으며, 처리 단계·브라우저 버전·예외 유형·코드 위치만 기록하고 비밀번호와 서류 내용은 기록하지 않습니다.
+
+기존 PDF 파서 디버그 로그는 기본 꺼짐입니다. 필요한 경우 `VOUCHERPASS_DEBUG=1`을 설정하며, 업무 정보가 포함될 수 있으므로 공유 전 내용을 확인합니다. 로그·임시파일·신규 빌드 출력은 Git에서 제외합니다. GitHub 용량 제한을 초과한 기존 dist/VoucherPass.exe와 build/VoucherPass/VoucherPass.pkg는 Git 추적에서 제외했으며 실제 로컬 파일은 유지합니다. 정리 전 이력은 로컬 codex/local-backup-v8.8.0 브랜치에 보존합니다.
 
 ## 검증
 
