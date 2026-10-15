@@ -56,7 +56,7 @@ def extract_amounts(text):
     return result
 
 
-def extract_purchase_amounts(text):
+def extract_purchase_amounts(text, table_totals=None):
     """Read the last Total column of a KRW, VAT-exclusive purchase table.
 
     This rule is deliberately separate from invoice parsing: an exclusive Total
@@ -85,15 +85,25 @@ def extract_purchase_amounts(text):
         if not total:
             continue
         # Currency and values can wrap onto separate lines in browser PDFs.
-        for row in [total[1]] + lines[index + 1:index + 4]:
+        values = []
+        for row in [total[1]] + lines[index + 1:index + 5]:
             cleaned = re.sub(r'\bKRW\b|₩|원|\|', ' ', row, flags=re.I).strip()
             if not cleaned:
                 continue
             tokens = cleaned.split()
             if len(tokens) in (1, 2) and all(re.fullmatch(r'[+-]?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.00)?', token) for token in tokens):
-                totals.add(int(Decimal(tokens[-1].replace(',', ''))))
+                values.extend(int(Decimal(token.replace(',', ''))) for token in tokens)
+                if len(values) < 2:
+                    continue
             # Never scan past a non-currency row into item/budget numbers.
             break
+        if len(values) in (1, 2):
+            totals.add(values[-1])
+    if table_totals is not None:
+        if not table_totals or any(value is None for value in table_totals):
+            return dict(amount=None, vat=None, total_amount=None,
+                        warnings=['구매 목록 Amount 합계 셀을 읽을 수 없습니다. 원문 확인 필요'])
+        totals = set(table_totals)
     if not totals:
         return result
     if len(totals) != 1:

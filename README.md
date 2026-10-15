@@ -1,4 +1,4 @@
-# VoucherPass v8.8.2
+# VoucherPass v8.8.3
 
 Windows용 증빙 서류 등록·추출·인쇄·보관 도구입니다. 내부 시스템에 직접 업로드하거나 거래 건을 자동 확정하는 기능은 포함하지 않습니다.
 
@@ -45,7 +45,7 @@ py -3.12 -m venv .venv
 .\.venv\Scripts\python make_installer.py
 ```
 
-`make_installer.py`는 두 spec을 순서대로 clean 빌드합니다. 결과는 `dist/v8.8.2/VoucherPass.exe`, `dist/v8.8.2/VoucherPass_Setup.exe`입니다. 캐시는 `build/v8.8.2/`에 저장하며 이전 버전 파일과 분리합니다. `assets/` 아이콘과 `bin/SumatraPDF.exe`가 필요하며 특정 사용자 절대경로는 사용하지 않습니다.
+`make_installer.py`는 두 spec을 순서대로 clean 빌드합니다. 결과는 `dist/v8.8.3/VoucherPass.exe`, `dist/v8.8.3/VoucherPass_Setup.exe`입니다. 캐시는 `build/v8.8.3/`에 저장하며 이전 버전 파일과 분리합니다. `assets/` 아이콘과 `bin/SumatraPDF.exe`가 필요하며 특정 사용자 절대경로는 사용하지 않습니다.
 
 설치 프로그램은 기존과 동일하게 Public/VoucherPass에 설치하고 현재 사용자 바로가기·시작프로그램을 등록합니다. 기존 프로그램을 종료한 후 업데이트합니다.
 

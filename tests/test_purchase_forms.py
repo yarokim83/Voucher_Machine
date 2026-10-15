@@ -10,6 +10,34 @@ def pr_table(total='Total KRW 500,000 KRW 1,500,000', basis='Excluding VAT'):
 
 
 class PurchaseAmountTests(unittest.TestCase):
+    def test_amount_wraps_after_unit_price(self):
+        data = extract_purchase_amounts(pr_table('Total KRW 500,000\n1,500,000'))
+        self.assertEqual(data['amount'], 1500000)
+
+    def test_wrapped_currency_and_smaller_amount(self):
+        data = extract_purchase_amounts(pr_table('Total KRW 9,000,000\nKRW\n1,500,000'))
+        self.assertEqual(data['amount'], 1500000)
+
+    def test_amount_column_overrides_text_order(self):
+        tables = [[['No', 'Amount', 'Unit Price'], ['Total', 'KRW\n1,500,000', 'KRW 500,000']]]
+        totals = pdf_parser._purchase_totals_from_tables(tables)
+        data = extract_purchase_amounts(pr_table('Total KRW 1,500,000 KRW 500,000'), totals)
+        self.assertEqual(data['amount'], 1500000)
+
+    def test_korean_amount_column(self):
+        tables = [[['단가/월간금액', '총약정금액', ''], ['500,000', 'KRW\n1,500,000', 'Total']]]
+        self.assertEqual(pdf_parser._purchase_totals_from_tables(tables), [1500000])
+
+    def test_unreadable_amount_cell_does_not_use_unit_price(self):
+        tables = [[['Unit Price', 'Amount', ''], ['500,000', '', 'Total']]]
+        data = extract_purchase_amounts(pr_table('Total KRW 500,000'), pdf_parser._purchase_totals_from_tables(tables))
+        self.assertIsNone(data['amount'])
+        self.assertTrue(data['warnings'])
+
+    def test_conflicting_table_totals_need_review(self):
+        data = extract_purchase_amounts(pr_table(), [1500000, 2000000])
+        self.assertIsNone(data['amount'])
+
     def test_last_total_column_is_net_not_largest_number(self):
         data = extract_purchase_amounts(pr_table('Total KRW 9,000,000 KRW 1,500,000'))
         self.assertEqual((data['amount'], data['vat'], data['total_amount']), (1500000, 150000, 1650000))

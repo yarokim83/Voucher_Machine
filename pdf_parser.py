@@ -361,6 +361,40 @@ def _read_purchase_supplier(pdf_path):
     return ''
 
 
+def _purchase_totals_from_tables(tables):
+    """Select the Amount column, never Unit Price, at the Total row."""
+    totals = []
+    for table in tables:
+        column = None
+        for row in table:
+            for index, cell in enumerate(row):
+                label = re.sub(r'\s+', '', str(cell or '')).lower()
+                if label in ('amount', '총약정금액', '총액'):
+                    column = index
+            if column is None or not any(re.fullmatch(r'\s*Total\s*', str(cell or ''), re.I) for cell in row):
+                continue
+            value = str(row[column] or '') if column < len(row) else ''
+            value = re.sub(r'KRW|₩|원|\s', '', value, flags=re.I)
+            if re.fullmatch(r'[+-]?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.00)?', value):
+                totals.append(int(value.replace(',', '').split('.')[0]))
+            else:
+                totals.append(None)
+    return totals or None
+
+
+def _read_purchase_totals(pdf_path):
+    if not HAS_PDFPLUMBER:
+        return None
+    for pwd in DEFAULT_PASSWORDS:
+        try:
+            with pdfplumber.open(pdf_path, password=pwd) as pdf:
+                tables = [table for page in pdf.pages for table in page.extract_tables()]
+                return _purchase_totals_from_tables(tables)
+        except Exception:
+            continue
+    return None
+
+
 def parse_pr_pdf(pdf_path):
     if not os.path.exists(pdf_path):
         raise FileNotFoundError(f"PDF 파일을 찾을 수 없습니다: {pdf_path}")
@@ -397,7 +431,7 @@ def parse_pr_pdf(pdf_path):
     if subj_match:
         extracted_data['pr_title'] = subj_match.group(1).strip()
 
-    extracted_data.update(extract_purchase_amounts(full_text))
+    extracted_data.update(extract_purchase_amounts(full_text, _read_purchase_totals(pdf_path)))
     if not full_text.strip():
         extracted_data['warnings'].append('텍스트를 읽을 수 없습니다. 스캔/암호화 문서를 확인해 주세요.')
 
